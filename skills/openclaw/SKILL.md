@@ -1,6 +1,6 @@
 ---
 name: openclaw
-version: 0.2.0
+version: 0.2.1
 description: Install, configure, and update openclaw-config
 triggers:
   - openclaw
@@ -26,38 +26,33 @@ Manages your openclaw-config installation.
 
 # Setup
 
-Clone `https://github.com/TechNickAI/openclaw-config` to `~/.openclaw-config`.
+Do these steps in order:
 
-Copy templates to workspace root (don't overwrite existing): AGENTS.md, SOUL.md, USER.md, TOOLS.md, HEARTBEAT.md, IDENTITY.md
+1. **Clone repo** to `~/.openclaw-config`
 
-Create memory folder structure and copy all skills.
+2. **Copy templates** to workspace root (don't overwrite existing): AGENTS.md, SOUL.md, USER.md, TOOLS.md, HEARTBEAT.md, IDENTITY.md
 
-## Memory Search
+3. **Create memory folders:** `memory/people`, `memory/projects`, `memory/topics`, `memory/decisions`
 
-Needs embeddings for semantic search.
+4. **Copy skills** to `skills/`
 
-**Ask:** LM Studio (local, free, recommended) or OpenAI?
+5. **Configure memory search** — Required for semantic search to work. Ask: LM Studio (local, free, recommended) or OpenAI?
+   - **LM Studio:** Server on port 1234, model `lmstudio-community/embedding-gemma-300m-qat`, configure gateway memorySearch.remote.baseUrl to `http://127.0.0.1:1234/v1`
+   - **OpenAI:** Get their API key, configure gateway memorySearch.remote.baseUrl to `https://api.openai.com/v1`, model `text-embedding-3-small`
+   - **Verify it works:** Create test file in memory/, index it, search for it, confirm it returns results, clean up
 
-**LM Studio:** Server on port 1234, model `lmstudio-community/embedding-gemma-300m-qat`, configure gateway baseUrl to `http://127.0.0.1:1234/v1`
+6. **Personalization** — Ask and replace in templates: `{{USER_NAME}}`, `{{ASSISTANT_NAME}}`, `{{TIMEZONE}}`, `{{PRIORITY_1}}`, `{{PRIORITY_2}}`
 
-**OpenAI:** Get their API key, configure gateway baseUrl to `https://api.openai.com/v1`, model `text-embedding-3-small`
+7. **Optional skills** — These are optional. Ask about each one individually, only configure if they say yes:
+   - "Do you have a Limitless Pendant?" → If yes, get API key from app.limitless.ai → Settings → Developer
+   - "Do you use Fireflies.ai for meeting transcripts?" → If yes, get API key from app.fireflies.ai → Integrations → Fireflies API
+   - "Do you use Quo for business phone?" → If yes, get API key from my.quo.com → Settings → API
 
-**Verify:** Create test file in memory/, index, search semantically, confirm it finds it, clean up.
+   Skip any they don't use. Don't assume they want all of them.
 
-## Personalization
+8. **Track version** in `.openclaw/installed-version`
 
-Ask and replace in templates: `{{USER_NAME}}`, `{{ASSISTANT_NAME}}`, `{{TIMEZONE}}`, `{{PRIORITY_1}}`, `{{PRIORITY_2}}`
-
-## Optional Skills
-
-Ask if they use each, get API key if yes:
-- **Limitless** — app.limitless.ai → Settings → Developer
-- **Fireflies** — app.fireflies.ai → Integrations → Fireflies API
-- **Quo** — my.quo.com → Settings → API
-
-## Finish
-
-Track version in `.openclaw/installed-version`. Tell them what's configured.
+9. **Summary** — Tell them what's configured
 
 ---
 
