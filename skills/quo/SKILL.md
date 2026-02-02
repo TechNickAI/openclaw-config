@@ -1,6 +1,7 @@
 ---
 name: quo
-description: Query Quo (formerly OpenPhone) business phone - calls, texts, conversations, contacts, and call transcripts/summaries.
+version: 0.1.0
+description: Query Quo business phone - calls, texts, contacts, transcripts
 triggers:
   - quo
   - openphone
@@ -14,71 +15,46 @@ metadata:
     apiKey:
       env: QUO_API_KEY
       getFrom: https://my.quo.com → Settings → API
-    requires:
-      bins:
-        - curl
-        - jq
 ---
 
-# Quo Integration 📞
+# Quo 📞
 
-Query your Quo (formerly OpenPhone) business phone system - calls, texts, conversations, contacts, and AI-generated call transcripts/summaries.
+Query your Quo (formerly OpenPhone) business phone — calls, texts, contacts, transcripts.
 
 ## Setup
 
-**If not configured:** Ask the user for their API key. They can get it from:
-https://my.quo.com → Settings → API
+API key from my.quo.com → Settings → API. Configure via gateway.
 
-Then configure via `gateway config.patch` with `env.QUO_API_KEY`.
-
-## Quick Commands
-
-```bash
-# List your phone numbers
-quo numbers
-
-# Recent conversations (calls + texts)
-quo conversations
-quo conversations 20
-
-# List contacts
-quo contacts
-
-# List workspace users
-quo users
-
-# Get call summary by call ID
-quo summary AC123abc
-
-# Get call transcript by call ID
-quo transcript AC123abc
-
-# Get call recording URLs
-quo recordings AC123abc
-```
-
-## When to Use
+## What Users Ask
 
 - "What's my Quo number?"
 - "Show recent conversations"
-- "Get the transcript from call AC123..."
-- "What was the summary of that call?"
+- "Get the transcript from that call"
+- "What was the summary of my call with [person]?"
 - "List my business contacts"
 
-## Response Format
+## Capabilities
 
-**Conversations include:**
-- `id` - Conversation ID
-- `name` - Contact name if known
-- `participants` - Phone numbers
-- `lastActivityAt` - Most recent activity
+- List phone numbers
+- Recent conversations (calls + texts)
+- Contacts and workspace users
+- Call summaries and transcripts
+- Recording URLs
 
-**Call summaries/transcripts include:**
+## Response Data
+
+**Conversations:**
+- `id` — Conversation ID
+- `name` — Contact name if known
+- `participants` — Phone numbers
+- `lastActivityAt` — Most recent activity
+
+**Transcripts/Summaries:**
 - AI-generated summary
 - Full transcript with timestamps
 - Speaker attribution when available
 
 ## Notes
 
-- Call transcripts require call recording to be enabled in Quo settings
-- Phone numbers are in E.164 format (+1XXXXXXXXXX)
+- Transcripts require call recording enabled in Quo settings
+- Phone numbers in E.164 format (+1XXXXXXXXXX)

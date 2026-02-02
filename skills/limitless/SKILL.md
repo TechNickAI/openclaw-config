@@ -1,6 +1,7 @@
 ---
 name: limitless
-description: Query Limitless Pendant lifelogs - conversations, meetings, and ambient recordings from your wearable AI device.
+version: 0.1.0
+description: Query Limitless Pendant lifelogs - conversations, meetings, and ambient recordings
 triggers:
   - limitless
   - pendant
@@ -13,61 +14,40 @@ metadata:
     apiKey:
       env: LIMITLESS_API_KEY
       getFrom: https://app.limitless.ai → Settings → Developer
-    requires:
-      bins:
-        - curl
-        - jq
 ---
 
-# Limitless Pendant Integration 🎙️
+# Limitless Pendant 🎙️
 
-Query your Limitless wearable's lifelogs - the AI device that captures conversations and creates searchable transcripts of your life.
+Query your Limitless wearable's lifelogs — conversations and ambient recordings.
 
 ## Setup
 
-**If not configured:** Ask the user for their API key. They can get it from:
-https://app.limitless.ai → Settings → Developer
+API key from app.limitless.ai → Settings → Developer. Configure via gateway.
 
-Then configure via `gateway config.patch` with `env.LIMITLESS_API_KEY`.
-
-## Quick Commands
-
-```bash
-# Recent lifelogs (default: 5)
-limitless recent
-limitless recent 10
-
-# Search for something specific
-limitless search "meeting with john"
-
-# Get today's conversations
-limitless today
-
-# Get a specific date
-limitless date 2026-01-28
-
-# Raw API call with custom params
-limitless raw "limit=5&isStarred=true"
-```
-
-## When to Use
+## What Users Ask
 
 - "What did I talk about with [person]?"
-- "What happened in my meeting today/yesterday?"
-- "What was that thing someone mentioned?"
-- "Summarize my conversations this week"
-- Recalling ambient conversations captured throughout the day
+- "What happened in my meeting today?"
+- "Show me my recent conversations"
+- "Search my lifelogs for [topic]"
+- "What was that thing someone mentioned about [subject]?"
 
-## Response Format
+## Capabilities
 
-Lifelogs contain:
-- `title` - AI-generated summary title
-- `markdown` - Full transcript with timestamps
-- `startTime`/`endTime` - When recording happened
-- `contents` - Structured segments with speaker attribution
+- Recent lifelogs (configurable count)
+- Semantic + keyword search
+- Filter by date or date range
+- Filter starred entries
+
+## Response Data
+
+- `title` — AI-generated summary
+- `markdown` — Full transcript with timestamps
+- `startTime`/`endTime` — When it happened
+- `contents` — Segments with speaker attribution
 
 ## Notes
 
-- Speaker attribution may show as "Unknown" unless voice profiles are trained
+- Speaker attribution shows "Unknown" unless voice profiles trained
 - Rate limit: 180 requests/minute
-- Requires Limitless Pendant hardware device
+- Requires Limitless Pendant hardware

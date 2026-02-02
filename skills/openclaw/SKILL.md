@@ -1,91 +1,76 @@
 ---
 name: openclaw
-description: Manage your openclaw-config installation - sync updates, check versions, add skills
+version: 0.2.0
+description: Install, configure, and update openclaw-config
 triggers:
   - openclaw
-  - config sync
-  - update config
+  - openclaw-config
+  - set up openclaw
+  - update openclaw
 metadata:
   openclaw:
     emoji: "🐾"
-    requires:
-      bins:
-        - git
-        - jq
 ---
 
-# OpenClaw Config Management 🐾
+# OpenClaw Config Skill 🐾
 
-Manage your openclaw-config installation from within OpenClaw.
+Manages your openclaw-config installation.
 
-## Quick Commands
+**Users say things like:**
+- "Set up openclaw-config"
+- "Update my openclaw config"
+- "Force update openclaw" (overwrites their changes)
+- "Check if openclaw has updates"
 
-```bash
-# Check current version and if updates available
-openclaw version
-openclaw status
+---
 
-# Sync updates from upstream
-openclaw sync
+# Setup
 
-# Preview what would change
-openclaw diff
+Clone `https://github.com/TechNickAI/openclaw-config` to `~/.openclaw-config`.
 
-# Force sync (overwrite local changes)
-openclaw sync --force
+Copy templates to workspace root (don't overwrite existing): AGENTS.md, SOUL.md, USER.md, TOOLS.md, HEARTBEAT.md, IDENTITY.md
 
-# Add a skill from the repo
-openclaw add-skill limitless
+Create memory folder structure and copy all skills.
 
-# Full upgrade with backup
-openclaw upgrade
-```
+## Memory Search
 
-## Commands
+Needs embeddings for semantic search.
 
-### `openclaw version`
-Show currently installed version.
+**Ask:** LM Studio (local, free, recommended) or OpenAI?
 
-### `openclaw status`
-Check installed version vs. available remote version.
+**LM Studio:** Server on port 1234, model `lmstudio-community/embedding-gemma-300m-qat`, configure gateway baseUrl to `http://127.0.0.1:1234/v1`
 
-### `openclaw sync [--force] [--dry-run]`
-Pull updates from the openclaw-config repository.
-- Preserves files you've modified
-- `--force` overwrites local changes
-- `--dry-run` shows what would change
+**OpenAI:** Get their API key, configure gateway baseUrl to `https://api.openai.com/v1`, model `text-embedding-3-small`
 
-### `openclaw diff`
-Show differences between your files and upstream.
+**Verify:** Create test file in memory/, index, search semantically, confirm it finds it, clean up.
 
-### `openclaw add-skill <name>`
-Add a specific skill from the repository.
+## Personalization
 
-### `openclaw upgrade`
-Full upgrade: backup current config, pull latest, merge.
+Ask and replace in templates: `{{USER_NAME}}`, `{{ASSISTANT_NAME}}`, `{{TIMEZONE}}`, `{{PRIORITY_1}}`, `{{PRIORITY_2}}`
 
-## How Sync Works
+## Optional Skills
 
-The sync system tracks which files you've modified:
+Ask if they use each, get API key if yes:
+- **Limitless** — app.limitless.ai → Settings → Developer
+- **Fireflies** — app.fireflies.ai → Integrations → Fireflies API
+- **Quo** — my.quo.com → Settings → API
 
-1. **New upstream file** → Copies to your installation
-2. **Unchanged locally** → Updates from upstream
-3. **Modified locally** → Keeps your version, logs conflict
-4. **With --force** → Overwrites with upstream version
+## Finish
 
-Checksums are stored in `~/.openclaw/checksums.json`.
+Track version in `.openclaw/installed-version`. Tell them what's configured.
 
-## Configuration
+---
 
-Set `OPENCLAW_DIR` environment variable if your openclaw directory isn't at `~/openclaw`:
+# Update
 
-```bash
-export OPENCLAW_DIR=~/my-openclaw
-```
+Compare `.openclaw/installed-version` with `~/.openclaw-config/VERSION`.
 
-## Files
+If newer: pull, update skills (safe to overwrite), update templates only if user hasn't modified them, update version file, report changes.
 
-- `~/.openclaw/repo/` — Cached copy of openclaw-config repo
-- `~/.openclaw/installed-version` — Your installed version
-- `~/.openclaw/checksums.json` — File modification tracking
-- `~/.openclaw/conflicts.log` — Last sync's conflicts
+If user wants to force/overwrite: backup to `.openclaw/backup/` first.
+
+---
+
+# Status
+
+Show installed version and skill versions. Fetch remote VERSION, report if updates available.
