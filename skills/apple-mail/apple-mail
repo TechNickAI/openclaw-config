@@ -1,0 +1,809 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyobjc-framework-ScriptingBridge>=10.0"]
+# ///
+"""
+Apple Mail - Mail.app integration for macOS
+
+Interact with Mail.app via PyObjC ScriptingBridge.
+Requires Mail.app to be running.
+"""
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime
+from typing import Any, NoReturn
+
+from ScriptingBridge import SBApplication
+
+
+# =============================================================================
+# Core Helpers
+# =============================================================================
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def get_mail_app() -> Any:
+    """Get Mail.app ScriptingBridge instance."""
+    mail = SBApplication.applicationWithBundleIdentifier_("com.apple.mail")
+    if not mail:
+        error("Could not connect to Mail.app")
+    if not mail.isRunning():
+        error("Mail.app is not running", "Open Mail.app and try again")
+    return mail
+
+
+def find_message_by_id(mail: Any, message_id: int) -> Any | None:
+    """Find message by ID across all accounts/mailboxes.
+
+    Uses objectWithID_ for fast lookup instead of iterating all messages.
+    Uses index access for mailboxes (fast) instead of for-in (slow).
+    Checks INBOX first for faster results in common cases.
+    """
+    # Check each account
+    for account in mail.accounts():
+        mailboxes = account.mailboxes()
+        mb_count = mailboxes.count() if mailboxes else 0
+
+        # Check INBOX first (most common location)
+        try:
+            inbox = mailboxes.objectWithName_("INBOX")
+            if inbox:
+                message = inbox.messages().objectWithID_(message_id)
+                if message and message.id() == message_id:
+                    return message
+        except Exception:
+            pass
+
+        # Check other mailboxes by index (fast) instead of for-in (slow)
+        for i in range(mb_count):
+            try:
+                mailbox = mailboxes[i]
+                if mailbox.name() == "INBOX":
+                    continue  # Already checked
+
+                message = mailbox.messages().objectWithID_(message_id)
+                if message and message.id() == message_id:
+                    return message
+
+                # Check nested mailboxes by index
+                nested_mbs = mailbox.mailboxes()
+                nested_count = nested_mbs.count() if nested_mbs else 0
+                for j in range(nested_count):
+                    nested = nested_mbs[j]
+                    message = nested.messages().objectWithID_(message_id)
+                    if message and message.id() == message_id:
+                        return message
+            except Exception:
+                pass
+
+    # Check local mailboxes (On My Mac) by index
+    local_mailboxes = mail.mailboxes()
+    local_count = local_mailboxes.count() if local_mailboxes else 0
+    for i in range(local_count):
+        try:
+            mailbox = local_mailboxes[i]
+            message = mailbox.messages().objectWithID_(message_id)
+            if message and message.id() == message_id:
+                return message
+        except Exception:
+            pass
+
+    return None
+
+
+def find_mailbox(
+    mail: Any, mailbox_name: str, account_name: str | None = None
+) -> Any | None:
+    """Find mailbox by name, optionally within a specific account.
+
+    Uses objectWithName_ for O(1) lookup instead of iteration.
+    """
+    # Check local mailboxes first (On My Mac)
+    try:
+        local_mb = mail.mailboxes().objectWithName_(mailbox_name)
+        if local_mb and local_mb.name() == mailbox_name:
+            return local_mb
+    except Exception:
+        pass
+
+    # Check account mailboxes
+    for account in mail.accounts():
+        if account_name and account.name() != account_name:
+            continue
+        try:
+            mailbox = account.mailboxes().objectWithName_(mailbox_name)
+            if mailbox and mailbox.name() == mailbox_name:
+                return mailbox
+        except Exception:
+            pass
+
+        # For nested mailboxes like [Gmail]/Sent Mail, try direct access
+        # by checking if the name contains a path separator
+        if "/" in mailbox_name:
+            parts = mailbox_name.split("/")
+            try:
+                parent = account.mailboxes().objectWithName_(parts[0])
+                if parent:
+                    nested = parent.mailboxes().objectWithName_(parts[1])
+                    if nested and nested.name() == parts[1]:
+                        return nested
+            except Exception:
+                pass
+
+    return None
+
+
+def format_date(date_obj: Any) -> str:
+    """Format date object to readable string."""
+    if date_obj is None:
+        return "unknown"
+    try:
+        # ScriptingBridge returns NSDate, convert to datetime
+        timestamp = date_obj.timeIntervalSince1970()
+        dt = datetime.fromtimestamp(timestamp)
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return str(date_obj)
+
+
+def format_message_row(message: Any) -> str:
+    """Format a message as a table row."""
+    msg_id = message.id()
+    # ScriptingBridge uses readStatus() not read()
+    read_status = " " if message.readStatus() else "●"
+    date = format_date(message.dateReceived())
+    sender = message.sender() or "unknown"
+    subject = message.subject() or "(no subject)"
+
+    # Truncate long subjects
+    if len(subject) > 60:
+        subject = subject[:57] + "..."
+
+    return f"{msg_id} | {read_status} | {date} | {sender} | {subject}"
+
+
+# =============================================================================
+# Argument Parsing Helpers
+# =============================================================================
+
+
+def parse_limit(args: list[str], default: int = 20) -> tuple[int, list[str]]:
+    """Parse --limit flag from args, return (limit, remaining_args)."""
+    remaining = []
+    limit = default
+    i = 0
+    while i < len(args):
+        if args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+                if limit <= 0:
+                    error(f"--limit must be positive, got {args[i + 1]}")
+            except ValueError:
+                error(f"--limit must be a number, got '{args[i + 1]}'")
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    return limit, remaining
+
+
+def parse_account(args: list[str]) -> tuple[str | None, list[str]]:
+    """Parse --account flag from args, return (account, remaining_args)."""
+    remaining = []
+    account = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--account":
+            if i + 1 >= len(args):
+                error("--account requires a value")
+            account = args[i + 1]
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    return account, remaining
+
+
+# =============================================================================
+# Commands
+# =============================================================================
+
+
+def cmd_help() -> None:
+    """Show help information."""
+    print("""Apple Mail - Mail.app integration via PyObjC
+
+Usage: apple-mail <command> [options]
+
+Commands:
+  help                          Show this help
+  accounts                      List all mail accounts
+  mailboxes [account]           List mailboxes (optionally for account)
+  list [mailbox] [--account X] [--limit N]
+                                List recent messages (default: INBOX, 20)
+  search "query" [--limit N]    Search messages by subject/sender
+  read <id> [id...]             Read message body
+  delete <id> [id...]           Move message to Trash
+  move <mailbox> <id> [id...]   Move message to mailbox
+  mark-read <id> [id...]        Mark as read
+  mark-unread <id> [id...]      Mark as unread
+  refresh [account]             Trigger mail sync
+  send --to X --subject Y --body Z [--from account]
+                                Send new email
+  reply <id> --body "text" [--all]
+                                Reply to message
+
+Examples:
+  apple-mail list INBOX --limit 10
+  apple-mail search "github.com"
+  apple-mail read 12345
+  apple-mail move Agent-Archived 12345 12346
+  apple-mail send --to "friend@example.com" --subject "Hi" --body "Hello!"
+""")
+
+
+def cmd_accounts(args: list[str]) -> None:
+    """List all mail accounts."""
+    mail = get_mail_app()
+    accounts = mail.accounts()
+
+    if not accounts or len(accounts) == 0:
+        print("No mail accounts configured.")
+        return
+
+    for account in accounts:
+        name = account.name()
+        email = account.emailAddresses()
+        email_str = ", ".join(email) if email else "no email"
+        enabled = "enabled" if account.enabled() else "disabled"
+        print(f"{name} ({email_str}) [{enabled}]")
+
+
+def cmd_mailboxes(args: list[str]) -> None:
+    """List mailboxes, optionally for a specific account."""
+    mail = get_mail_app()
+    account_name = args[0] if args else None
+
+    # Local mailboxes (On My Mac) - use index access instead of for-in
+    local_mailboxes = mail.mailboxes()
+    local_count = local_mailboxes.count() if local_mailboxes else 0
+    if local_count > 0:
+        print("On My Mac:")
+        for i in range(local_count):
+            mailbox = local_mailboxes[i]
+            unread = mailbox.unreadCount()
+            unread_str = f" ({unread} unread)" if unread > 0 else ""
+            print(f"  {mailbox.name()}{unread_str}")
+        print()
+
+    # Account mailboxes - use index access instead of for-in
+    for account in mail.accounts():
+        if account_name and account.name() != account_name:
+            continue
+
+        print(f"{account.name()}:")
+        mailboxes = account.mailboxes()
+        mb_count = mailboxes.count() if mailboxes else 0
+        for i in range(mb_count):
+            mailbox = mailboxes[i]
+            unread = mailbox.unreadCount()
+            unread_str = f" ({unread} unread)" if unread > 0 else ""
+            print(f"  {mailbox.name()}{unread_str}")
+
+            # Nested mailboxes - also use index access
+            nested_mailboxes = mailbox.mailboxes()
+            nested_count = nested_mailboxes.count() if nested_mailboxes else 0
+            for j in range(nested_count):
+                nested = nested_mailboxes[j]
+                nested_unread = nested.unreadCount()
+                nested_str = f" ({nested_unread} unread)" if nested_unread > 0 else ""
+                print(f"    {nested.name()}{nested_str}")
+        print()
+
+
+def cmd_list(args: list[str]) -> None:
+    """List recent messages in a mailbox."""
+    limit, args = parse_limit(args)
+    account_name, args = parse_account(args)
+    mailbox_name = args[0] if args else "INBOX"
+
+    mail = get_mail_app()
+    mailbox = find_mailbox(mail, mailbox_name, account_name)
+
+    if not mailbox:
+        error(f"Mailbox not found: {mailbox_name}")
+
+    messages = mailbox.messages()
+    if not messages or len(messages) == 0:
+        print(f"No messages in {mailbox_name}")
+        return
+
+    # Messages are ordered newest first by default
+    count = 0
+    for message in messages:
+        if count >= limit:
+            break
+        print(format_message_row(message))
+        count += 1
+
+
+def cmd_search(args: list[str]) -> None:
+    """Search messages by subject or sender using Mail's native predicate search.
+
+    Searches INBOX only by default (fast). Use --mailbox to search a specific mailbox.
+    """
+    from Foundation import NSPredicate
+
+    limit, args = parse_limit(args)
+
+    # Parse --mailbox flag
+    mailbox_name = "INBOX"  # Default to INBOX for speed
+    remaining = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--mailbox":
+            if i + 1 >= len(args):
+                error("--mailbox requires a mailbox name")
+            mailbox_name = args[i + 1]
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    args = remaining
+
+    if not args:
+        error(
+            "Search query required",
+            'Usage: apple-mail search "query" [--mailbox NAME] [--limit N]',
+        )
+
+    query = args[0]
+    mail = get_mail_app()
+
+    # Build predicate for subject OR sender contains query (case-insensitive)
+    pred = NSPredicate.predicateWithFormat_(
+        "subject CONTAINS[cd] %@ OR sender CONTAINS[cd] %@", query, query
+    )
+
+    results = []
+    # Check local mailboxes first (On My Mac)
+    try:
+        local_mailbox = mail.mailboxes().objectWithName_(mailbox_name)
+        if local_mailbox:
+            filtered = local_mailbox.messages().filteredArrayUsingPredicate_(pred)
+            for i in range(min(limit - len(results), len(filtered))):
+                results.append(filtered[i])
+    except Exception:
+        pass
+
+    # Check account mailboxes
+    if len(results) < limit:
+        for account in mail.accounts():
+            try:
+                mailbox = account.mailboxes().objectWithName_(mailbox_name)
+                if mailbox:
+                    filtered = mailbox.messages().filteredArrayUsingPredicate_(pred)
+                    for i in range(min(limit - len(results), len(filtered))):
+                        results.append(filtered[i])
+                    if len(results) >= limit:
+                        break
+            except Exception:
+                pass
+
+    if not results:
+        print(f"No messages matching '{query}' in {mailbox_name}")
+        return
+
+    for message in results:
+        print(format_message_row(message))
+
+
+def cmd_read(args: list[str]) -> None:
+    """Read full message body."""
+    if not args:
+        error("Message ID required", "Usage: apple-mail read <id> [id...]")
+
+    mail = get_mail_app()
+
+    for i, msg_id_str in enumerate(args):
+        try:
+            msg_id = int(msg_id_str)
+        except ValueError:
+            print(f"Invalid message ID: {msg_id_str}", file=sys.stderr)
+            continue
+
+        message = find_message_by_id(mail, msg_id)
+        if not message:
+            print(f"Message not found: {msg_id}", file=sys.stderr)
+            continue
+
+        if i > 0:
+            print("\n" + "=" * 60 + "\n")
+
+        print(f"ID: {message.id()}")
+        print(f"Subject: {message.subject()}")
+        print(f"From: {message.sender()}")
+        print(f"Date: {format_date(message.dateReceived())}")
+        print(f"Read: {'Yes' if message.readStatus() else 'No'}")
+        print()
+
+        # Get content - ScriptingBridge returns lazy object, need .get()
+        try:
+            content_obj = message.content()
+            content = (
+                content_obj.get() if hasattr(content_obj, "get") else str(content_obj)
+            )
+            if content:
+                print(content)
+            else:
+                print("(no content)")
+        except Exception:
+            print("(content unavailable)")
+
+
+def cmd_delete(args: list[str]) -> None:
+    """Delete messages (move to Trash)."""
+    if not args:
+        error("Message ID required", "Usage: apple-mail delete <id> [id...]")
+
+    mail = get_mail_app()
+    deleted = 0
+    failed = 0
+
+    for msg_id_str in args:
+        try:
+            msg_id = int(msg_id_str)
+        except ValueError:
+            print(f"Invalid message ID: {msg_id_str}", file=sys.stderr)
+            failed += 1
+            continue
+
+        message = find_message_by_id(mail, msg_id)
+        if not message:
+            print(f"Message not found: {msg_id}", file=sys.stderr)
+            failed += 1
+            continue
+
+        try:
+            message.delete()
+            print(f"Deleted message {msg_id}")
+            deleted += 1
+        except Exception as e:
+            print(f"Failed to delete {msg_id}: {e}", file=sys.stderr)
+            failed += 1
+
+    print(f"\nSummary: {deleted} deleted, {failed} failed")
+
+
+def cmd_move(args: list[str]) -> None:
+    """Move messages to a mailbox."""
+    if len(args) < 2:
+        error(
+            "Mailbox and message ID required",
+            "Usage: apple-mail move <mailbox> <id> [id...]",
+        )
+
+    target_mailbox_name = args[0]
+    message_ids = args[1:]
+
+    mail = get_mail_app()
+    target_mailbox = find_mailbox(mail, target_mailbox_name)
+
+    if not target_mailbox:
+        error(f"Mailbox not found: {target_mailbox_name}")
+
+    moved = 0
+    failed = 0
+
+    for msg_id_str in message_ids:
+        try:
+            msg_id = int(msg_id_str)
+        except ValueError:
+            print(f"Invalid message ID: {msg_id_str}", file=sys.stderr)
+            failed += 1
+            continue
+
+        message = find_message_by_id(mail, msg_id)
+        if not message:
+            print(f"Message not found: {msg_id}", file=sys.stderr)
+            failed += 1
+            continue
+
+        try:
+            message.moveTo_(target_mailbox)
+            print(f"Moved {msg_id} to {target_mailbox_name}")
+            moved += 1
+        except Exception as e:
+            print(f"Failed to move {msg_id}: {e}", file=sys.stderr)
+            failed += 1
+
+    print(f"\nSummary: {moved} moved to {target_mailbox_name}, {failed} failed")
+
+
+def cmd_mark_read(args: list[str]) -> None:
+    """Mark messages as read."""
+    if not args:
+        error("Message ID required", "Usage: apple-mail mark-read <id> [id...]")
+
+    mail = get_mail_app()
+    marked = 0
+    failed = 0
+
+    for msg_id_str in args:
+        try:
+            msg_id = int(msg_id_str)
+        except ValueError:
+            print(f"Invalid message ID: {msg_id_str}", file=sys.stderr)
+            failed += 1
+            continue
+
+        message = find_message_by_id(mail, msg_id)
+        if not message:
+            print(f"Message not found: {msg_id}", file=sys.stderr)
+            failed += 1
+            continue
+
+        try:
+            message.setReadStatus_(True)
+            print(f"Marked {msg_id} as read")
+            marked += 1
+        except Exception as e:
+            print(f"Failed to mark {msg_id}: {e}", file=sys.stderr)
+            failed += 1
+
+    print(f"\nSummary: {marked} marked as read, {failed} failed")
+
+
+def cmd_mark_unread(args: list[str]) -> None:
+    """Mark messages as unread."""
+    if not args:
+        error("Message ID required", "Usage: apple-mail mark-unread <id> [id...]")
+
+    mail = get_mail_app()
+    marked = 0
+    failed = 0
+
+    for msg_id_str in args:
+        try:
+            msg_id = int(msg_id_str)
+        except ValueError:
+            print(f"Invalid message ID: {msg_id_str}", file=sys.stderr)
+            failed += 1
+            continue
+
+        message = find_message_by_id(mail, msg_id)
+        if not message:
+            print(f"Message not found: {msg_id}", file=sys.stderr)
+            failed += 1
+            continue
+
+        try:
+            message.setReadStatus_(False)
+            print(f"Marked {msg_id} as unread")
+            marked += 1
+        except Exception as e:
+            print(f"Failed to mark {msg_id}: {e}", file=sys.stderr)
+            failed += 1
+
+    print(f"\nSummary: {marked} marked as unread, {failed} failed")
+
+
+def cmd_refresh(args: list[str]) -> None:
+    """Trigger mail sync."""
+    mail = get_mail_app()
+    account_name = args[0] if args else None
+
+    if account_name:
+        # Find specific account
+        for account in mail.accounts():
+            if account.name() == account_name:
+                # Trigger sync by checking mail
+                mail.checkForNewMailFor_(account)
+                print(f"Refreshing {account_name}...")
+                return
+        error(f"Account not found: {account_name}")
+    else:
+        # Refresh all
+        mail.checkForNewMailFor_(None)
+        print("Refreshing all accounts...")
+
+
+def cmd_send(args: list[str]) -> None:
+    """Send a new email."""
+    to = None
+    subject = None
+    body = None
+    from_account = None
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--to":
+            if i + 1 >= len(args):
+                error("--to requires an email address")
+            to = args[i + 1]
+            i += 2
+        elif args[i] == "--subject":
+            if i + 1 >= len(args):
+                error("--subject requires a value")
+            subject = args[i + 1]
+            i += 2
+        elif args[i] == "--body":
+            if i + 1 >= len(args):
+                error("--body requires a value")
+            body = args[i + 1]
+            i += 2
+        elif args[i] == "--from":
+            if i + 1 >= len(args):
+                error("--from requires an account name")
+            from_account = args[i + 1]
+            i += 2
+        elif args[i] == "--attachment":
+            error("Attachment support not yet implemented")
+        else:
+            error(f"Unknown option: {args[i]}")
+
+    if not to:
+        error("--to is required", "Usage: apple-mail send --to X --subject Y --body Z")
+    if not subject:
+        error("--subject is required")
+    if not body:
+        error("--body is required")
+
+    mail = get_mail_app()
+
+    try:
+        # Create outgoing message using ScriptingBridge
+        # The classForScriptingClass_ approach doesn't work well,
+        # so we use a different method
+        props = {
+            "subject": subject,
+            "content": body,
+            "visible": False,
+        }
+
+        # Create message via the outgoingMessages collection
+        outgoing = (
+            mail.classForScriptingClass_("outgoingMessage")
+            .alloc()
+            .initWithProperties_(props)
+        )
+        mail.outgoingMessages().addObject_(outgoing)
+
+        # Add recipient
+        recipient_props = {"address": to}
+        recipient = (
+            mail.classForScriptingClass_("toRecipient")
+            .alloc()
+            .initWithProperties_(recipient_props)
+        )
+        outgoing.toRecipients().addObject_(recipient)
+
+        # Set sender if specified
+        if from_account:
+            outgoing.setSender_(from_account)
+
+        # Send
+        outgoing.send()
+        print(f"Email sent to {to}")
+
+    except Exception as e:
+        error(f"Failed to send email: {e}")
+
+
+def cmd_reply(args: list[str]) -> None:
+    """Reply to a message."""
+    msg_id = None
+    body = None
+    reply_all = False
+
+    i = 0
+    remaining = []
+    while i < len(args):
+        if args[i] == "--body":
+            if i + 1 >= len(args):
+                error("--body requires a value")
+            body = args[i + 1]
+            i += 2
+        elif args[i] == "--all":
+            reply_all = True
+            i += 1
+        else:
+            remaining.append(args[i])
+            i += 1
+
+    if not remaining:
+        error(
+            "Message ID required", 'Usage: apple-mail reply <id> --body "text" [--all]'
+        )
+
+    try:
+        msg_id = int(remaining[0])
+    except ValueError:
+        error(f"Invalid message ID: {remaining[0]}")
+
+    if not body:
+        error("--body is required")
+
+    mail = get_mail_app()
+    message = find_message_by_id(mail, msg_id)
+
+    if not message:
+        error(f"Message not found: {msg_id}")
+
+    try:
+        # Create reply
+        # ScriptingBridge method: replyOpeningWindow:replyToAll:
+        reply = message.replyOpeningWindow_replyToAll_(False, reply_all)
+
+        # Get original content (ScriptingBridge returns lazy object, need .get())
+        try:
+            content_obj = reply.content()
+            original_content = (
+                content_obj.get()
+                if hasattr(content_obj, "get")
+                else str(content_obj or "")
+            )
+        except Exception:
+            original_content = ""
+
+        # Prepend our body
+        reply.setContent_(body + "\n\n" + original_content)
+
+        # Send the reply
+        reply.send()
+        print(f"Reply sent to {message.sender()}")
+
+    except Exception as e:
+        error(f"Failed to send reply: {e}")
+
+
+# =============================================================================
+# Main
+# =============================================================================
+
+
+COMMANDS = {
+    "help": lambda args: cmd_help(),
+    "accounts": cmd_accounts,
+    "mailboxes": cmd_mailboxes,
+    "list": cmd_list,
+    "search": cmd_search,
+    "read": cmd_read,
+    "delete": cmd_delete,
+    "move": cmd_move,
+    "mark-read": cmd_mark_read,
+    "mark-unread": cmd_mark_unread,
+    "refresh": cmd_refresh,
+    "send": cmd_send,
+    "reply": cmd_reply,
+}
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    if command in COMMANDS:
+        COMMANDS[command](args[1:])
+    else:
+        error(
+            f"Unknown command: {command}",
+            "Run 'apple-mail help' for available commands",
+        )
+
+
+if __name__ == "__main__":
+    main()
