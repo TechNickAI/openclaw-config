@@ -4,17 +4,17 @@ set -e
 echo "🐾 OpenClaw Config Bootstrap"
 echo ""
 
-# Determine Clawdbot directory
-CLAWD_DIR="${CLAWDBOT_DIR:-$HOME/clawd}"
+# Determine OpenClaw directory
+OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/openclaw}"
 
-if [ ! -d "$CLAWD_DIR" ]; then
-    echo "⚠️  Clawdbot directory not found at $CLAWD_DIR"
-    echo "   Set CLAWDBOT_DIR environment variable to your clawd directory"
-    echo "   Example: CLAWDBOT_DIR=~/my-clawd ./bootstrap.sh"
+if [ ! -d "$OPENCLAW_DIR" ]; then
+    echo "⚠️  OpenClaw directory not found at $OPENCLAW_DIR"
+    echo "   Set OPENCLAW_DIR environment variable to your openclaw directory"
+    echo "   Example: OPENCLAW_DIR=~/my-openclaw ./bootstrap.sh"
     exit 1
 fi
 
-echo "✓ Found Clawdbot at: $CLAWD_DIR"
+echo "✓ Found OpenClaw at: $OPENCLAW_DIR"
 echo ""
 
 # Check OS
@@ -56,67 +56,67 @@ echo "$VERSION" > "$OPENCLAW_CACHE/installed-version"
 echo "📋 Installing configuration..."
 
 # AGENTS.md template
-if [ ! -f "$CLAWD_DIR/AGENTS.md" ]; then
-    cp "$OPENCLAW_REPO/templates/AGENTS.md" "$CLAWD_DIR/AGENTS.md"
+if [ ! -f "$OPENCLAW_DIR/AGENTS.md" ]; then
+    cp "$OPENCLAW_REPO/templates/AGENTS.md" "$OPENCLAW_DIR/AGENTS.md"
     echo "✓ Created AGENTS.md"
 else
     echo "⏭  AGENTS.md exists, skipping (use 'openclaw sync' to update)"
 fi
 
 # SOUL.md template
-if [ ! -f "$CLAWD_DIR/SOUL.md" ]; then
-    cp "$OPENCLAW_REPO/templates/SOUL.md" "$CLAWD_DIR/SOUL.md"
+if [ ! -f "$OPENCLAW_DIR/SOUL.md" ]; then
+    cp "$OPENCLAW_REPO/templates/SOUL.md" "$OPENCLAW_DIR/SOUL.md"
     echo "✓ Created SOUL.md (customize this!)"
 else
     echo "⏭  SOUL.md exists, skipping"
 fi
 
 # USER.md template
-if [ ! -f "$CLAWD_DIR/USER.md" ]; then
-    cp "$OPENCLAW_REPO/templates/USER.md" "$CLAWD_DIR/USER.md"
+if [ ! -f "$OPENCLAW_DIR/USER.md" ]; then
+    cp "$OPENCLAW_REPO/templates/USER.md" "$OPENCLAW_DIR/USER.md"
     echo "✓ Created USER.md (customize this!)"
 else
     echo "⏭  USER.md exists, skipping"
 fi
 
 # TOOLS.md template
-if [ ! -f "$CLAWD_DIR/TOOLS.md" ]; then
-    cp "$OPENCLAW_REPO/templates/TOOLS.md" "$CLAWD_DIR/TOOLS.md"
+if [ ! -f "$OPENCLAW_DIR/TOOLS.md" ]; then
+    cp "$OPENCLAW_REPO/templates/TOOLS.md" "$OPENCLAW_DIR/TOOLS.md"
     echo "✓ Created TOOLS.md"
 else
     echo "⏭  TOOLS.md exists, skipping"
 fi
 
 # HEARTBEAT.md template
-if [ ! -f "$CLAWD_DIR/HEARTBEAT.md" ]; then
-    cp "$OPENCLAW_REPO/templates/HEARTBEAT.md" "$CLAWD_DIR/HEARTBEAT.md"
+if [ ! -f "$OPENCLAW_DIR/HEARTBEAT.md" ]; then
+    cp "$OPENCLAW_REPO/templates/HEARTBEAT.md" "$OPENCLAW_DIR/HEARTBEAT.md"
     echo "✓ Created HEARTBEAT.md"
 else
     echo "⏭  HEARTBEAT.md exists, skipping"
 fi
 
 # Memory directory structure
-mkdir -p "$CLAWD_DIR/memory/people"
-mkdir -p "$CLAWD_DIR/memory/projects"
-mkdir -p "$CLAWD_DIR/memory/topics"
-mkdir -p "$CLAWD_DIR/memory/decisions"
+mkdir -p "$OPENCLAW_DIR/memory/people"
+mkdir -p "$OPENCLAW_DIR/memory/projects"
+mkdir -p "$OPENCLAW_DIR/memory/topics"
+mkdir -p "$OPENCLAW_DIR/memory/decisions"
 
-if [ ! -f "$CLAWD_DIR/memory/TASK-SYSTEM.md" ]; then
-    cp "$OPENCLAW_REPO/memory/TASK-SYSTEM.md" "$CLAWD_DIR/memory/TASK-SYSTEM.md"
+if [ ! -f "$OPENCLAW_DIR/memory/TASK-SYSTEM.md" ]; then
+    cp "$OPENCLAW_REPO/memory/TASK-SYSTEM.md" "$OPENCLAW_DIR/memory/TASK-SYSTEM.md"
     echo "✓ Created memory/TASK-SYSTEM.md"
 else
     echo "⏭  memory/TASK-SYSTEM.md exists, skipping"
 fi
 
-if [ ! -f "$CLAWD_DIR/memory/tasks.md" ]; then
-    cp "$OPENCLAW_REPO/memory/tasks.md" "$CLAWD_DIR/memory/tasks.md"
+if [ ! -f "$OPENCLAW_DIR/memory/tasks.md" ]; then
+    cp "$OPENCLAW_REPO/memory/tasks.md" "$OPENCLAW_DIR/memory/tasks.md"
     echo "✓ Created memory/tasks.md"
 else
     echo "⏭  memory/tasks.md exists, skipping"
 fi
 
-if [ ! -f "$CLAWD_DIR/memory/heartbeat-state.json" ]; then
-    cp "$OPENCLAW_REPO/memory/heartbeat-state.json" "$CLAWD_DIR/memory/heartbeat-state.json"
+if [ ! -f "$OPENCLAW_DIR/memory/heartbeat-state.json" ]; then
+    cp "$OPENCLAW_REPO/memory/heartbeat-state.json" "$OPENCLAW_DIR/memory/heartbeat-state.json"
     echo "✓ Created memory/heartbeat-state.json"
 else
     echo "⏭  memory/heartbeat-state.json exists, skipping"
@@ -125,13 +125,13 @@ fi
 echo "✓ Memory directory structure ready"
 
 # Skills directory
-mkdir -p "$CLAWD_DIR/skills"
+mkdir -p "$OPENCLAW_DIR/skills"
 
 # Copy skills
 for skill in limitless fireflies quo; do
-    if [ ! -d "$CLAWD_DIR/skills/$skill" ]; then
-        cp -r "$OPENCLAW_REPO/skills/$skill" "$CLAWD_DIR/skills/"
-        chmod +x "$CLAWD_DIR/skills/$skill/$skill" 2>/dev/null || true
+    if [ ! -d "$OPENCLAW_DIR/skills/$skill" ]; then
+        cp -r "$OPENCLAW_REPO/skills/$skill" "$OPENCLAW_DIR/skills/"
+        chmod +x "$OPENCLAW_DIR/skills/$skill/$skill" 2>/dev/null || true
         echo "✓ Installed skill: $skill"
     else
         echo "⏭  Skill $skill exists, skipping"
@@ -139,10 +139,10 @@ for skill in limitless fireflies quo; do
 done
 
 # Install openclaw management skill
-mkdir -p "$CLAWD_DIR/skills/openclaw"
-cp "$OPENCLAW_REPO/skill/SKILL.md" "$CLAWD_DIR/skills/openclaw/"
-cp "$OPENCLAW_REPO/skill/openclaw" "$CLAWD_DIR/skills/openclaw/"
-chmod +x "$CLAWD_DIR/skills/openclaw/openclaw"
+mkdir -p "$OPENCLAW_DIR/skills/openclaw"
+cp "$OPENCLAW_REPO/skills/openclaw/SKILL.md" "$OPENCLAW_DIR/skills/openclaw/"
+cp "$OPENCLAW_REPO/skills/openclaw/openclaw" "$OPENCLAW_DIR/skills/openclaw/"
+chmod +x "$OPENCLAW_DIR/skills/openclaw/openclaw"
 echo "✓ Installed openclaw management skill"
 
 echo ""

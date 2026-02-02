@@ -8,7 +8,7 @@ triggers:
   - what was discussed
   - meeting notes
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "🔥"
     requires:
       env:
@@ -26,7 +26,7 @@ Query meeting transcripts from Fireflies.ai - the AI notetaker that records, tra
 
 1. Get your API key from [app.fireflies.ai](https://app.fireflies.ai) → Integrations → Fireflies API
 2. Set environment variable: `export FIREFLIES_API_KEY=your-key`
-3. Or configure in moltbot.json under `env.FIREFLIES_API_KEY`
+3. Or configure in openclaw.json under `env.FIREFLIES_API_KEY`
 
 ## Quick Commands
 

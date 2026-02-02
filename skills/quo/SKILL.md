@@ -9,7 +9,7 @@ triggers:
   - call transcript
   - call summary
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "📞"
     requires:
       env:
@@ -27,7 +27,7 @@ Query your Quo (formerly OpenPhone) business phone system - calls, texts, conver
 
 1. Get your API key from [my.quo.com](https://my.quo.com) → Settings → API
 2. Set environment variable: `export QUO_API_KEY=your-key`
-3. Or configure in clawdbot.json under `env.QUO_API_KEY`
+3. Or configure in openclaw.json under `env.QUO_API_KEY`
 
 ## Quick Commands
 

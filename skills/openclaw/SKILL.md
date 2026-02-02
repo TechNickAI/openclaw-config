@@ -6,7 +6,7 @@ triggers:
   - config sync
   - update config
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "🐾"
     requires:
       bins:
@@ -16,7 +16,7 @@ metadata:
 
 # OpenClaw Config Management 🐾
 
-Manage your openclaw-config installation from within Clawdbot.
+Manage your openclaw-config installation from within OpenClaw.
 
 ## Quick Commands
 
@@ -77,10 +77,10 @@ Checksums are stored in `~/.openclaw/checksums.json`.
 
 ## Configuration
 
-Set `CLAWDBOT_DIR` environment variable if your clawd directory isn't at `~/clawd`:
+Set `OPENCLAW_DIR` environment variable if your openclaw directory isn't at `~/openclaw`:
 
 ```bash
-export CLAWDBOT_DIR=~/my-clawd
+export OPENCLAW_DIR=~/my-openclaw
 ```
 
 ## Files

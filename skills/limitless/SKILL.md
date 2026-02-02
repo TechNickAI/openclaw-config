@@ -8,7 +8,7 @@ triggers:
   - what did I say
   - what was discussed
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "🎙️"
     requires:
       env:
@@ -26,7 +26,7 @@ Query your Limitless wearable's lifelogs - the AI device that captures conversat
 
 1. Get your API key from [app.limitless.ai](https://app.limitless.ai) → Settings → Developer
 2. Set environment variable: `export LIMITLESS_API_KEY=your-key`
-3. Or configure in moltbot.json under `env.LIMITLESS_API_KEY`
+3. Or configure in openclaw.json under `env.LIMITLESS_API_KEY`
 
 ## Quick Commands
 

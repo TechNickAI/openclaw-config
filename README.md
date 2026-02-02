@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Clawdbot-Config-D97757?style=for-the-badge" alt="Clawdbot Config">
+  <img src="https://img.shields.io/badge/OpenClaw-Config-D97757?style=for-the-badge" alt="OpenClaw Config">
 </p>
 
 <p align="center">
@@ -11,11 +11,11 @@
 
 # OpenClaw Config 🐾
 
-Shareable configuration for [Clawdbot](https://github.com/TechNickAI/clawdbot) — memory system, skills, task tracking, and agent instructions.
+Shareable configuration for [OpenClaw](https://github.com/openclaw/openclaw) — memory system, skills, task tracking, and agent instructions.
 
 ## What This Is
 
-A battle-tested configuration for running Clawdbot as a personal AI assistant. This repo provides:
+A battle-tested configuration for running OpenClaw as a personal AI assistant. This repo provides:
 
 - **Three-tier memory architecture** — Daily logs, curated long-term memory, and searchable deep knowledge
 - **Decision-making frameworks** — Bezos's one-way/two-way doors, certainty thresholds, priority filters
@@ -26,8 +26,8 @@ A battle-tested configuration for running Clawdbot as a personal AI assistant. T
 ## Quick Start
 
 ```bash
-# Set your clawd directory (if not ~/clawd)
-export CLAWDBOT_DIR=~/clawd
+# Set your openclaw directory (if not ~/openclaw)
+export OPENCLAW_DIR=~/openclaw
 
 # Run bootstrap
 curl -fsSL https://raw.githubusercontent.com/TechNickAI/openclaw-config/main/scripts/bootstrap.sh | bash

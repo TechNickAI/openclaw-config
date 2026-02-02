@@ -6,7 +6,7 @@ set -e
 
 OPENCLAW_CACHE="${HOME}/.openclaw"
 OPENCLAW_REPO="${OPENCLAW_CACHE}/repo"
-CLAWD_DIR="${CLAWDBOT_DIR:-$HOME/clawd}"
+OPENCLAW_DIR="${OPENCLAW_DIR:-$HOME/openclaw}"
 CHECKSUMS_FILE="${OPENCLAW_CACHE}/checksums.json"
 CONFLICTS_LOG="${OPENCLAW_CACHE}/conflicts.log"
 
@@ -14,7 +14,7 @@ usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
 
-Sync openclaw-config updates to your Clawdbot installation.
+Sync openclaw-config updates to your OpenClaw installation.
 
 Options:
   --force       Overwrite local changes with upstream
@@ -67,9 +67,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Check requirements
-if [ ! -d "$CLAWD_DIR" ]; then
-    echo "❌ Clawdbot directory not found: $CLAWD_DIR"
-    echo "   Run bootstrap.sh first or set CLAWDBOT_DIR"
+if [ ! -d "$OPENCLAW_DIR" ]; then
+    echo "❌ OpenClaw directory not found: $OPENCLAW_DIR"
+    echo "   Run bootstrap.sh first or set OPENCLAW_DIR"
     exit 1
 fi
 
@@ -191,24 +191,24 @@ sync_file() {
 # Sync templates
 echo "📋 Checking templates..."
 if [ "$SKILLS_ONLY" != true ]; then
-    sync_file "$OPENCLAW_REPO/templates/AGENTS.md" "$CLAWD_DIR/AGENTS.md" "AGENTS.md" "template"
-    sync_file "$OPENCLAW_REPO/templates/HEARTBEAT.md" "$CLAWD_DIR/HEARTBEAT.md" "HEARTBEAT.md" "template"
-    sync_file "$OPENCLAW_REPO/memory/TASK-SYSTEM.md" "$CLAWD_DIR/memory/TASK-SYSTEM.md" "memory/TASK-SYSTEM.md" "template"
+    sync_file "$OPENCLAW_REPO/templates/AGENTS.md" "$OPENCLAW_DIR/AGENTS.md" "AGENTS.md" "template"
+    sync_file "$OPENCLAW_REPO/templates/HEARTBEAT.md" "$OPENCLAW_DIR/HEARTBEAT.md" "HEARTBEAT.md" "template"
+    sync_file "$OPENCLAW_REPO/memory/TASK-SYSTEM.md" "$OPENCLAW_DIR/memory/TASK-SYSTEM.md" "memory/TASK-SYSTEM.md" "template"
 fi
 
 # Sync skills
 echo "📦 Checking skills..."
 if [ "$TEMPLATES_ONLY" != true ]; then
     for skill in limitless fireflies quo; do
-        sync_file "$OPENCLAW_REPO/skills/$skill/SKILL.md" "$CLAWD_DIR/skills/$skill/SKILL.md" "skills/$skill/SKILL.md" "skill"
-        sync_file "$OPENCLAW_REPO/skills/$skill/$skill" "$CLAWD_DIR/skills/$skill/$skill" "skills/$skill/$skill" "skill"
-        [ "$DRY_RUN" != true ] && chmod +x "$CLAWD_DIR/skills/$skill/$skill" 2>/dev/null || true
+        sync_file "$OPENCLAW_REPO/skills/$skill/SKILL.md" "$OPENCLAW_DIR/skills/$skill/SKILL.md" "skills/$skill/SKILL.md" "skill"
+        sync_file "$OPENCLAW_REPO/skills/$skill/$skill" "$OPENCLAW_DIR/skills/$skill/$skill" "skills/$skill/$skill" "skill"
+        [ "$DRY_RUN" != true ] && chmod +x "$OPENCLAW_DIR/skills/$skill/$skill" 2>/dev/null || true
     done
     
     # Always update openclaw management skill
-    sync_file "$OPENCLAW_REPO/skill/SKILL.md" "$CLAWD_DIR/skills/openclaw/SKILL.md" "skills/openclaw/SKILL.md" "skill"
-    sync_file "$OPENCLAW_REPO/skill/openclaw" "$CLAWD_DIR/skills/openclaw/openclaw" "skills/openclaw/openclaw" "skill"
-    [ "$DRY_RUN" != true ] && chmod +x "$CLAWD_DIR/skills/openclaw/openclaw" 2>/dev/null || true
+    sync_file "$OPENCLAW_REPO/skill/SKILL.md" "$OPENCLAW_DIR/skills/openclaw/SKILL.md" "skills/openclaw/SKILL.md" "skill"
+    sync_file "$OPENCLAW_REPO/skill/openclaw" "$OPENCLAW_DIR/skills/openclaw/openclaw" "skills/openclaw/openclaw" "skill"
+    [ "$DRY_RUN" != true ] && chmod +x "$OPENCLAW_DIR/skills/openclaw/openclaw" 2>/dev/null || true
 fi
 
 # Save checksums
