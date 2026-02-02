@@ -57,12 +57,23 @@ Update my openclaw config
 
 ### Skills
 
+Skills are standalone [UV scripts](https://docs.astral.sh/uv/guides/scripts/) — Python with inline dependencies, no project setup required.
+
 | Skill | What it does |
 |-------|--------------|
+| **parallel** | Web search & content extraction via Parallel.ai (Python, tested) |
 | **limitless** | Query Limitless Pendant lifelogs |
 | **fireflies** | Search Fireflies.ai meeting transcripts |
 | **quo** | Access Quo business phone calls & texts |
-| **parallel** | AI-optimized web search & content extraction (better than built-in) |
+| **openclaw** | Manage openclaw-config installation & updates |
+
+#### Running Tests
+
+```bash
+uv run --with pytest pytest tests/ -v
+```
+
+Integration tests auto-skip if API keys aren't set.
 
 ## The Memory Extraction Criteria
 
