@@ -3,19 +3,18 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 # Skip all tests on non-macOS platforms (PyObjC requires macOS)
 pytestmark = pytest.mark.skipif(
     sys.platform != "darwin",
-    reason="apple-mail requires macOS (PyObjC won't build on Linux/Windows)"
+    reason="apple-mail requires macOS (PyObjC won't build on Linux/Windows)",
 )
 
 # Path to the skill script
-SKILL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "skills", "apple-mail", "apple-mail"
-)
+SKILL_PATH = Path(__file__).parent.parent / "skills" / "apple-mail" / "apple-mail"
 
 
 def run_skill(*args: str, env: dict | None = None, timeout: int = 120) -> subprocess.CompletedProcess:
