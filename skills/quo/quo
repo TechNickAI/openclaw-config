@@ -219,8 +219,12 @@ def format_summary(data: dict[str, Any]) -> str:
         return "No summary available."
 
     status = item.get("status", "unknown")
-    summary_lines = item.get("summary", [])
-    next_steps = item.get("nextSteps", [])
+    summary_raw = item.get("summary", [])
+    next_steps_raw = item.get("nextSteps", [])
+
+    # Normalize to list if string (API may return either)
+    summary_lines = [summary_raw] if isinstance(summary_raw, str) else summary_raw
+    next_steps = [next_steps_raw] if isinstance(next_steps_raw, str) else next_steps_raw
 
     output = ["# Call Summary", ""]
     output.append(f"**Status:** {status}")
