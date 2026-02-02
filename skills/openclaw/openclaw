@@ -65,10 +65,10 @@ cmd_sync() {
 
 cmd_diff() {
     check_installed
-    
+
     echo "📄 Differences between your files and upstream:"
     echo ""
-    
+
     # Templates
     for file in AGENTS.md HEARTBEAT.md; do
         if [ -f "$OPENCLAW_DIR/$file" ] && [ -f "$OPENCLAW_REPO/templates/$file" ]; then
@@ -79,7 +79,7 @@ cmd_diff() {
             fi
         fi
     done
-    
+
     # Memory
     for file in TASK-SYSTEM.md; do
         if [ -f "$OPENCLAW_DIR/memory/$file" ] && [ -f "$OPENCLAW_REPO/memory/$file" ]; then
@@ -90,7 +90,7 @@ cmd_diff() {
             fi
         fi
     done
-    
+
     # Skills
     for skill in limitless fireflies quo; do
         for ext in SKILL.md "$skill"; do
@@ -109,7 +109,7 @@ cmd_diff() {
 
 cmd_add_skill() {
     check_installed
-    
+
     local skill="$1"
     if [ -z "$skill" ]; then
         echo "Usage: openclaw add-skill <name>"
@@ -118,7 +118,7 @@ cmd_add_skill() {
         ls -1 "$OPENCLAW_REPO/skills/"
         exit 1
     fi
-    
+
     if [ ! -d "$OPENCLAW_REPO/skills/$skill" ]; then
         echo "❌ Skill not found: $skill"
         echo ""
@@ -126,24 +126,24 @@ cmd_add_skill() {
         ls -1 "$OPENCLAW_REPO/skills/"
         exit 1
     fi
-    
+
     mkdir -p "$OPENCLAW_DIR/skills/$skill"
     cp -r "$OPENCLAW_REPO/skills/$skill/"* "$OPENCLAW_DIR/skills/$skill/"
     chmod +x "$OPENCLAW_DIR/skills/$skill/$skill" 2>/dev/null || true
-    
+
     echo "✓ Installed skill: $skill"
 }
 
 cmd_upgrade() {
     check_installed
-    
+
     echo "🔄 OpenClaw Upgrade"
     echo ""
-    
+
     # Create backup
     BACKUP_DIR="$OPENCLAW_CACHE/backups/$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$BACKUP_DIR"
-    
+
     echo "📦 Creating backup..."
     for file in AGENTS.md SOUL.md USER.md TOOLS.md HEARTBEAT.md MEMORY.md; do
         if [ -f "$OPENCLAW_DIR/$file" ]; then
@@ -155,10 +155,10 @@ cmd_upgrade() {
     fi
     echo "✓ Backup created: $BACKUP_DIR"
     echo ""
-    
+
     # Force sync
     bash "$SCRIPTS_DIR/sync.sh" --force
-    
+
     echo ""
     echo "✓ Upgrade complete!"
     echo "   Backup at: $BACKUP_DIR"

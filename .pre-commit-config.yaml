@@ -1,0 +1,72 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+exclude: '\.git/|__pycache__/|\.pyc'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        name: Block large files
+        args: [--maxkb=500]
+      - id: check-ast
+        name: Validate Python syntax
+      - id: check-merge-conflict
+        name: Detect merge conflicts
+      - id: check-symlinks
+        name: Validate symlinks
+      - id: check-toml
+        name: Validate TOML syntax
+      - id: check-yaml
+        name: Validate YAML syntax
+      - id: file-contents-sorter
+        name: Sort .gitignore
+        files: \.gitignore
+      - id: trailing-whitespace
+        name: Trim whitespace
+
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: remove-tabs
+        name: Replace tabs with spaces
+
+  - repo: https://github.com/sirosen/texthooks
+    rev: 0.7.1
+    hooks:
+      - id: fix-smartquotes
+        name: Fix smart quotes
+      - id: forbid-bidi-controls
+        name: Forbid bidirectional text (security)
+
+  # Ruff replaces flake8, pylint, isort and more
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.5
+    hooks:
+      # Run the linter with auto-fix
+      - id: ruff
+        name: Fix Python issues (Ruff)
+        args: [--fix]
+      # Run the formatter
+      - id: ruff-format
+        name: Format Python (Ruff)
+
+  # Prettier for JSON, YAML, Markdown
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.6.2
+    hooks:
+      - id: prettier
+        name: Format with Prettier
+        types_or: ["json", "yaml", "markdown"]
+        exclude: |
+          (?x)^(
+            .*\.min\.(js|css)|
+            .*node_modules/
+          )$
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.8
+    hooks:
+      - id: actionlint
+        name: Check Github Actions

@@ -1,7 +1,9 @@
 ---
 name: quo
 version: 0.2.0
-description: Query and interact with Quo business phone - calls, texts, contacts, transcripts, send SMS
+description:
+  Query and interact with Quo business phone - calls, texts, contacts, transcripts, send
+  SMS
 triggers:
   - quo
   - openphone
@@ -19,7 +21,8 @@ metadata:
 
 # Quo 📞
 
-Query your Quo (formerly OpenPhone) business phone — calls, texts, contacts, transcripts.
+Query your Quo (formerly OpenPhone) business phone — calls, texts, contacts,
+transcripts.
 
 ## Setup
 
@@ -48,12 +51,14 @@ API key from my.quo.com → Settings → API. Configure via gateway.
 ## Response Data
 
 **Conversations:**
+
 - `id` — Conversation ID
 - `name` — Contact name if known
 - `participants` — Phone numbers
 - `lastActivityAt` — Most recent activity
 
 **Transcripts/Summaries:**
+
 - AI-generated summary
 - Full transcript with timestamps
 - Speaker attribution when available

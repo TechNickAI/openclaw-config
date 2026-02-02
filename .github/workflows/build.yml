@@ -1,0 +1,32 @@
+---
+name: Build
+on: [push, pull_request]
+permissions: read-all
+
+jobs:
+  pre-commit:
+    name: Pre-commit (linting)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.1
+
+  tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run tests
+        run: uv run --with pytest pytest tests/ -v

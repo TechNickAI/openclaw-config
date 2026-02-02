@@ -2,7 +2,8 @@
 
 ## Project Overview
 
-Shareable configuration for OpenClaw AI assistant — templates, memory architecture, and integration skills.
+Shareable configuration for OpenClaw AI assistant — templates, memory architecture, and
+integration skills.
 
 ## Tech Stack
 
@@ -20,12 +21,14 @@ Shareable configuration for OpenClaw AI assistant — templates, memory architec
 ## Code Conventions
 
 DO:
+
 - Skills are standalone UV scripts with `# /// script` inline dependencies
 - Each skill has `SKILL.md` (metadata) + executable script (same name as directory)
 - Bump `VERSION` file and skill's `SKILL.md` version on changes
 - Tests skip gracefully when API keys unavailable
 
 DON'T:
+
 - Add pyproject.toml — this is not a Python package
 - Share code between skills — each is self-contained
 - Commit API keys or `.env` files

@@ -6,13 +6,12 @@ Tests auto-skip if the key is not available.
 
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
 # Path to the skill script
-SKILL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "skills", "fireflies", "fireflies"
-)
+SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "fireflies" / "fireflies")
 
 # Skip integration tests if no API key
 HAS_API_KEY = bool(os.getenv("FIREFLIES_API_KEY"))
@@ -30,6 +29,7 @@ def run_skill(*args: str, env: dict | None = None) -> subprocess.CompletedProces
         run_env.update(env)
     return subprocess.run(
         cmd,
+        check=False,
         capture_output=True,
         text=True,
         env=run_env,

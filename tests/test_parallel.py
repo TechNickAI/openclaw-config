@@ -6,13 +6,12 @@ Tests auto-skip if the key is not available.
 
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
 # Path to the skill script
-SKILL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "skills", "parallel", "parallel"
-)
+SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "parallel" / "parallel")
 
 # Skip integration tests if no API key
 HAS_API_KEY = bool(os.getenv("PARALLEL_API_KEY"))
@@ -30,6 +29,7 @@ def run_skill(*args: str, env: dict | None = None) -> subprocess.CompletedProces
         run_env.update(env)
     return subprocess.run(
         cmd,
+        check=False,
         capture_output=True,
         text=True,
         env=run_env,
@@ -66,14 +66,20 @@ class TestValidation:
         result = run_skill("search", env={"PARALLEL_API_KEY": "fake-key"})
 
         assert result.returncode != 0
-        assert "query required" in result.stderr.lower() or "query required" in result.stdout.lower()
+        assert (
+            "query required" in result.stderr.lower()
+            or "query required" in result.stdout.lower()
+        )
 
     def test_extract_requires_url(self):
         """Extract without URL shows error."""
         result = run_skill("extract", env={"PARALLEL_API_KEY": "fake-key"})
 
         assert result.returncode != 0
-        assert "url required" in result.stderr.lower() or "url required" in result.stdout.lower()
+        assert (
+            "url required" in result.stderr.lower()
+            or "url required" in result.stdout.lower()
+        )
 
     def test_extract_validates_url_format(self):
         """Extract rejects invalid URLs."""
@@ -84,7 +90,9 @@ class TestValidation:
 
     def test_limit_must_be_numeric(self):
         """--limit flag requires a number."""
-        result = run_skill("search", "test", "--limit", "abc", env={"PARALLEL_API_KEY": "fake-key"})
+        result = run_skill(
+            "search", "test", "--limit", "abc", env={"PARALLEL_API_KEY": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "limit" in result.stderr.lower() or "number" in result.stderr.lower()
@@ -98,16 +106,22 @@ class TestValidation:
 
     def test_limit_must_be_positive(self):
         """--limit rejects zero and negative values."""
-        result = run_skill("search", "test", "--limit", "0", env={"PARALLEL_API_KEY": "fake-key"})
+        result = run_skill(
+            "search", "test", "--limit", "0", env={"PARALLEL_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
         assert "positive" in result.stderr.lower()
 
-        result = run_skill("search", "test", "--limit", "-5", env={"PARALLEL_API_KEY": "fake-key"})
+        result = run_skill(
+            "search", "test", "--limit", "-5", env={"PARALLEL_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
 
     def test_limit_requires_value(self):
         """--limit at end of args without value shows error."""
-        result = run_skill("search", "test", "--limit", env={"PARALLEL_API_KEY": "fake-key"})
+        result = run_skill(
+            "search", "test", "--limit", env={"PARALLEL_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
         assert "limit" in result.stderr.lower()
 
@@ -119,7 +133,9 @@ class TestValidation:
 
     def test_raw_invalid_json(self):
         """Raw command rejects invalid JSON."""
-        result = run_skill("raw", "/search", "not-json", env={"PARALLEL_API_KEY": "fake-key"})
+        result = run_skill(
+            "raw", "/search", "not-json", env={"PARALLEL_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
         assert "json" in result.stderr.lower()
 

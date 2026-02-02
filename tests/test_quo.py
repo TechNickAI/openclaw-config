@@ -6,13 +6,12 @@ Tests auto-skip if the key is not available.
 
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
 # Path to the skill script
-SKILL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "skills", "quo", "quo"
-)
+SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "quo" / "quo")
 
 # Skip integration tests if no API key
 HAS_API_KEY = bool(os.getenv("QUO_API_KEY"))
@@ -30,6 +29,7 @@ def run_skill(*args: str, env: dict | None = None) -> subprocess.CompletedProces
         run_env.update(env)
     return subprocess.run(
         cmd,
+        check=False,
         capture_output=True,
         text=True,
         env=run_env,
@@ -105,8 +105,12 @@ class TestValidation:
     def test_send_requires_message(self):
         """Send without message content shows error."""
         result = run_skill(
-            "send", "--from", "+15551234567", "--to", "+15559876543",
-            env={"QUO_API_KEY": "fake-key"}
+            "send",
+            "--from",
+            "+15551234567",
+            "--to",
+            "+15559876543",
+            env={"QUO_API_KEY": "fake-key"},
         )
 
         assert result.returncode != 0
@@ -115,8 +119,13 @@ class TestValidation:
     def test_send_validates_phone_format(self):
         """Send validates E.164 phone number format."""
         result = run_skill(
-            "send", "--from", "5551234567", "--to", "+15559876543", "Hello",
-            env={"QUO_API_KEY": "fake-key"}
+            "send",
+            "--from",
+            "5551234567",
+            "--to",
+            "+15559876543",
+            "Hello",
+            env={"QUO_API_KEY": "fake-key"},
         )
 
         assert result.returncode != 0
@@ -127,11 +136,16 @@ class TestValidation:
         result = run_skill("messages", env={"QUO_API_KEY": "fake-key"})
 
         assert result.returncode != 0
-        assert "phonenumberid" in result.stderr.lower() or "number" in result.stderr.lower()
+        assert (
+            "phonenumberid" in result.stderr.lower()
+            or "number" in result.stderr.lower()
+        )
 
     def test_messages_requires_participant(self):
         """Messages command requires participant phone number."""
-        result = run_skill("messages", "--number-id", "PN123", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "messages", "--number-id", "PN123", env={"QUO_API_KEY": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "participant" in result.stderr.lower()
@@ -141,11 +155,16 @@ class TestValidation:
         result = run_skill("calls", env={"QUO_API_KEY": "fake-key"})
 
         assert result.returncode != 0
-        assert "phonenumberid" in result.stderr.lower() or "number" in result.stderr.lower()
+        assert (
+            "phonenumberid" in result.stderr.lower()
+            or "number" in result.stderr.lower()
+        )
 
     def test_calls_requires_participant(self):
         """Calls command requires participant phone number."""
-        result = run_skill("calls", "--number-id", "PN123", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "calls", "--number-id", "PN123", env={"QUO_API_KEY": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "participant" in result.stderr.lower()
@@ -166,16 +185,22 @@ class TestValidation:
 
     def test_limit_must_be_positive(self):
         """--limit rejects zero and negative values."""
-        result = run_skill("conversations", "--limit", "0", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "conversations", "--limit", "0", env={"QUO_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
         assert "positive" in result.stderr.lower() or "limit" in result.stderr.lower()
 
-        result = run_skill("conversations", "--limit", "-5", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "conversations", "--limit", "-5", env={"QUO_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
 
     def test_limit_must_be_numeric(self):
         """--limit flag requires a number."""
-        result = run_skill("conversations", "--limit", "abc", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "conversations", "--limit", "abc", env={"QUO_API_KEY": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "limit" in result.stderr.lower() or "number" in result.stderr.lower()
@@ -216,7 +241,11 @@ class TestNumbersIntegration:
 
         assert result.returncode == 0
         # Should have markdown formatted output or empty data message
-        assert "##" in result.stdout or "Number" in result.stdout or "No phone numbers" in result.stdout
+        assert (
+            "##" in result.stdout
+            or "Number" in result.stdout
+            or "No phone numbers" in result.stdout
+        )
 
     def test_nums_alias_works(self):
         """Nums alias works same as numbers."""
