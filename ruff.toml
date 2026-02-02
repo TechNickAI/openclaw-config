@@ -67,5 +67,5 @@ lines-between-types = 0
 docstring-code-format = true
 
 [lint.per-file-ignores]
-"test_*.py" = ["PLR0915", "ARG001", "ARG005", "SLF001", "F841", "S603"]
+"test_*.py" = ["PLR0915", "ARG001", "ARG005", "SLF001", "F841", "S603", "S607"]
 "**/conftest.py" = ["ARG001"]
