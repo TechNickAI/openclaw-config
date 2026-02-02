@@ -62,6 +62,7 @@ Update my openclaw config
 | **limitless** | Query Limitless Pendant lifelogs |
 | **fireflies** | Search Fireflies.ai meeting transcripts |
 | **quo** | Access Quo business phone calls & texts |
+| **parallel** | AI-optimized web search & content extraction (better than built-in) |
 
 ## The Memory Extraction Criteria
 
