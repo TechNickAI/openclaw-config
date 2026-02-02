@@ -44,11 +44,11 @@ def check_mail_accessible() -> bool:
                 "pyobjc-framework-ScriptingBridge",
                 "python3",
                 "-c",
-                """
+                """\
 from ScriptingBridge import SBApplication
-mail = SBApplication.applicationWithBundleIdentifier_('com.apple.mail')
+bundle = 'com.apple.mail'
+mail = SBApplication.applicationWithBundleIdentifier_(bundle)
 if mail and mail.isRunning():
-    # Try to actually access data with timeout
     import signal
     def handler(signum, frame):
         raise TimeoutError()
@@ -56,7 +56,7 @@ if mail and mail.isRunning():
     signal.alarm(5)
     try:
         accounts = mail.accounts()
-        count = accounts.count()  # This will hang if permissions are blocked
+        _ = accounts.count()  # Hangs if no permission
         print('OK')
     except TimeoutError:
         print('TIMEOUT')
