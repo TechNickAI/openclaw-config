@@ -4,6 +4,9 @@
 - [ ] Urgent emails (check if >4h since last check)
 - [ ] Calendar next 24h (check if >8h since last check)
 
+## Daily Checks
+- [ ] Config updates: run `openclaw status`, if updates available run `openclaw update`
+
 ## Rules
 - Late night (23:00-08:00): skip periodic unless urgent
 - If all clear: HEARTBEAT_OK

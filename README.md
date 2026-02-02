@@ -18,30 +18,28 @@ A battle-tested configuration for running OpenClaw as a personal AI assistant:
 
 ## Quick Start
 
-**Just tell your OpenClaw:**
+**Say this to your OpenClaw:**
 
 ```
-Set up openclaw-config from https://github.com/TechNickAI/openclaw-config
+Set up openclaw-config for me from https://github.com/TechNickAI/openclaw-config
+
+Ask me questions as you go — my name, what to call you, timezone, which
+integrations I want. Set up semantic memory search and verify it works.
 ```
 
-OpenClaw will:
-1. Clone the repo
-2. Copy templates to your workspace
-3. Ask for your name, AI's name, timezone, and priorities
-4. Ask which skills you want and guide you through getting API keys
-5. Configure everything automatically
-
-No manual config editing. No environment variables to export.
+OpenClaw handles everything interactively.
 
 ## Updating
 
-**Tell your OpenClaw:**
+**Say:**
 
 ```
-Sync my openclaw-config
+Update my openclaw config
 ```
 
-It preserves your customizations and only updates files you haven't modified.
+Or for a full refresh: "Force update openclaw, overwrite my changes"
+
+Updates also run automatically each night.
 
 ## What's Included
 
