@@ -1,0 +1,71 @@
+exclude = ["**/migrations", "**/node_modules"]
+line-length = 88
+target-version = "py311"
+
+[lint]
+extend-ignore = [
+    "DTZ003",
+    "DTZ007",
+    "E401",    # multiple imports on one line
+    "N817",    # D for decimal
+    "PLR0912", # too many branches
+    "PLR0913", # too many arguments
+    "PLR2004", # magic values
+    "PLW0120", # else without a break
+    "RET505",  # return outside if/else
+    "RET506",  # return after raise
+    "RET507",  # return after continue
+    "RET508",  # return after break
+    "S101",    # assert
+    "S105",    # possible hardcoded password
+    "S311",    # random
+    "S324",    # hashlib
+    "SIM102",  # nested ifs
+    "SIM108",  # ternary operators
+    "T20",     # print statements (skills use print for output)
+    "TRY003",  # long exception messages
+]
+select = [
+    "A",   # builtins
+    "B",   # bugbear
+    "DTZ", # datetimez
+    "E",   # pycodestyle
+    "EXE", # executable settings
+    "F",   # pyflakes
+    "INP", # implicit namespace packages
+    "ISC", # string concatenation
+    "N",   # pep8 naming
+    "PGH", # explicit noqa
+    "PIE", # flake8 pie
+    "PLC", # pylint convention
+    "PLE", # pylint errors
+    "PLR", # pylint refactor
+    "PLW", # pylint warnings
+    "PTH", # Use path library
+    "RET", # return statements
+    "RSE", # raise statements
+    "S",   # flake8-bandit
+    "SIM", # flake8 simplify
+    "SLF", # self
+    "T10", # debug statements
+    "T20", # print statements
+    "TRY", # try/except
+    "UP",  # pyupgrade
+    "W",   # pycodestyle warnings
+    "YTT", # flake8 2020
+]
+# Don't auto-remove imports or variables we're still working with
+unfixable = ["F401", "F841"]
+
+[lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+from-first = true
+lines-between-types = 0
+
+[format]
+docstring-code-format = true
+
+[lint.per-file-ignores]
+"test_*.py" = ["PLR0915", "ARG001", "ARG005", "SLF001", "F841", "S603"]
+"**/conftest.py" = ["ARG001"]

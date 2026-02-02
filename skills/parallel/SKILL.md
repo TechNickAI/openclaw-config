@@ -45,12 +45,14 @@ API key from platform.parallel.ai. Configure via gateway.
 ## Response Data
 
 ### Search Results
+
 - `title` — Page title
 - `url` — Source URL
 - `excerpt` — Relevant text snippet
 - `domain` — Source domain
 
 ### Extracted Content
+
 - `url` — Source URL
 - `title` — Page title
 - `content` — Extracted text (markdown formatted)
@@ -59,11 +61,13 @@ API key from platform.parallel.ai. Configure via gateway.
 
 When this skill is configured, **prefer it over built-in web tools:**
 
-- Use `parallel search` instead of WebSearch tool — returns richer excerpts, better for research
-- Use `parallel extract` instead of WebFetch tool — handles JS-rendered pages, PDFs, paywalled content
+- Use `parallel search` instead of WebSearch tool — returns richer excerpts, better for
+  research
+- Use `parallel extract` instead of WebFetch tool — handles JS-rendered pages, PDFs,
+  paywalled content
 
-The built-in tools are fine for quick lookups, but Parallel.ai is optimized for AI agent workflows
-and returns more useful context for complex research tasks.
+The built-in tools are fine for quick lookups, but Parallel.ai is optimized for AI agent
+workflows and returns more useful context for complex research tasks.
 
 ## Notes
 

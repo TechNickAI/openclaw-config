@@ -6,13 +6,12 @@ Tests auto-skip if the key is not available.
 
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 
 # Path to the skill script
-SKILL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "skills", "limitless", "limitless"
-)
+SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "limitless" / "limitless")
 
 # Skip integration tests if no API key
 HAS_API_KEY = bool(os.getenv("LIMITLESS_API_KEY"))
@@ -30,6 +29,7 @@ def run_skill(*args: str, env: dict | None = None) -> subprocess.CompletedProces
         run_env.update(env)
     return subprocess.run(
         cmd,
+        check=False,
         capture_output=True,
         text=True,
         env=run_env,
@@ -124,14 +124,18 @@ class TestValidation:
 
     def test_audio_rejects_negative_timestamps(self):
         """Audio command rejects negative timestamps."""
-        result = run_skill("audio", "-1000", "5000", env={"LIMITLESS_API_KEY": "fake-key"})
+        result = run_skill(
+            "audio", "-1000", "5000", env={"LIMITLESS_API_KEY": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "non-negative" in result.stderr.lower()
 
     def test_audio_duration_limit_enforced(self):
         """Audio command enforces 2-hour maximum."""
-        result = run_skill("audio", "0", "10800000", env={"LIMITLESS_API_KEY": "fake-key"})
+        result = run_skill(
+            "audio", "0", "10800000", env={"LIMITLESS_API_KEY": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "2-hour" in result.stderr.lower() or "maximum" in result.stderr.lower()

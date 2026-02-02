@@ -1,0 +1,6 @@
+*.agent
+**/.next/
+**/dist/
+**/build/
+**/node_modules/
+**/out/

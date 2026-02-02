@@ -1,7 +1,9 @@
 ---
 name: fireflies
 version: 0.2.0
-description: Query Fireflies.ai meeting transcripts - summaries, action items, and searchable history
+description:
+  Query Fireflies.ai meeting transcripts - summaries, action items, and searchable
+  history
 triggers:
   - fireflies
   - meetings

@@ -1,7 +1,8 @@
 ---
 name: limitless
 version: 0.2.0
-description: Query Limitless Pendant lifelogs - conversations, meetings, and ambient recordings
+description:
+  Query Limitless Pendant lifelogs - conversations, meetings, and ambient recordings
 triggers:
   - limitless
   - pendant

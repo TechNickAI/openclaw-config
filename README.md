@@ -4,16 +4,21 @@
 
 # OpenClaw Config 🐾
 
-Shareable configuration for [OpenClaw](https://github.com/openclaw/openclaw) — memory system, skills, and agent instructions.
+Shareable configuration for [OpenClaw](https://github.com/openclaw/openclaw) — memory
+system, skills, and agent instructions.
 
 ## What This Is
 
 A battle-tested configuration for running OpenClaw as a personal AI assistant:
 
-- **Three-tier memory architecture** — Daily logs, curated long-term memory, and searchable deep knowledge
-- **Semantic memory search** — Vector embeddings via LM Studio (local, free) or OpenAI for finding relevant context
-- **Decision-making frameworks** — Bezos's one-way/two-way doors, certainty thresholds, priority filters
-- **Group chat behavior** — When to speak, when to stay silent, how to react like a human
+- **Three-tier memory architecture** — Daily logs, curated long-term memory, and
+  searchable deep knowledge
+- **Semantic memory search** — Vector embeddings via LM Studio (local, free) or OpenAI
+  for finding relevant context
+- **Decision-making frameworks** — Bezos's one-way/two-way doors, certainty thresholds,
+  priority filters
+- **Group chat behavior** — When to speak, when to stay silent, how to react like a
+  human
 - **Ready-to-use skills** — Limitless Pendant, Fireflies.ai, and Quo phone integrations
 
 ## Quick Start
@@ -32,24 +37,27 @@ Update my openclaw config
 
 ### Templates
 
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | Complete operating instructions (~400 lines) |
-| `SOUL.md` | AI personality template |
-| `USER.md` | Human profile template |
-| `TOOLS.md` | Local environment notes |
-| `HEARTBEAT.md` | Periodic check config |
-| `IDENTITY.md` | Quick reference card |
+| File           | Purpose                                      |
+| -------------- | -------------------------------------------- |
+| `AGENTS.md`    | Complete operating instructions (~400 lines) |
+| `SOUL.md`      | AI personality template                      |
+| `USER.md`      | Human profile template                       |
+| `TOOLS.md`     | Local environment notes                      |
+| `HEARTBEAT.md` | Periodic check config                        |
+| `IDENTITY.md`  | Quick reference card                         |
 
 ### Memory Architecture
 
 **Tier 1: Always-Loaded**
+
 - `MEMORY.md` — Curated essentials (~100 lines max)
 
 **Tier 2: Daily Context**
+
 - `memory/YYYY-MM-DD.md` — Today + yesterday's logs
 
 **Tier 3: Deep Knowledge (Semantic Search)**
+
 - `memory/people/`, `memory/projects/`, `memory/topics/`, `memory/decisions/`
 - Indexed with vector embeddings for semantic similarity search
 - Use `memory_search("query")` to find relevant context
@@ -57,15 +65,16 @@ Update my openclaw config
 
 ### Skills
 
-Skills are standalone [UV scripts](https://docs.astral.sh/uv/guides/scripts/) — Python with inline dependencies, no project setup required.
+Skills are standalone [UV scripts](https://docs.astral.sh/uv/guides/scripts/) — Python
+with inline dependencies, no project setup required.
 
-| Skill | What it does |
-|-------|--------------|
-| **parallel** | Web search & content extraction via Parallel.ai (Python, tested) |
-| **limitless** | Query Limitless Pendant lifelogs |
-| **fireflies** | Search Fireflies.ai meeting transcripts |
-| **quo** | Access Quo business phone calls & texts |
-| **openclaw** | Manage openclaw-config installation & updates |
+| Skill         | What it does                                                     |
+| ------------- | ---------------------------------------------------------------- |
+| **parallel**  | Web search & content extraction via Parallel.ai (Python, tested) |
+| **limitless** | Query Limitless Pendant lifelogs                                 |
+| **fireflies** | Search Fireflies.ai meeting transcripts                          |
+| **quo**       | Access Quo business phone calls & texts                          |
+| **openclaw**  | Manage openclaw-config installation & updates                    |
 
 #### Running Tests
 
