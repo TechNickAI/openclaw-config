@@ -1,0 +1,148 @@
+#!/bin/bash
+# Quo CLI - Query your business phone system
+# Requires QUO_API_KEY environment variable
+
+API_KEY="${QUO_API_KEY:-}"
+BASE_URL="https://api.openphone.com/v1"
+
+if [ -z "$API_KEY" ]; then
+  echo "Error: QUO_API_KEY not set" >&2
+  echo "Get your key from: https://my.quo.com → Settings → API" >&2
+  exit 1
+fi
+
+call_api() {
+  local method="${1:-GET}"
+  local endpoint="$2"
+  shift 2
+  curl -s -X "$method" \
+    -H "Authorization: $API_KEY" \
+    -H "Content-Type: application/json" \
+    "${BASE_URL}${endpoint}" "$@"
+}
+
+format_numbers() {
+  jq -r '.data[]? // empty | "## \(.name // "Unnamed")\n**ID:** \(.id)\n**Number:** \(.number)\n**Type:** \(.type // "unknown")\n**Users:** \((.users // []) | map(.name // .email) | join(", "))\n\n---\n"'
+}
+
+format_conversations() {
+  jq -r '.data[]? // empty | "## \(.name // "Unknown")\n**ID:** \(.id)\n**Participants:** \((.participants // []) | join(", "))\n**Last Activity:** \(.lastActivityAt // "unknown")\n**Phone Number ID:** \(.phoneNumberId)\n\n---\n"'
+}
+
+format_contacts() {
+  jq -r '.data[]? // empty | "## \(.firstName // "") \(.lastName // "")\n**ID:** \(.id)\n**Company:** \(.company // "—")\n**Emails:** \((.emails // []) | map(.value) | join(", "))\n**Phones:** \((.phoneNumbers // []) | map(.value) | join(", "))\n\n---\n"'
+}
+
+format_users() {
+  jq -r '.data[]? // empty | "## \(.firstName // "") \(.lastName // "")\n**ID:** \(.id)\n**Email:** \(.email)\n**Role:** \(.role // "member")\n\n---\n"'
+}
+
+format_summary() {
+  jq -r '.data? // . | if type == "array" then .[] else . end | "# Call Summary\n\n\(.summary // .text // "No summary available")\n"'
+}
+
+format_transcript() {
+  jq -r '.data? // . | if type == "array" then .[] else . end | "# Call Transcript\n\n**Status:** \(.status // "unknown")\n\n\(if .segments then (.segments | map("[\(.startTime // "?")] \(.speaker // "Speaker"): \(.text // "")") | join("\n\n")) else (.transcript // .text // "No transcript available") end)\n"'
+}
+
+format_recordings() {
+  jq -r '.data[]? // empty | "## Recording\n**ID:** \(.id)\n**Status:** \(.status)\n**Duration:** \(.duration // 0)s\n**URL:** \(.url // "not available")\n\n---\n"'
+}
+
+format_voicemails() {
+  jq -r '.data[]? // empty | "## Voicemail\n**ID:** \(.id)\n**Duration:** \(.duration // 0)s\n**Status:** \(.status)\n**URL:** \(.url // "not available")\n**Transcript:** \(.transcript // "No transcript")\n\n---\n"'
+}
+
+case "${1:-help}" in
+  numbers|nums)
+    call_api GET "/phone-numbers" | format_numbers
+    ;;
+
+  conversations|convos)
+    limit="${2:-10}"
+    call_api GET "/conversations?maxResults=${limit}&excludeInactive=true" | format_conversations
+    ;;
+
+  contacts)
+    limit="${2:-20}"
+    call_api GET "/contacts?maxResults=${limit}" | format_contacts
+    ;;
+
+  users)
+    call_api GET "/users" | format_users
+    ;;
+
+  summary)
+    if [ -z "$2" ]; then
+      echo "Usage: quo summary <callId>" >&2
+      echo "Example: quo summary AC3700e624eca547eb9f749a06f" >&2
+      exit 1
+    fi
+    call_api GET "/call-summaries/$2" | format_summary
+    ;;
+
+  transcript)
+    if [ -z "$2" ]; then
+      echo "Usage: quo transcript <callId>" >&2
+      echo "Example: quo transcript AC3700e624eca547eb9f749a06f" >&2
+      exit 1
+    fi
+    call_api GET "/call-transcripts/$2" | format_transcript
+    ;;
+
+  recordings|recs)
+    if [ -z "$2" ]; then
+      echo "Usage: quo recordings <callId>" >&2
+      echo "Example: quo recordings AC3700e624eca547eb9f749a06f" >&2
+      exit 1
+    fi
+    call_api GET "/call-recordings/$2" | format_recordings
+    ;;
+
+  voicemails|vm)
+    if [ -z "$2" ]; then
+      echo "Usage: quo voicemails <callId>" >&2
+      echo "Example: quo voicemails AC3700e624eca547eb9f749a06f" >&2
+      exit 1
+    fi
+    call_api GET "/call-voicemails/$2" | format_voicemails
+    ;;
+
+  raw)
+    shift
+    method="${1:-GET}"
+    endpoint="$2"
+    shift 2
+    call_api "$method" "$endpoint" "$@"
+    ;;
+
+  help|*)
+    cat <<EOF
+Quo CLI - Query your business phone system (formerly OpenPhone)
+
+Commands:
+  numbers              List your Quo phone numbers
+  conversations [N]    List recent conversations (default: 10)
+  contacts [N]         List contacts (default: 20)
+  users                List workspace users
+
+  summary <callId>     Get AI summary for a call
+  transcript <callId>  Get transcript for a call
+  recordings <callId>  Get recording URLs for a call
+  voicemails <callId>  Get voicemails for a call
+
+  raw <METHOD> <path>  Raw API call
+
+Environment:
+  QUO_API_KEY          Required - your API key
+
+Examples:
+  quo numbers
+  quo conversations 20
+  quo contacts
+  quo summary AC3700e624eca547eb9f749a06f
+  quo transcript AC3700e624eca547eb9f749a06f
+  quo raw GET "/phone-numbers"
+EOF
+    ;;
+esac

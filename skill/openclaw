@@ -1,0 +1,198 @@
+#!/bin/bash
+# OpenClaw CLI - Manage your openclaw-config installation
+
+OPENCLAW_CACHE="${HOME}/.openclaw"
+OPENCLAW_REPO="${OPENCLAW_CACHE}/repo"
+CLAWD_DIR="${CLAWDBOT_DIR:-$HOME/clawd}"
+SCRIPTS_DIR="${OPENCLAW_REPO}/scripts"
+
+usage() {
+    cat <<EOF
+OpenClaw CLI - Manage your openclaw-config installation
+
+Commands:
+  version              Show installed version
+  status               Check for updates
+  sync [--force]       Sync updates from upstream
+  diff                 Show differences with upstream
+  add-skill <name>     Add a skill from the repo
+  upgrade              Full upgrade with backup
+  help                 Show this help
+
+Options (for sync):
+  --force              Overwrite local changes
+  --dry-run            Show what would change
+  --skills             Only sync skills
+  --templates          Only sync templates
+
+Examples:
+  openclaw version
+  openclaw sync --dry-run
+  openclaw add-skill limitless
+EOF
+}
+
+check_installed() {
+    if [ ! -d "$OPENCLAW_REPO" ]; then
+        echo "❌ OpenClaw not installed."
+        echo ""
+        echo "Run the bootstrap script:"
+        echo "curl -fsSL https://raw.githubusercontent.com/TechNickAI/openclaw-config/main/scripts/bootstrap.sh | bash"
+        exit 1
+    fi
+}
+
+cmd_version() {
+    if [ -f "$OPENCLAW_CACHE/installed-version" ]; then
+        echo "Installed: $(cat "$OPENCLAW_CACHE/installed-version")"
+    else
+        echo "Installed: unknown"
+    fi
+    if [ -f "$OPENCLAW_REPO/VERSION" ]; then
+        echo "Repo:      $(cat "$OPENCLAW_REPO/VERSION")"
+    fi
+}
+
+cmd_status() {
+    check_installed
+    bash "$SCRIPTS_DIR/version-check.sh"
+}
+
+cmd_sync() {
+    check_installed
+    bash "$SCRIPTS_DIR/sync.sh" "$@"
+}
+
+cmd_diff() {
+    check_installed
+    
+    echo "📄 Differences between your files and upstream:"
+    echo ""
+    
+    # Templates
+    for file in AGENTS.md HEARTBEAT.md; do
+        if [ -f "$CLAWD_DIR/$file" ] && [ -f "$OPENCLAW_REPO/templates/$file" ]; then
+            if ! diff -q "$CLAWD_DIR/$file" "$OPENCLAW_REPO/templates/$file" > /dev/null 2>&1; then
+                echo "--- $file ---"
+                diff -u "$CLAWD_DIR/$file" "$OPENCLAW_REPO/templates/$file" | head -50
+                echo ""
+            fi
+        fi
+    done
+    
+    # Memory
+    for file in TASK-SYSTEM.md; do
+        if [ -f "$CLAWD_DIR/memory/$file" ] && [ -f "$OPENCLAW_REPO/memory/$file" ]; then
+            if ! diff -q "$CLAWD_DIR/memory/$file" "$OPENCLAW_REPO/memory/$file" > /dev/null 2>&1; then
+                echo "--- memory/$file ---"
+                diff -u "$CLAWD_DIR/memory/$file" "$OPENCLAW_REPO/memory/$file" | head -50
+                echo ""
+            fi
+        fi
+    done
+    
+    # Skills
+    for skill in limitless fireflies quo; do
+        for ext in SKILL.md "$skill"; do
+            local_file="$CLAWD_DIR/skills/$skill/$ext"
+            remote_file="$OPENCLAW_REPO/skills/$skill/$ext"
+            if [ -f "$local_file" ] && [ -f "$remote_file" ]; then
+                if ! diff -q "$local_file" "$remote_file" > /dev/null 2>&1; then
+                    echo "--- skills/$skill/$ext ---"
+                    diff -u "$local_file" "$remote_file" | head -30
+                    echo ""
+                fi
+            fi
+        done
+    done
+}
+
+cmd_add_skill() {
+    check_installed
+    
+    local skill="$1"
+    if [ -z "$skill" ]; then
+        echo "Usage: openclaw add-skill <name>"
+        echo ""
+        echo "Available skills:"
+        ls -1 "$OPENCLAW_REPO/skills/"
+        exit 1
+    fi
+    
+    if [ ! -d "$OPENCLAW_REPO/skills/$skill" ]; then
+        echo "❌ Skill not found: $skill"
+        echo ""
+        echo "Available skills:"
+        ls -1 "$OPENCLAW_REPO/skills/"
+        exit 1
+    fi
+    
+    mkdir -p "$CLAWD_DIR/skills/$skill"
+    cp -r "$OPENCLAW_REPO/skills/$skill/"* "$CLAWD_DIR/skills/$skill/"
+    chmod +x "$CLAWD_DIR/skills/$skill/$skill" 2>/dev/null || true
+    
+    echo "✓ Installed skill: $skill"
+}
+
+cmd_upgrade() {
+    check_installed
+    
+    echo "🔄 OpenClaw Upgrade"
+    echo ""
+    
+    # Create backup
+    BACKUP_DIR="$OPENCLAW_CACHE/backups/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+    
+    echo "📦 Creating backup..."
+    for file in AGENTS.md SOUL.md USER.md TOOLS.md HEARTBEAT.md MEMORY.md; do
+        if [ -f "$CLAWD_DIR/$file" ]; then
+            cp "$CLAWD_DIR/$file" "$BACKUP_DIR/"
+        fi
+    done
+    if [ -d "$CLAWD_DIR/memory" ]; then
+        cp -r "$CLAWD_DIR/memory" "$BACKUP_DIR/"
+    fi
+    echo "✓ Backup created: $BACKUP_DIR"
+    echo ""
+    
+    # Force sync
+    bash "$SCRIPTS_DIR/sync.sh" --force
+    
+    echo ""
+    echo "✓ Upgrade complete!"
+    echo "   Backup at: $BACKUP_DIR"
+}
+
+# Main
+case "${1:-help}" in
+    version|v)
+        cmd_version
+        ;;
+    status|s)
+        cmd_status
+        ;;
+    sync)
+        shift
+        cmd_sync "$@"
+        ;;
+    diff|d)
+        cmd_diff
+        ;;
+    add-skill|add)
+        shift
+        cmd_add_skill "$@"
+        ;;
+    upgrade|u)
+        cmd_upgrade
+        ;;
+    help|h|--help|-h)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo ""
+        usage
+        exit 1
+        ;;
+esac

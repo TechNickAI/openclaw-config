@@ -1,0 +1,119 @@
+#!/bin/bash
+# Fireflies.ai CLI - Query your meeting transcripts
+# Requires FIREFLIES_API_KEY environment variable
+
+API_KEY="${FIREFLIES_API_KEY:-}"
+API_URL="https://api.fireflies.ai/graphql"
+
+if [ -z "$API_KEY" ]; then
+  echo "Error: FIREFLIES_API_KEY not set" >&2
+  echo "Get your key from: https://app.fireflies.ai → Integrations → Fireflies API" >&2
+  exit 1
+fi
+
+graphql() {
+  local query="$1"
+  local variables="${2:-{\}}"
+  local escaped_query
+  escaped_query=$(printf '%s' "$query" | jq -Rs .)
+  curl -s -X POST "$API_URL" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $API_KEY" \
+    -d "{\"query\": $escaped_query, \"variables\": $variables}"
+}
+
+# GraphQL Queries
+LIST_QUERY='query($limit: Int, $skip: Int, $keyword: String, $scope: String, $fromDate: DateTime, $toDate: DateTime, $mine: Boolean) { transcripts(limit: $limit, skip: $skip, keyword: $keyword, scope: $scope, fromDate: $fromDate, toDate: $toDate, mine: $mine) { id title date duration host_email participants organizer_email summary { overview short_summary keywords action_items } } }'
+
+FULL_QUERY='query($id: String!) { transcript(id: $id) { id title date duration host_email participants organizer_email sentences { speaker_name text start_time end_time } summary { keywords action_items outline overview bullet_gist short_summary topics_discussed } } }'
+
+USER_QUERY='query { user { user_id email name num_transcripts minutes_consumed } }'
+
+format_list() {
+  jq -r '.data.transcripts[]? // empty | "## \(.title // "Untitled")\n**ID:** \(.id)\n**Duration:** \(((.duration // 0) / 60) | floor)m\n**Host:** \(.host_email // "unknown")\n**Participants:** \((.participants // []) | join(", "))\n\n### Summary\n\(.summary.overview // .summary.short_summary // "No summary available")\n\n### Action Items\n\(.summary.action_items // "None")\n\n---\n"'
+}
+
+format_transcript() {
+  jq -r '.data.transcript // empty | "# \(.title // "Untitled")\n**Duration:** \(((.duration // 0) / 60) | floor) minutes\n**Host:** \(.host_email // "unknown")\n**Participants:** \((.participants // []) | join(", "))\n\n## Summary\n\(.summary.overview // .summary.short_summary // "No summary")\n\n## Keywords\n\((.summary.keywords // []) | join(", "))\n\n## Action Items\n\(.summary.action_items // "None")\n\n## Topics Discussed\n\((.summary.topics_discussed // []) | join(", "))\n\n## Transcript\n\((.sentences // []) | map("\(.speaker_name // "Speaker"): \(.text)") | join("\n"))"'
+}
+
+format_user() {
+  jq -r '.data.user // empty | "**User:** \(.name) (\(.email))\n**ID:** \(.user_id)\n**Total Transcripts:** \(.num_transcripts)\n**Minutes Used:** \(.minutes_consumed)"'
+}
+
+case "${1:-help}" in
+  recent)
+    limit="${2:-5}"
+    graphql "$LIST_QUERY" "{\"limit\": $limit, \"mine\": true}" | format_list
+    ;;
+
+  today)
+    today=$(date -u +%Y-%m-%dT00:00:00.000Z)
+    tomorrow=$(date -u -v+1d +%Y-%m-%dT00:00:00.000Z 2>/dev/null || date -u -d "+1 day" +%Y-%m-%dT00:00:00.000Z)
+    graphql "$LIST_QUERY" "{\"fromDate\": \"$today\", \"toDate\": \"$tomorrow\", \"limit\": 20, \"mine\": true}" | format_list
+    ;;
+
+  date)
+    if [ -z "$2" ]; then
+      echo "Usage: fireflies date YYYY-MM-DD" >&2
+      exit 1
+    fi
+    from_date="${2}T00:00:00.000Z"
+    to_date="${2}T23:59:59.999Z"
+    graphql "$LIST_QUERY" "{\"fromDate\": \"$from_date\", \"toDate\": \"$to_date\", \"limit\": 20, \"mine\": true}" | format_list
+    ;;
+
+  search)
+    if [ -z "$2" ]; then
+      echo "Usage: fireflies search \"query\"" >&2
+      exit 1
+    fi
+    keyword=$(printf '%s' "$2" | jq -Rs . | sed 's/^"//;s/"$//')
+    graphql "$LIST_QUERY" "{\"keyword\": \"$keyword\", \"scope\": \"all\", \"limit\": 10, \"mine\": true}" | format_list
+    ;;
+
+  get)
+    if [ -z "$2" ]; then
+      echo "Usage: fireflies get <transcript_id>" >&2
+      exit 1
+    fi
+    graphql "$FULL_QUERY" "{\"id\": \"$2\"}" | format_transcript
+    ;;
+
+  me)
+    graphql "$USER_QUERY" "{}" | format_user
+    ;;
+
+  raw)
+    shift
+    query="$1"
+    vars="${2:-{\}}"
+    graphql "$query" "$vars"
+    ;;
+
+  help|*)
+    cat <<EOF
+Fireflies CLI - Query your meeting transcripts
+
+Commands:
+  recent [N]           Get N most recent transcripts (default: 5)
+  today                Get today's meetings
+  date YYYY-MM-DD      Get meetings for a specific date
+  search "query"       Search transcripts by keyword
+  get <id>             Get full transcript by ID
+  me                   Get your user info
+  raw <query> [vars]   Raw GraphQL query
+
+Environment:
+  FIREFLIES_API_KEY    Required - your API key
+
+Examples:
+  fireflies recent 3
+  fireflies today
+  fireflies date 2026-01-28
+  fireflies search "product roadmap"
+  fireflies get abc123xyz
+  fireflies me
+EOF
+    ;;
+esac

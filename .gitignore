@@ -1,0 +1,31 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Local overrides
+*.local
+*.local.md
+
+# Secrets (should never be committed)
+*.key
+*.pem
+.env
+.env.*
+
+# Backup files
+*.bak
+*.backup
+
+# Logs
+*.log
+
+# Test artifacts
+/test/
+/tmp/

@@ -1,0 +1,81 @@
+#!/bin/bash
+# Limitless CLI - Query your Pendant lifelogs
+# Requires LIMITLESS_API_KEY environment variable
+
+API_KEY="${LIMITLESS_API_KEY:-}"
+BASE_URL="https://api.limitless.ai/v1"
+TZ="${LIMITLESS_TIMEZONE:-America/Chicago}"
+
+if [ -z "$API_KEY" ]; then
+  echo "Error: LIMITLESS_API_KEY not set" >&2
+  echo "Get your key from: https://app.limitless.ai → Settings → Developer" >&2
+  exit 1
+fi
+
+call_api() {
+  local endpoint="$1"
+  shift
+  curl -s -H "X-API-Key: $API_KEY" "${BASE_URL}${endpoint}$*"
+}
+
+format_lifelogs() {
+  jq -r '.data.lifelogs[] | "## \(.title)\n**\(.startTime) - \(.endTime)**\n\n\(.markdown)\n\n---\n"' 2>/dev/null || cat
+}
+
+case "${1:-help}" in
+  recent)
+    limit="${2:-5}"
+    call_api "/lifelogs" "?limit=${limit}&timezone=${TZ}&includeContents=false" | format_lifelogs
+    ;;
+
+  today)
+    today=$(date +%Y-%m-%d)
+    call_api "/lifelogs" "?date=${today}&timezone=${TZ}&limit=10&includeContents=false" | format_lifelogs
+    ;;
+
+  date)
+    if [ -z "$2" ]; then
+      echo "Usage: limitless date YYYY-MM-DD" >&2
+      exit 1
+    fi
+    call_api "/lifelogs" "?date=${2}&timezone=${TZ}&limit=10&includeContents=false" | format_lifelogs
+    ;;
+
+  search)
+    if [ -z "$2" ]; then
+      echo "Usage: limitless search \"query\"" >&2
+      exit 1
+    fi
+    query=$(printf '%s' "$2" | jq -sRr @uri)
+    call_api "/lifelogs" "?search=${query}&timezone=${TZ}&limit=10&includeContents=false" | format_lifelogs
+    ;;
+
+  raw)
+    shift
+    call_api "/lifelogs" "?$*"
+    ;;
+
+  help|*)
+    cat <<EOF
+Limitless CLI - Query your Pendant lifelogs
+
+Commands:
+  recent [N]           Get N most recent lifelogs (default: 5)
+  today                Get today's conversations
+  date YYYY-MM-DD      Get conversations for a specific date
+  search "query"       Semantic search across all lifelogs
+  raw <params>         Raw API call with custom params
+
+Environment:
+  LIMITLESS_API_KEY    Required - your API key
+  LIMITLESS_TIMEZONE   Optional - timezone (default: America/Chicago)
+
+Examples:
+  limitless recent 3
+  limitless today
+  limitless date 2026-01-28
+  limitless search "meeting with john"
+  limitless raw "limit=5&isStarred=true"
+EOF
+    ;;
+esac
