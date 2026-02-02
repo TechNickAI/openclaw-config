@@ -1,6 +1,6 @@
 # Setup Instructions
 
-**For Clawdbot to follow when user asks to set up openclaw-config.**
+**For OpenClaw to follow when user asks to set up openclaw-config.**
 
 ## Steps
 

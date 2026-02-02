@@ -9,7 +9,7 @@ triggers:
   - call transcript
   - call summary
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "📞"
     apiKey:
       env: QUO_API_KEY

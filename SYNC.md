@@ -1,6 +1,6 @@
 # Sync Instructions
 
-**For Clawdbot to follow when user asks to sync/update openclaw-config.**
+**For OpenClaw to follow when user asks to sync/update openclaw-config.**
 
 ## Check for Updates
 

@@ -4,11 +4,11 @@
 
 # OpenClaw Config 🐾
 
-Shareable configuration for [Clawdbot](https://github.com/clawdbot/clawdbot) — memory system, skills, and agent instructions.
+Shareable configuration for [OpenClaw](https://github.com/openclaw/openclaw) — memory system, skills, and agent instructions.
 
 ## What This Is
 
-A battle-tested configuration for running Clawdbot as a personal AI assistant:
+A battle-tested configuration for running OpenClaw as a personal AI assistant:
 
 - **Three-tier memory architecture** — Daily logs, curated long-term memory, and searchable deep knowledge
 - **Decision-making frameworks** — Bezos's one-way/two-way doors, certainty thresholds, priority filters
@@ -17,13 +17,13 @@ A battle-tested configuration for running Clawdbot as a personal AI assistant:
 
 ## Quick Start
 
-**Just tell your Clawdbot:**
+**Just tell your OpenClaw:**
 
 ```
 Set up openclaw-config from https://github.com/TechNickAI/openclaw-config
 ```
 
-Clawdbot will:
+OpenClaw will:
 1. Clone the repo
 2. Copy templates to your workspace
 3. Ask for your name, AI's name, timezone, and priorities
@@ -34,7 +34,7 @@ No manual config editing. No environment variables to export.
 
 ## Updating
 
-**Tell your Clawdbot:**
+**Tell your OpenClaw:**
 
 ```
 Sync my openclaw-config

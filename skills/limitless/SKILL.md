@@ -8,7 +8,7 @@ triggers:
   - what did I say
   - what was discussed
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "🎙️"
     apiKey:
       env: LIMITLESS_API_KEY

@@ -8,7 +8,7 @@ triggers:
   - what was discussed
   - meeting notes
 metadata:
-  clawdbot:
+  openclaw:
     emoji: "🔥"
     apiKey:
       env: FIREFLIES_API_KEY
