@@ -1,200 +1,205 @@
-#!/bin/bash
-# Parallel.ai CLI - Web search and content extraction
-# Requires PARALLEL_API_KEY environment variable
-
-API_KEY="${PARALLEL_API_KEY:-}"
-BASE_URL="https://api.parallel.ai/v1beta"
-BETA_HEADER="parallel-beta: search-extract-2025-10-10"
-
-# Validation
-if [ -z "$API_KEY" ]; then
-  echo "Error: PARALLEL_API_KEY not set" >&2
-  echo "Get your key from: https://platform.parallel.ai" >&2
-  exit 1
-fi
-
-# API helper with error handling
-call_api() {
-  local endpoint="$1"
-  local payload="$2"
-  local response http_code body
-
-  response=$(curl -s -w "\n%{http_code}" -X POST \
-    -H "Content-Type: application/json" \
-    -H "x-api-key: $API_KEY" \
-    -H "$BETA_HEADER" \
-    -d "$payload" \
-    "${BASE_URL}${endpoint}" 2>&1)
-
-  http_code=$(echo "$response" | tail -n1)
-  body=$(echo "$response" | sed '$d')
-
-  # Check for curl failure (non-numeric or 0/000 indicates network error)
-  if ! [[ "$http_code" =~ ^[0-9]+$ ]] || [ "$http_code" -eq 0 ]; then
-    echo "Error: Failed to reach Parallel.ai API" >&2
-    echo "Details: $body" >&2
-    return 1
-  fi
-
-  # Check for HTTP errors
-  if [ "$http_code" -ge 400 ]; then
-    echo "Error: API returned HTTP $http_code" >&2
-    echo "$body" | jq -r '.error.message // .error // .' 2>/dev/null >&2
-    return 1
-  fi
-
-  echo "$body"
-}
-
-# Format search results as markdown
-format_search() {
-  jq -r '
-    if .results then
-      (.results // [])[] |
-      "## \(.title // "Untitled")\n" +
-      "**URL:** \(.url // "N/A")\n" +
-      "**Domain:** \(.domain // (.url | split("/")[2] // "unknown"))\n\n" +
-      "\(.excerpt // .snippet // "No excerpt available")\n\n---\n"
-    elif .error then
-      "Error: \(.error.message // .error // "Unknown error")"
-    else
-      "No results found"
-    end
-  '
-}
-
-# Format extraction results as markdown
-format_extract() {
-  jq -r '
-    if .results then
-      (.results // [])[] |
-      "## \(.title // "Extracted Content")\n" +
-      "**URL:** \(.url // "N/A")\n\n" +
-      (if .content then .content else (.excerpt // "No content extracted") end) +
-      "\n\n---\n"
-    elif .error then
-      "Error: \(.error.message // .error // "Unknown error")"
-    else
-      "No content extracted"
-    end
-  '
-}
-
-case "${1:-help}" in
-  search)
-    shift
-    query=""
-    limit=5
-
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --limit)
-          if [ -z "$2" ] || [[ "$2" == --* ]]; then
-            echo "Error: --limit requires a numeric value" >&2
-            exit 1
-          fi
-          limit="$2"
-          shift 2
-          ;;
-        *)
-          if [ -z "$query" ]; then
-            query="$1"
-          else
-            query="$query $1"
-          fi
-          shift
-          ;;
-      esac
-    done
-
-    if [ -z "$query" ]; then
-      echo "Error: Search query required" >&2
-      echo "Usage: parallel search \"your query\" [--limit N]" >&2
-      exit 1
-    fi
-
-    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
-      echo "Error: --limit must be a positive integer, got '$limit'" >&2
-      exit 1
-    fi
-
-    payload=$(jq -n \
-      --arg q "$query" \
-      --argjson limit "$limit" \
-      '{
-        objective: "Find relevant information about: \($q)",
-        search_queries: [$q],
-        max_results: $limit,
-        excerpts: {
-          max_chars_per_result: 500
-        }
-      }')
-
-    result=$(call_api "/search" "$payload") || exit 1
-    echo "$result" | format_search
-    ;;
-
-  extract)
-    shift
-    url=""
-    full_content=false
-
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        --full)
-          full_content=true
-          shift
-          ;;
-        *)
-          url="$1"
-          shift
-          ;;
-      esac
-    done
-
-    if [ -z "$url" ]; then
-      echo "Error: URL required" >&2
-      echo "Usage: parallel extract <url> [--full]" >&2
-      exit 1
-    fi
-
-    if [[ ! "$url" =~ ^https?:// ]]; then
-      echo "Error: URL must start with http:// or https://" >&2
-      echo "Got: $url" >&2
-      exit 1
-    fi
-
-    payload=$(jq -n \
-      --arg url "$url" \
-      --argjson full "$full_content" \
-      '{
-        urls: [$url],
-        objective: "Extract the main content from this page",
-        excerpts: (if $full then false else true end),
-        full_content: $full
-      }')
-
-    result=$(call_api "/extract" "$payload") || exit 1
-    echo "$result" | format_extract
-    ;;
-
-  raw)
-    shift
-    endpoint="${1:-}"
-    payload="${2:-{}}"
-
-    if [ -z "$endpoint" ]; then
-      echo "Error: Endpoint required" >&2
-      echo "Usage: parallel raw <endpoint> [json-payload]" >&2
-      exit 1
-    fi
-
-    call_api "$endpoint" "$payload"
-    ;;
-
-  help|*)
-    cat <<EOF
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
 Parallel.ai CLI - Web search and content extraction
+
+Requires PARALLEL_API_KEY environment variable for API operations.
+"""
+
+import json
+import os
+import sys
+from typing import Any, NoReturn
+
+import httpx
+
+BASE_URL = "https://api.parallel.ai/v1beta"
+BETA_HEADER = "parallel-beta: search-extract-2025-10-10"
+
+
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("PARALLEL_API_KEY", "").strip() or None
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def call_api(endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Make API request with proper error handling."""
+    api_key = get_api_key()
+    if not api_key:
+        error("PARALLEL_API_KEY not set", "Get your key from: https://platform.parallel.ai")
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "parallel-beta": "search-extract-2025-10-10",
+    }
+
+    try:
+        response = httpx.post(
+            f"{BASE_URL}{endpoint}",
+            json=payload,
+            headers=headers,
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        # Try to extract error message from response
+        try:
+            body = e.response.json()
+            msg = body.get("error", {}).get("message") or body.get("error") or str(body)
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", msg)
+    except httpx.RequestError as e:
+        error("Failed to reach Parallel.ai API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
+
+
+def format_search_results(data: dict[str, Any]) -> str:
+    """Format search results as markdown."""
+    results = data.get("results", [])
+    if not results:
+        return "No results found"
+
+    output = []
+    for r in results:
+        title = r.get("title", "Untitled")
+        url = r.get("url", "N/A")
+        domain = r.get("domain") or "unknown"
+        excerpt = r.get("excerpt") or r.get("snippet") or "No excerpt available"
+
+        output.append(f"## {title}")
+        output.append(f"**URL:** {url}")
+        output.append(f"**Domain:** {domain}")
+        output.append("")
+        output.append(excerpt)
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_extract_results(data: dict[str, Any]) -> str:
+    """Format extraction results as markdown."""
+    results = data.get("results", [])
+    if not results:
+        return "No content extracted"
+
+    output = []
+    for r in results:
+        title = r.get("title", "Extracted Content")
+        url = r.get("url", "N/A")
+        content = r.get("content") or r.get("excerpt") or "No content extracted"
+
+        output.append(f"## {title}")
+        output.append(f"**URL:** {url}")
+        output.append("")
+        output.append(content)
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def cmd_search(args: list[str]) -> None:
+    """Execute search command."""
+    query_parts = []
+    limit = 5
+    i = 0
+
+    while i < len(args):
+        if args[i] == "--limit":
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+                if limit <= 0:
+                    error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            except ValueError:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            i += 2
+        else:
+            query_parts.append(args[i])
+            i += 1
+
+    query = " ".join(query_parts)
+    if not query:
+        error("Search query required", "Usage: parallel search \"your query\" [--limit N]")
+
+    payload = {
+        "objective": f"Find relevant information about: {query}",
+        "search_queries": [query],
+        "max_results": limit,
+        "excerpts": {"max_chars_per_result": 500},
+    }
+
+    result = call_api("/search", payload)
+    print(format_search_results(result))
+
+
+def cmd_extract(args: list[str]) -> None:
+    """Execute extract command."""
+    url = None
+    full_content = False
+
+    for arg in args:
+        if arg == "--full":
+            full_content = True
+        elif not url:
+            url = arg
+
+    if not url:
+        error("URL required", "Usage: parallel extract <url> [--full]")
+
+    if not url.startswith(("http://", "https://")):
+        error("URL must start with http:// or https://", f"Got: {url}")
+
+    payload = {
+        "urls": [url],
+        "objective": "Extract the main content from this page",
+        "excerpts": not full_content,
+        "full_content": full_content,
+    }
+
+    result = call_api("/extract", payload)
+    print(format_extract_results(result))
+
+
+def cmd_raw(args: list[str]) -> None:
+    """Execute raw API command."""
+    if not args:
+        error("Endpoint required", "Usage: parallel raw <endpoint> [json-payload]")
+
+    endpoint = args[0]
+    payload_str = args[1] if len(args) > 1 else "{}"
+
+    try:
+        payload = json.loads(payload_str)
+    except json.JSONDecodeError as e:
+        error(f"Invalid JSON payload: {e}")
+
+    result = call_api(endpoint, payload)
+    print(json.dumps(result, indent=2))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""Parallel.ai CLI - Web search and content extraction
 
 Commands:
   search "query"              Web search with AI-optimized results
@@ -214,7 +219,25 @@ Examples:
   parallel extract https://example.com/doc.pdf --full
   parallel raw /search '{"search_queries":["test"]}'
 
-Get your API key: https://platform.parallel.ai
-EOF
-    ;;
-esac
+Get your API key: https://platform.parallel.ai""")
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    if command == "help":
+        cmd_help()
+    elif command == "search":
+        cmd_search(args[1:])
+    elif command == "extract":
+        cmd_extract(args[1:])
+    elif command == "raw":
+        cmd_raw(args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'parallel help' for available commands")
+
+
+if __name__ == "__main__":
+    main()
