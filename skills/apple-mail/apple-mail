@@ -101,7 +101,9 @@ def find_message_by_id(mail: Any, message_id: int) -> Any | None:
     return None
 
 
-def find_mailbox(mail: Any, mailbox_name: str, account_name: str | None = None) -> Any | None:
+def find_mailbox(
+    mail: Any, mailbox_name: str, account_name: str | None = None
+) -> Any | None:
     """Find mailbox by name, optionally within a specific account.
 
     Uses objectWithName_ for O(1) lookup instead of iteration.
@@ -364,7 +366,7 @@ def cmd_search(args: list[str]) -> None:
     if not args:
         error(
             "Search query required",
-            "Usage: apple-mail search \"query\" [--mailbox NAME] [--limit N]",
+            'Usage: apple-mail search "query" [--mailbox NAME] [--limit N]',
         )
 
     query = args[0]
@@ -440,7 +442,9 @@ def cmd_read(args: list[str]) -> None:
         # Get content - ScriptingBridge returns lazy object, need .get()
         try:
             content_obj = message.content()
-            content = content_obj.get() if hasattr(content_obj, "get") else str(content_obj)
+            content = (
+                content_obj.get() if hasattr(content_obj, "get") else str(content_obj)
+            )
             if content:
                 print(content)
             else:
@@ -670,12 +674,20 @@ def cmd_send(args: list[str]) -> None:
         }
 
         # Create message via the outgoingMessages collection
-        outgoing = mail.classForScriptingClass_("outgoingMessage").alloc().initWithProperties_(props)
+        outgoing = (
+            mail.classForScriptingClass_("outgoingMessage")
+            .alloc()
+            .initWithProperties_(props)
+        )
         mail.outgoingMessages().addObject_(outgoing)
 
         # Add recipient
         recipient_props = {"address": to}
-        recipient = mail.classForScriptingClass_("toRecipient").alloc().initWithProperties_(recipient_props)
+        recipient = (
+            mail.classForScriptingClass_("toRecipient")
+            .alloc()
+            .initWithProperties_(recipient_props)
+        )
         outgoing.toRecipients().addObject_(recipient)
 
         # Set sender if specified
@@ -712,7 +724,9 @@ def cmd_reply(args: list[str]) -> None:
             i += 1
 
     if not remaining:
-        error("Message ID required", "Usage: apple-mail reply <id> --body \"text\" [--all]")
+        error(
+            "Message ID required", 'Usage: apple-mail reply <id> --body "text" [--all]'
+        )
 
     try:
         msg_id = int(remaining[0])
@@ -736,7 +750,11 @@ def cmd_reply(args: list[str]) -> None:
         # Get original content (ScriptingBridge returns lazy object, need .get())
         try:
             content_obj = reply.content()
-            original_content = content_obj.get() if hasattr(content_obj, "get") else str(content_obj or "")
+            original_content = (
+                content_obj.get()
+                if hasattr(content_obj, "get")
+                else str(content_obj or "")
+            )
         except Exception:
             original_content = ""
 
@@ -781,7 +799,10 @@ def main() -> None:
     if command in COMMANDS:
         COMMANDS[command](args[1:])
     else:
-        error(f"Unknown command: {command}", "Run 'apple-mail help' for available commands")
+        error(
+            f"Unknown command: {command}",
+            "Run 'apple-mail help' for available commands",
+        )
 
 
 if __name__ == "__main__":

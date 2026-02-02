@@ -17,7 +17,9 @@ pytestmark = pytest.mark.skipif(
 SKILL_PATH = Path(__file__).parent.parent / "skills" / "apple-mail" / "apple-mail"
 
 
-def run_skill(*args: str, env: dict | None = None, timeout: int = 120) -> subprocess.CompletedProcess:
+def run_skill(
+    *args: str, env: dict | None = None, timeout: int = 120
+) -> subprocess.CompletedProcess:
     """Run the apple-mail skill with given arguments."""
     cmd = ["uv", "run", SKILL_PATH, *args]
     run_env = os.environ.copy()
@@ -230,7 +232,7 @@ class TestMailAppIntegration:
         # Should have output (configured accounts) or "No mail accounts"
         assert result.stdout.strip()
 
-    @pytest.mark.skip(reason="ScriptingBridge has variable performance - works manually but can timeout in CI")
+    @pytest.mark.skip(reason="ScriptingBridge performance varies - may timeout in CI")
     def test_mailboxes_returns_output(self):
         """Mailboxes command returns some output."""
         result = run_skill("mailboxes")
@@ -238,7 +240,7 @@ class TestMailAppIntegration:
         assert result.returncode == 0
         assert result.stdout.strip()
 
-    @pytest.mark.skip(reason="ScriptingBridge has variable performance - works manually but can timeout in CI")
+    @pytest.mark.skip(reason="ScriptingBridge performance varies - may timeout in CI")
     def test_list_inbox(self):
         """List INBOX returns messages or empty message."""
         result = run_skill("list", "INBOX", "--limit", "5")
@@ -247,18 +249,18 @@ class TestMailAppIntegration:
         # Either has messages or says "No messages"
         assert result.stdout.strip()
 
-    @pytest.mark.skip(reason="ScriptingBridge has variable performance - works manually but can timeout in CI")
+    @pytest.mark.skip(reason="ScriptingBridge performance varies - may timeout in CI")
     def test_list_with_limit(self):
         """List respects limit parameter."""
         result = run_skill("list", "INBOX", "--limit", "3")
 
         assert result.returncode == 0
         # Count output lines (excluding empty)
-        lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+        lines = [ln for ln in result.stdout.strip().split("\n") if ln.strip()]
         # Should be at most 3 messages (could be fewer if inbox is small)
         assert len(lines) <= 3 or "No messages" in result.stdout
 
-    @pytest.mark.skip(reason="Search is slow without SQLite optimization - iterates all messages")
+    @pytest.mark.skip(reason="Search slow without SQLite - iterates all messages")
     def test_search_returns_output(self):
         """Search returns results or no-match message."""
         result = run_skill("search", "test", "--limit", "5")
@@ -274,7 +276,7 @@ class TestMailAppIntegration:
         assert result.returncode == 0
         assert "refresh" in result.stdout.lower()
 
-    @pytest.mark.skip(reason="Slow when mailbox doesn't exist - iterates all nested mailboxes")
+    @pytest.mark.skip(reason="Slow when mailbox missing - iterates nested mailboxes")
     def test_nonexistent_mailbox_error(self):
         """List with nonexistent mailbox shows error."""
         result = run_skill("list", "ThisMailboxDoesNotExist12345")
