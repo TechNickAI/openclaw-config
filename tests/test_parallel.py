@@ -6,7 +6,6 @@ Tests auto-skip if the key is not available.
 
 import os
 import subprocess
-import sys
 
 import pytest
 

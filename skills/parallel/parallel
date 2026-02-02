@@ -17,7 +17,7 @@ from typing import Any, NoReturn
 import httpx
 
 BASE_URL = "https://api.parallel.ai/v1beta"
-BETA_HEADER = "parallel-beta: search-extract-2025-10-10"
+BETA_HEADER = "search-extract-2025-10-10"
 
 
 def get_api_key() -> str | None:
