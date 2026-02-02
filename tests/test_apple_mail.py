@@ -2,8 +2,15 @@
 
 import os
 import subprocess
+import sys
 
 import pytest
+
+# Skip all tests on non-macOS platforms (PyObjC requires macOS)
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="apple-mail requires macOS (PyObjC won't build on Linux/Windows)"
+)
 
 # Path to the skill script
 SKILL_PATH = os.path.join(
