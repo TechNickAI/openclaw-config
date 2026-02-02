@@ -1,108 +1,377 @@
-#!/bin/bash
-# Fireflies.ai CLI - Query your meeting transcripts
-# Requires FIREFLIES_API_KEY environment variable
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
+Fireflies CLI - Query your meeting transcripts via GraphQL API
 
-API_KEY="${FIREFLIES_API_KEY:-}"
-API_URL="https://api.fireflies.ai/graphql"
+Requires FIREFLIES_API_KEY environment variable for API operations.
+"""
 
-if [ -z "$API_KEY" ]; then
-  echo "Error: FIREFLIES_API_KEY not set" >&2
-  echo "Get your key from: https://app.fireflies.ai → Integrations → Fireflies API" >&2
-  exit 1
-fi
+import json
+import os
+import re
+import sys
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, NoReturn
 
-graphql() {
-  local query="$1"
-  local variables="${2:-{\}}"
-  local escaped_query
-  escaped_query=$(printf '%s' "$query" | jq -Rs .)
-  curl -s -X POST "$API_URL" \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $API_KEY" \
-    -d "{\"query\": $escaped_query, \"variables\": $variables}"
+import httpx
+
+API_URL = "https://api.fireflies.ai/graphql"
+MAX_LIMIT = 50
+DEFAULT_LIMIT = 5
+
+# --- GraphQL Queries ---
+
+LIST_QUERY = """
+query($limit: Int, $skip: Int, $keyword: String, $scope: String,
+      $fromDate: DateTime, $toDate: DateTime, $mine: Boolean) {
+  transcripts(limit: $limit, skip: $skip, keyword: $keyword, scope: $scope,
+              fromDate: $fromDate, toDate: $toDate, mine: $mine) {
+    id title date duration host_email participants organizer_email
+    summary {
+      overview short_summary keywords action_items
+    }
+  }
 }
+"""
 
-# GraphQL Queries
-LIST_QUERY='query($limit: Int, $skip: Int, $keyword: String, $scope: String, $fromDate: DateTime, $toDate: DateTime, $mine: Boolean) { transcripts(limit: $limit, skip: $skip, keyword: $keyword, scope: $scope, fromDate: $fromDate, toDate: $toDate, mine: $mine) { id title date duration host_email participants organizer_email summary { overview short_summary keywords action_items } } }'
-
-FULL_QUERY='query($id: String!) { transcript(id: $id) { id title date duration host_email participants organizer_email sentences { speaker_name text start_time end_time } summary { keywords action_items outline overview bullet_gist short_summary topics_discussed } } }'
-
-USER_QUERY='query { user { user_id email name num_transcripts minutes_consumed } }'
-
-format_list() {
-  jq -r '.data.transcripts[]? // empty | "## \(.title // "Untitled")\n**ID:** \(.id)\n**Duration:** \(((.duration // 0) / 60) | floor)m\n**Host:** \(.host_email // "unknown")\n**Participants:** \((.participants // []) | join(", "))\n\n### Summary\n\(.summary.overview // .summary.short_summary // "No summary available")\n\n### Action Items\n\(.summary.action_items // "None")\n\n---\n"'
+FULL_QUERY = """
+query($id: String!) {
+  transcript(id: $id) {
+    id title date duration host_email participants organizer_email
+    sentences {
+      speaker_name text start_time end_time
+    }
+    summary {
+      keywords action_items outline overview
+      bullet_gist short_summary topics_discussed
+    }
+  }
 }
+"""
 
-format_transcript() {
-  jq -r '.data.transcript // empty | "# \(.title // "Untitled")\n**Duration:** \(((.duration // 0) / 60) | floor) minutes\n**Host:** \(.host_email // "unknown")\n**Participants:** \((.participants // []) | join(", "))\n\n## Summary\n\(.summary.overview // .summary.short_summary // "No summary")\n\n## Keywords\n\((.summary.keywords // []) | join(", "))\n\n## Action Items\n\(.summary.action_items // "None")\n\n## Topics Discussed\n\((.summary.topics_discussed // []) | join(", "))\n\n## Transcript\n\((.sentences // []) | map("\(.speaker_name // "Speaker"): \(.text)") | join("\n"))"'
+USER_QUERY = """
+query {
+  user {
+    user_id email name num_transcripts minutes_consumed
+  }
 }
+"""
 
-format_user() {
-  jq -r '.data.user // empty | "**User:** \(.name) (\(.email))\n**ID:** \(.user_id)\n**Total Transcripts:** \(.num_transcripts)\n**Minutes Used:** \(.minutes_consumed)"'
-}
 
-case "${1:-help}" in
-  recent)
-    limit="${2:-5}"
-    graphql "$LIST_QUERY" "{\"limit\": $limit, \"mine\": true}" | format_list
-    ;;
+# --- Helpers ---
 
-  today)
-    today=$(date -u +%Y-%m-%dT00:00:00.000Z)
-    tomorrow=$(date -u -v+1d +%Y-%m-%dT00:00:00.000Z 2>/dev/null || date -u -d "+1 day" +%Y-%m-%dT00:00:00.000Z)
-    graphql "$LIST_QUERY" "{\"fromDate\": \"$today\", \"toDate\": \"$tomorrow\", \"limit\": 20, \"mine\": true}" | format_list
-    ;;
 
-  date)
-    if [ -z "$2" ]; then
-      echo "Usage: fireflies date YYYY-MM-DD" >&2
-      exit 1
-    fi
-    from_date="${2}T00:00:00.000Z"
-    to_date="${2}T23:59:59.999Z"
-    graphql "$LIST_QUERY" "{\"fromDate\": \"$from_date\", \"toDate\": \"$to_date\", \"limit\": 20, \"mine\": true}" | format_list
-    ;;
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("FIREFLIES_API_KEY", "").strip() or None
 
-  search)
-    if [ -z "$2" ]; then
-      echo "Usage: fireflies search \"query\"" >&2
-      exit 1
-    fi
-    keyword=$(printf '%s' "$2" | jq -Rs . | sed 's/^"//;s/"$//')
-    graphql "$LIST_QUERY" "{\"keyword\": \"$keyword\", \"scope\": \"all\", \"limit\": 10, \"mine\": true}" | format_list
-    ;;
 
-  get)
-    if [ -z "$2" ]; then
-      echo "Usage: fireflies get <transcript_id>" >&2
-      exit 1
-    fi
-    graphql "$FULL_QUERY" "{\"id\": \"$2\"}" | format_transcript
-    ;;
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
 
-  me)
-    graphql "$USER_QUERY" "{}" | format_user
-    ;;
 
-  raw)
-    shift
-    query="$1"
-    vars="${2:-{\}}"
-    graphql "$query" "$vars"
-    ;;
+def graphql(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Execute a GraphQL query against the Fireflies API."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "FIREFLIES_API_KEY not set",
+            "Get your key from: https://app.fireflies.ai → Integrations → Fireflies API",
+        )
 
-  help|*)
-    cat <<EOF
-Fireflies CLI - Query your meeting transcripts
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    payload: dict[str, Any] = {"query": query}
+    if variables:
+        payload["variables"] = variables
+
+    try:
+        response = httpx.post(API_URL, json=payload, headers=headers, timeout=60.0)
+        response.raise_for_status()
+        data = response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            error("Rate limited", "Free tier: 50 API calls/day. Upgrade for more.")
+        try:
+            body = e.response.json()
+            msg = body.get("error") or body.get("message") or str(body)
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach Fireflies API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
+
+    if "errors" in data:
+        msgs = [e.get("message", str(e)) for e in data["errors"]]
+        error("GraphQL error", "\n".join(msgs))
+
+    return data
+
+
+def validate_limit(value: str) -> int:
+    """Validate and return limit value (1-50)."""
+    try:
+        limit = int(value)
+    except ValueError:
+        error(f"Limit must be a number, got '{value}'")
+    if limit < 1 or limit > MAX_LIMIT:
+        error(f"Limit must be between 1-50, got {limit}")
+    return limit
+
+
+def validate_date(value: str) -> str:
+    """Validate YYYY-MM-DD date format and that the date is real."""
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        error(f"Invalid date format: '{value}'", "Expected format: YYYY-MM-DD")
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        error(f"Invalid date: '{value}'", "Expected format: YYYY-MM-DD")
+    return value
+
+
+# --- Formatters ---
+
+
+def format_list(data: dict[str, Any]) -> str:
+    """Format transcript list results as markdown."""
+    transcripts = data.get("data", {}).get("transcripts") or []
+    if not transcripts:
+        return "No transcripts found."
+
+    output = []
+    for t in transcripts:
+        title = t.get("title") or "Untitled"
+        tid = t.get("id", "")
+        duration = (t.get("duration") or 0) // 60
+        host = t.get("host_email") or "unknown"
+        participants = ", ".join(t.get("participants") or [])
+        summary = t.get("summary") or {}
+        overview = summary.get("overview") or summary.get("short_summary") or "No summary available"
+        action_items = summary.get("action_items") or "None"
+
+        # Parse epoch date if available
+        raw_date = t.get("date")
+        date_str = ""
+        if raw_date:
+            try:
+                dt = datetime.fromtimestamp(int(raw_date) / 1000, tz=timezone.utc)
+                date_str = dt.strftime("%Y-%m-%d %H:%M UTC")
+            except (ValueError, TypeError, OSError):
+                date_str = str(raw_date)
+
+        output.append(f"## {title}")
+        output.append(f"**ID:** {tid}")
+        if date_str:
+            output.append(f"**Date:** {date_str}")
+        output.append(f"**Duration:** {duration}m")
+        output.append(f"**Host:** {host}")
+        if participants:
+            output.append(f"**Participants:** {participants}")
+        output.append("")
+        output.append("### Summary")
+        output.append(overview)
+        output.append("")
+        output.append("### Action Items")
+        output.append(action_items)
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_transcript(data: dict[str, Any]) -> str:
+    """Format a single transcript with full detail."""
+    t = data.get("data", {}).get("transcript")
+    if not t:
+        return "Transcript not found."
+
+    title = t.get("title") or "Untitled"
+    duration = (t.get("duration") or 0) // 60
+    host = t.get("host_email") or "unknown"
+    participants = ", ".join(t.get("participants") or [])
+    summary = t.get("summary") or {}
+
+    output = [f"# {title}"]
+    output.append(f"**Duration:** {duration} minutes")
+    output.append(f"**Host:** {host}")
+    if participants:
+        output.append(f"**Participants:** {participants}")
+    output.append("")
+
+    overview = summary.get("overview") or summary.get("short_summary") or "No summary"
+    output.append("## Summary")
+    output.append(overview)
+    output.append("")
+
+    keywords = summary.get("keywords") or []
+    if keywords:
+        output.append("## Keywords")
+        output.append(", ".join(keywords))
+        output.append("")
+
+    action_items = summary.get("action_items") or "None"
+    output.append("## Action Items")
+    output.append(action_items)
+    output.append("")
+
+    topics = summary.get("topics_discussed") or []
+    if topics:
+        output.append("## Topics Discussed")
+        output.append(", ".join(topics))
+        output.append("")
+
+    sentences = t.get("sentences") or []
+    if sentences:
+        output.append("## Transcript")
+        for s in sentences:
+            speaker = s.get("speaker_name") or "Speaker"
+            text = s.get("text") or ""
+            output.append(f"**{speaker}:** {text}")
+
+    return "\n".join(output)
+
+
+def format_user(data: dict[str, Any]) -> str:
+    """Format user info as markdown."""
+    user = data.get("data", {}).get("user")
+    if not user:
+        return "User info not found."
+
+    name = user.get("name") or "Unknown"
+    email = user.get("email") or "unknown"
+    uid = user.get("user_id") or ""
+    transcripts = user.get("num_transcripts") or 0
+    minutes = user.get("minutes_consumed") or 0
+
+    output = [
+        f"**User:** {name} ({email})",
+        f"**ID:** {uid}",
+        f"**Total Transcripts:** {transcripts}",
+        f"**Minutes Used:** {minutes}",
+    ]
+    return "\n".join(output)
+
+
+# --- Commands ---
+
+
+def cmd_recent(args: list[str]) -> None:
+    """List recent transcripts."""
+    limit = DEFAULT_LIMIT
+    if args:
+        limit = validate_limit(args[0])
+
+    result = graphql(LIST_QUERY, {"limit": limit, "mine": True})
+    print(format_list(result))
+
+
+def cmd_today(args: list[str]) -> None:
+    """Get today's meeting transcripts."""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_start = today_start + timedelta(days=1)
+
+    variables = {
+        "fromDate": today_start.isoformat(),
+        "toDate": tomorrow_start.isoformat(),
+        "limit": 20,
+        "mine": True,
+    }
+    result = graphql(LIST_QUERY, variables)
+    print(format_list(result))
+
+
+def cmd_date(args: list[str]) -> None:
+    """Get transcripts for a specific date."""
+    if not args:
+        error("Date required", "Usage: fireflies date YYYY-MM-DD")
+
+    date_str = validate_date(args[0])
+    next_day = (date.fromisoformat(date_str) + timedelta(days=1)).isoformat()
+    variables = {
+        "fromDate": f"{date_str}T00:00:00.000Z",
+        "toDate": f"{next_day}T00:00:00.000Z",
+        "limit": 20,
+        "mine": True,
+    }
+    result = graphql(LIST_QUERY, variables)
+    print(format_list(result))
+
+
+def cmd_search(args: list[str]) -> None:
+    """Search transcripts by keyword."""
+    if not args:
+        error("Search query required", 'Usage: fireflies search "your query"')
+
+    keyword = " ".join(args)
+    variables = {
+        "keyword": keyword,
+        "scope": "all",
+        "limit": 10,
+        "mine": True,
+    }
+    result = graphql(LIST_QUERY, variables)
+    print(format_list(result))
+
+
+def cmd_get(args: list[str]) -> None:
+    """Get a full transcript by ID."""
+    if not args:
+        error("Transcript ID required", "Usage: fireflies get <transcript-id>")
+
+    result = graphql(FULL_QUERY, {"id": args[0]})
+    print(format_transcript(result))
+
+
+def cmd_me(args: list[str]) -> None:
+    """Get current user info."""
+    result = graphql(USER_QUERY)
+    print(format_user(result))
+
+
+def cmd_raw(args: list[str]) -> None:
+    """Execute a raw GraphQL query."""
+    if not args:
+        error("GraphQL query required", 'Usage: fireflies raw "query { user { name } }" [vars-json]')
+
+    query = args[0]
+    variables = None
+    if len(args) > 1:
+        try:
+            variables = json.loads(args[1])
+        except json.JSONDecodeError:
+            error("Invalid JSON for variables", f"Got: {args[1]}")
+
+    result = graphql(query, variables)
+    print(json.dumps(result, indent=2))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""Fireflies CLI - Query your meeting transcripts
 
 Commands:
-  recent [N]           Get N most recent transcripts (default: 5)
+  recent [N]           Get N most recent transcripts (default: 5, max: 50)
   today                Get today's meetings
   date YYYY-MM-DD      Get meetings for a specific date
   search "query"       Search transcripts by keyword
   get <id>             Get full transcript by ID
   me                   Get your user info
-  raw <query> [vars]   Raw GraphQL query
+  raw <query> [vars]   Raw GraphQL query with optional JSON variables
+  help                 Show this help
 
 Environment:
   FIREFLIES_API_KEY    Required - your API key
@@ -114,6 +383,33 @@ Examples:
   fireflies search "product roadmap"
   fireflies get abc123xyz
   fireflies me
-EOF
-    ;;
-esac
+  fireflies raw "query { user { name email } }"
+
+Get your API key: https://app.fireflies.ai → Integrations → Fireflies API""")
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    commands = {
+        "recent": cmd_recent,
+        "today": cmd_today,
+        "date": cmd_date,
+        "search": cmd_search,
+        "get": cmd_get,
+        "me": cmd_me,
+        "raw": cmd_raw,
+    }
+
+    if command == "help":
+        cmd_help()
+    elif command in commands:
+        commands[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'fireflies help' for available commands")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,6 @@
 ---
 name: fireflies
-version: 0.1.0
+version: 0.2.0
 description: Query Fireflies.ai meeting transcripts - summaries, action items, and searchable history
 triggers:
   - fireflies
@@ -42,6 +42,7 @@ API key from app.fireflies.ai → Integrations → Fireflies API. Configure via 
 ## Response Data
 
 **List view:**
+
 - `id` — Transcript ID
 - `title` — Meeting title from calendar
 - `duration` — Length in minutes
@@ -49,6 +50,7 @@ API key from app.fireflies.ai → Integrations → Fireflies API. Configure via 
 - `summary` — AI-generated overview and action items
 
 **Full transcript:**
+
 - Everything above plus full text with speaker names and timestamps
 
 ## Notes
