@@ -1,6 +1,6 @@
 ---
 name: limitless
-version: 0.1.0
+version: 0.2.0
 description: Query Limitless Pendant lifelogs - conversations, meetings, and ambient recordings
 triggers:
   - limitless
@@ -34,10 +34,14 @@ API key from app.limitless.ai → Settings → Developer. Configure via gateway.
 
 ## Capabilities
 
-- Recent lifelogs (configurable count)
+- Recent lifelogs (configurable count, max 10)
 - Semantic + keyword search
 - Filter by date or date range
 - Filter starred entries
+- Get specific lifelog by ID with full content
+- Delete lifelogs
+- Download audio (Ogg Opus, max 2h)
+- List Ask AI chats
 
 ## Response Data
 
