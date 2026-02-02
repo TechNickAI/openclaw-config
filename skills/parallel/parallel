@@ -1,0 +1,169 @@
+#!/bin/bash
+# Parallel.ai CLI - Web search and content extraction
+# Requires PARALLEL_API_KEY environment variable
+
+API_KEY="${PARALLEL_API_KEY:-}"
+BASE_URL="https://api.parallel.ai/v1beta"
+BETA_HEADER="parallel-beta: search-extract-2025-10-10"
+
+# Validation
+if [ -z "$API_KEY" ]; then
+  echo "Error: PARALLEL_API_KEY not set" >&2
+  echo "Get your key from: https://platform.parallel.ai" >&2
+  exit 1
+fi
+
+# API helper
+call_api() {
+  local endpoint="$1"
+  local payload="$2"
+  curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -H "x-api-key: $API_KEY" \
+    -H "$BETA_HEADER" \
+    -d "$payload" \
+    "${BASE_URL}${endpoint}"
+}
+
+# Format search results as markdown
+format_search() {
+  jq -r '
+    if .results then
+      (.results // [])[] |
+      "## \(.title // "Untitled")\n" +
+      "**URL:** \(.url // "N/A")\n" +
+      "**Domain:** \(.domain // (.url | split("/")[2] // "unknown"))\n\n" +
+      "\(.excerpt // .snippet // "No excerpt available")\n\n---\n"
+    elif .error then
+      "Error: \(.error.message // .error // "Unknown error")"
+    else
+      "No results found"
+    end
+  '
+}
+
+# Format extraction results as markdown
+format_extract() {
+  jq -r '
+    if .results then
+      (.results // [])[] |
+      "## \(.title // "Extracted Content")\n" +
+      "**URL:** \(.url // "N/A")\n\n" +
+      (if .content then .content else (.excerpt // "No content extracted") end) +
+      "\n\n---\n"
+    elif .error then
+      "Error: \(.error.message // .error // "Unknown error")"
+    else
+      "No content extracted"
+    end
+  '
+}
+
+# Commands
+case "${1:-help}" in
+  search)
+    shift
+    query=""
+    limit=5
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --limit)
+          limit="$2"
+          shift 2
+          ;;
+        *)
+          if [ -z "$query" ]; then
+            query="$1"
+          else
+            query="$query $1"
+          fi
+          shift
+          ;;
+      esac
+    done
+
+    if [ -z "$query" ]; then
+      echo "Error: Search query required" >&2
+      echo "Usage: parallel search \"your query\" [--limit N]" >&2
+      exit 1
+    fi
+
+    payload=$(jq -n \
+      --arg q "$query" \
+      --argjson limit "$limit" \
+      '{
+        objective: "Find relevant information about: \($q)",
+        search_queries: [$q],
+        max_results: $limit,
+        excerpts: {
+          max_chars_per_result: 500
+        }
+      }')
+
+    call_api "/search" "$payload" | format_search
+    ;;
+
+  extract)
+    shift
+    url=""
+    full_content=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --full)
+          full_content=true
+          shift
+          ;;
+        *)
+          url="$1"
+          shift
+          ;;
+      esac
+    done
+
+    if [ -z "$url" ]; then
+      echo "Error: URL required" >&2
+      echo "Usage: parallel extract <url> [--full]" >&2
+      exit 1
+    fi
+
+    payload=$(jq -n \
+      --arg url "$url" \
+      --argjson full "$full_content" \
+      '{
+        urls: [$url],
+        objective: "Extract the main content from this page",
+        excerpts: (if $full then false else true end),
+        full_content: $full
+      }')
+
+    call_api "/extract" "$payload" | format_extract
+    ;;
+
+  help|*)
+    cat <<EOF
+Parallel.ai CLI - Web search and content extraction
+
+Commands:
+  search "query"              Web search with AI-optimized results
+  search "query" --limit N    Limit results (default: 5)
+  extract <url>               Extract content from URL
+  extract <url> --full        Include full page content
+  help                        Show this help
+
+Environment:
+  PARALLEL_API_KEY            Required - your Parallel.ai API key
+
+Examples:
+  parallel search "latest AI developments"
+  parallel search "React 19 features" --limit 10
+  parallel extract https://example.com/article
+  parallel extract https://example.com/doc.pdf --full
+
+Get your API key: https://platform.parallel.ai
+EOF
+    ;;
+esac
