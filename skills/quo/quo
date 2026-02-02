@@ -1,148 +1,686 @@
-#!/bin/bash
-# Quo CLI - Query your business phone system
-# Requires QUO_API_KEY environment variable
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
+Quo CLI - Query your business phone system (OpenPhone)
 
-API_KEY="${QUO_API_KEY:-}"
-BASE_URL="https://api.openphone.com/v1"
+Requires QUO_API_KEY environment variable for API operations.
+"""
 
-if [ -z "$API_KEY" ]; then
-  echo "Error: QUO_API_KEY not set" >&2
-  echo "Get your key from: https://my.quo.com → Settings → API" >&2
-  exit 1
-fi
+import json
+import os
+import re
+import sys
+from typing import Any, NoReturn
 
-call_api() {
-  local method="${1:-GET}"
-  local endpoint="$2"
-  shift 2
-  curl -s -X "$method" \
-    -H "Authorization: $API_KEY" \
-    -H "Content-Type: application/json" \
-    "${BASE_URL}${endpoint}" "$@"
-}
+import httpx
 
-format_numbers() {
-  jq -r '.data[]? // empty | "## \(.name // "Unnamed")\n**ID:** \(.id)\n**Number:** \(.number)\n**Type:** \(.type // "unknown")\n**Users:** \((.users // []) | map(.name // .email) | join(", "))\n\n---\n"'
-}
+BASE_URL = "https://api.openphone.com/v1"
 
-format_conversations() {
-  jq -r '.data[]? // empty | "## \(.name // "Unknown")\n**ID:** \(.id)\n**Participants:** \((.participants // []) | join(", "))\n**Last Activity:** \(.lastActivityAt // "unknown")\n**Phone Number ID:** \(.phoneNumberId)\n\n---\n"'
-}
+# E.164 phone number pattern: + followed by 1-15 digits
+E164_PATTERN = re.compile(r"^\+[1-9]\d{1,14}$")
 
-format_contacts() {
-  jq -r '.data[]? // empty | "## \(.firstName // "") \(.lastName // "")\n**ID:** \(.id)\n**Company:** \(.company // "—")\n**Emails:** \((.emails // []) | map(.value) | join(", "))\n**Phones:** \((.phoneNumbers // []) | map(.value) | join(", "))\n\n---\n"'
-}
 
-format_users() {
-  jq -r '.data[]? // empty | "## \(.firstName // "") \(.lastName // "")\n**ID:** \(.id)\n**Email:** \(.email)\n**Role:** \(.role // "member")\n\n---\n"'
-}
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("QUO_API_KEY", "").strip() or None
 
-format_summary() {
-  jq -r '.data? // . | if type == "array" then .[] else . end | "# Call Summary\n\n\(.summary // .text // "No summary available")\n"'
-}
 
-format_transcript() {
-  jq -r '.data? // . | if type == "array" then .[] else . end | "# Call Transcript\n\n**Status:** \(.status // "unknown")\n\n\(if .segments then (.segments | map("[\(.startTime // "?")] \(.speaker // "Speaker"): \(.text // "")") | join("\n\n")) else (.transcript // .text // "No transcript available") end)\n"'
-}
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
 
-format_recordings() {
-  jq -r '.data[]? // empty | "## Recording\n**ID:** \(.id)\n**Status:** \(.status)\n**Duration:** \(.duration // 0)s\n**URL:** \(.url // "not available")\n\n---\n"'
-}
 
-format_voicemails() {
-  jq -r '.data[]? // empty | "## Voicemail\n**ID:** \(.id)\n**Duration:** \(.duration // 0)s\n**Status:** \(.status)\n**URL:** \(.url // "not available")\n**Transcript:** \(.transcript // "No transcript")\n\n---\n"'
-}
+def call_api(
+    method: str,
+    endpoint: str,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Make API request with proper error handling."""
+    api_key = get_api_key()
+    if not api_key:
+        error("QUO_API_KEY not set", "Get your key from: https://my.openphone.com → Settings → API")
 
-case "${1:-help}" in
-  numbers|nums)
-    call_api GET "/phone-numbers" | format_numbers
-    ;;
+    headers = {
+        "Authorization": api_key,
+        "Content-Type": "application/json",
+    }
 
-  conversations|convos)
-    limit="${2:-10}"
-    call_api GET "/conversations?maxResults=${limit}&excludeInactive=true" | format_conversations
-    ;;
+    try:
+        response = httpx.request(
+            method=method,
+            url=f"{BASE_URL}{endpoint}",
+            headers=headers,
+            params=params,
+            json=json_body,
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        try:
+            body = e.response.json()
+            msg = body.get("message") or body.get("error") or str(body)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", msg)
+    except httpx.RequestError as e:
+        error("Failed to reach OpenPhone API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
 
-  contacts)
-    limit="${2:-20}"
-    call_api GET "/contacts?maxResults=${limit}" | format_contacts
-    ;;
 
-  users)
-    call_api GET "/users" | format_users
-    ;;
+def validate_e164(phone: str, field_name: str = "phone number") -> None:
+    """Validate phone number is in E.164 format."""
+    if not E164_PATTERN.match(phone):
+        error(
+            f"Invalid {field_name}: {phone}",
+            "Phone numbers must be in E.164 format (e.g., +15551234567)",
+        )
 
-  summary)
-    if [ -z "$2" ]; then
-      echo "Usage: quo summary <callId>" >&2
-      echo "Example: quo summary AC3700e624eca547eb9f749a06f" >&2
-      exit 1
-    fi
-    call_api GET "/call-summaries/$2" | format_summary
-    ;;
 
-  transcript)
-    if [ -z "$2" ]; then
-      echo "Usage: quo transcript <callId>" >&2
-      echo "Example: quo transcript AC3700e624eca547eb9f749a06f" >&2
-      exit 1
-    fi
-    call_api GET "/call-transcripts/$2" | format_transcript
-    ;;
+def parse_limit(args: list[str], default: int = 10) -> tuple[int, list[str]]:
+    """Parse --limit flag from args, return (limit, remaining_args)."""
+    remaining = []
+    limit = default
+    i = 0
+    while i < len(args):
+        if args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+                if limit <= 0:
+                    error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            except ValueError:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    return limit, remaining
 
-  recordings|recs)
-    if [ -z "$2" ]; then
-      echo "Usage: quo recordings <callId>" >&2
-      echo "Example: quo recordings AC3700e624eca547eb9f749a06f" >&2
-      exit 1
-    fi
-    call_api GET "/call-recordings/$2" | format_recordings
-    ;;
 
-  voicemails|vm)
-    if [ -z "$2" ]; then
-      echo "Usage: quo voicemails <callId>" >&2
-      echo "Example: quo voicemails AC3700e624eca547eb9f749a06f" >&2
-      exit 1
-    fi
-    call_api GET "/call-voicemails/$2" | format_voicemails
-    ;;
+# Formatting functions
 
-  raw)
-    shift
-    method="${1:-GET}"
-    endpoint="$2"
-    shift 2
-    call_api "$method" "$endpoint" "$@"
-    ;;
 
-  help|*)
-    cat <<EOF
-Quo CLI - Query your business phone system (formerly OpenPhone)
+def format_numbers(data: dict[str, Any]) -> str:
+    """Format phone numbers as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No phone numbers found."
+
+    output = []
+    for item in items:
+        name = item.get("name") or "Unnamed"
+        number = item.get("formattedNumber") or item.get("number", "N/A")
+        phone_type = item.get("type", "unknown")
+        users = item.get("users", [])
+        user_names = ", ".join(u.get("name") or u.get("email", "Unknown") for u in users) or "None"
+
+        output.append(f"## {name}")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**Number:** {number}")
+        output.append(f"**Type:** {phone_type}")
+        output.append(f"**Users:** {user_names}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_conversations(data: dict[str, Any]) -> str:
+    """Format conversations as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No conversations found."
+
+    output = []
+    for item in items:
+        name = item.get("name") or "Unknown"
+        participants = ", ".join(item.get("participants", []))
+        last_activity = item.get("lastActivityAt", "unknown")
+
+        output.append(f"## {name}")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**Participants:** {participants}")
+        output.append(f"**Last Activity:** {last_activity}")
+        output.append(f"**Phone Number ID:** {item.get('phoneNumberId', 'N/A')}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_contacts(data: dict[str, Any]) -> str:
+    """Format contacts as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No contacts found."
+
+    output = []
+    for item in items:
+        first = item.get("firstName", "")
+        last = item.get("lastName", "")
+        name = f"{first} {last}".strip() or "Unknown"
+        company = item.get("company") or "—"
+        emails = ", ".join(e.get("value", "") for e in item.get("emails", [])) or "None"
+        phones = ", ".join(p.get("value", "") for p in item.get("phoneNumbers", [])) or "None"
+
+        output.append(f"## {name}")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**Company:** {company}")
+        output.append(f"**Emails:** {emails}")
+        output.append(f"**Phones:** {phones}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_users(data: dict[str, Any]) -> str:
+    """Format users as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No users found."
+
+    output = []
+    for item in items:
+        first = item.get("firstName", "")
+        last = item.get("lastName", "")
+        name = f"{first} {last}".strip() or "Unknown"
+        email = item.get("email", "N/A")
+        role = item.get("role", "member")
+
+        output.append(f"## {name}")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**Email:** {email}")
+        output.append(f"**Role:** {role}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_summary(data: dict[str, Any]) -> str:
+    """Format call summary as markdown."""
+    item = data.get("data", {})
+    if not item:
+        return "No summary available."
+
+    status = item.get("status", "unknown")
+    summary_raw = item.get("summary", [])
+    next_steps_raw = item.get("nextSteps", [])
+
+    # Normalize to list if string (API may return either)
+    summary_lines = [summary_raw] if isinstance(summary_raw, str) else summary_raw
+    next_steps = [next_steps_raw] if isinstance(next_steps_raw, str) else next_steps_raw
+
+    output = ["# Call Summary", ""]
+    output.append(f"**Status:** {status}")
+    output.append("")
+
+    if summary_lines:
+        output.append("## Summary")
+        for line in summary_lines:
+            output.append(f"- {line}")
+        output.append("")
+
+    if next_steps:
+        output.append("## Next Steps")
+        for step in next_steps:
+            output.append(f"- {step}")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_transcript(data: dict[str, Any]) -> str:
+    """Format call transcript as markdown."""
+    item = data.get("data", {})
+    if not item:
+        return "No transcript available."
+
+    status = item.get("status", "unknown")
+    segments = item.get("segments", [])
+
+    output = ["# Call Transcript", ""]
+    output.append(f"**Status:** {status}")
+    output.append("")
+
+    if segments:
+        for seg in segments:
+            start_time = seg.get("startTime", "?")
+            speaker = seg.get("speaker", "Speaker")
+            text = seg.get("text", "")
+            output.append(f"[{start_time}] **{speaker}:** {text}")
+            output.append("")
+    else:
+        transcript = item.get("transcript") or item.get("text", "No transcript available")
+        output.append(transcript)
+
+    return "\n".join(output)
+
+
+def format_recordings(data: dict[str, Any]) -> str:
+    """Format call recordings as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No recordings found."
+
+    output = []
+    for item in items:
+        output.append("## Recording")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**Status:** {item.get('status', 'unknown')}")
+        output.append(f"**Duration:** {item.get('duration', 0)}s")
+        output.append(f"**URL:** {item.get('url', 'not available')}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_voicemails(data: dict[str, Any]) -> str:
+    """Format voicemails as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No voicemails found."
+
+    output = []
+    for item in items:
+        output.append("## Voicemail")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**Duration:** {item.get('duration', 0)}s")
+        output.append(f"**Status:** {item.get('status', 'unknown')}")
+        output.append(f"**URL:** {item.get('url', 'not available')}")
+        output.append(f"**Transcript:** {item.get('transcript', 'No transcript')}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_messages(data: dict[str, Any]) -> str:
+    """Format messages as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No messages found."
+
+    output = []
+    for item in items:
+        from_num = item.get("from", "Unknown")
+        to_nums = ", ".join(item.get("to", []))
+        text = item.get("text", "")
+        created = item.get("createdAt", "unknown")
+        direction = item.get("direction", "unknown")
+
+        output.append(f"## Message ({direction})")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**From:** {from_num}")
+        output.append(f"**To:** {to_nums}")
+        output.append(f"**Created:** {created}")
+        output.append("")
+        output.append(text)
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_calls(data: dict[str, Any]) -> str:
+    """Format calls as markdown."""
+    items = data.get("data", [])
+    if not items:
+        return "No calls found."
+
+    output = []
+    for item in items:
+        from_num = item.get("from", "Unknown")
+        to_num = item.get("to", "Unknown")
+        direction = item.get("direction", "unknown")
+        status = item.get("status", "unknown")
+        duration = item.get("duration", 0)
+        created = item.get("createdAt", "unknown")
+
+        output.append(f"## Call ({direction})")
+        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**From:** {from_num}")
+        output.append(f"**To:** {to_num}")
+        output.append(f"**Status:** {status}")
+        output.append(f"**Duration:** {duration}s")
+        output.append(f"**Created:** {created}")
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+# Command implementations
+
+
+def cmd_numbers(args: list[str]) -> None:
+    """List phone numbers."""
+    result = call_api("GET", "/phone-numbers")
+    print(format_numbers(result))
+
+
+def cmd_conversations(args: list[str]) -> None:
+    """List recent conversations."""
+    limit, _ = parse_limit(args, default=10)
+    params = {"maxResults": limit, "excludeInactive": "true"}
+    result = call_api("GET", "/conversations", params=params)
+    print(format_conversations(result))
+
+
+def cmd_contacts(args: list[str]) -> None:
+    """List contacts."""
+    limit, _ = parse_limit(args, default=20)
+    params = {"maxResults": limit}
+    result = call_api("GET", "/contacts", params=params)
+    print(format_contacts(result))
+
+
+def cmd_users(args: list[str]) -> None:
+    """List workspace users."""
+    result = call_api("GET", "/users")
+    print(format_users(result))
+
+
+def cmd_summary(args: list[str]) -> None:
+    """Get call summary."""
+    if not args:
+        error("callId required", "Usage: quo summary <callId>")
+
+    call_id = args[0]
+    result = call_api("GET", f"/call-summaries/{call_id}")
+    print(format_summary(result))
+
+
+def cmd_transcript(args: list[str]) -> None:
+    """Get call transcript."""
+    if not args:
+        error("callId required", "Usage: quo transcript <callId>")
+
+    call_id = args[0]
+    result = call_api("GET", f"/call-transcripts/{call_id}")
+    print(format_transcript(result))
+
+
+def cmd_recordings(args: list[str]) -> None:
+    """Get call recordings."""
+    if not args:
+        error("callId required", "Usage: quo recordings <callId>")
+
+    call_id = args[0]
+    result = call_api("GET", f"/call-recordings/{call_id}")
+    print(format_recordings(result))
+
+
+def cmd_voicemails(args: list[str]) -> None:
+    """Get call voicemails."""
+    if not args:
+        error("callId required", "Usage: quo voicemails <callId>")
+
+    call_id = args[0]
+    result = call_api("GET", f"/call-voicemails/{call_id}")
+    print(format_voicemails(result))
+
+
+def cmd_send(args: list[str]) -> None:
+    """Send an SMS message."""
+    from_number = None
+    to_number = None
+    message_parts = []
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--from":
+            if i + 1 >= len(args):
+                error("--from requires a phone number")
+            from_number = args[i + 1]
+            i += 2
+        elif args[i] == "--to":
+            if i + 1 >= len(args):
+                error("--to requires a phone number")
+            to_number = args[i + 1]
+            i += 2
+        else:
+            message_parts.append(args[i])
+            i += 1
+
+    message = " ".join(message_parts)
+
+    if not from_number:
+        error("--from is required", "Usage: quo send --from <number> --to <number> <message>")
+    if not to_number:
+        error("--to is required", "Usage: quo send --from <number> --to <number> <message>")
+    if not message:
+        error("Message content is required", "Usage: quo send --from <number> --to <number> <message>")
+
+    validate_e164(from_number, "--from number")
+    validate_e164(to_number, "--to number")
+
+    payload = {
+        "content": message,
+        "from": from_number,
+        "to": [to_number],
+    }
+
+    result = call_api("POST", "/messages", json_body=payload)
+    msg_id = result.get("data", {}).get("id", "unknown")
+    print(f"Message sent successfully. ID: {msg_id}")
+
+
+def cmd_messages(args: list[str]) -> None:
+    """List messages for a conversation."""
+    number_id = None
+    participant = None
+    limit = 10
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--number-id":
+            if i + 1 >= len(args):
+                error("--number-id requires a value")
+            number_id = args[i + 1]
+            i += 2
+        elif args[i] == "--participant":
+            if i + 1 >= len(args):
+                error("--participant requires a phone number")
+            participant = args[i + 1]
+            i += 2
+        elif args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+                if limit <= 0:
+                    error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            except ValueError:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            i += 2
+        else:
+            error(f"Unknown argument: {args[i]}", "Usage: quo messages --number-id <id> --participant <phone> [--limit N]")
+
+    if not number_id:
+        error("--number-id is required", "Usage: quo messages --number-id <id> --participant <phone>")
+    if not participant:
+        error("--participant is required", "Usage: quo messages --number-id <id> --participant <phone>")
+
+    params = {
+        "phoneNumberId": number_id,
+        "participants": participant,
+        "maxResults": limit,
+    }
+    result = call_api("GET", "/messages", params=params)
+    print(format_messages(result))
+
+
+def cmd_calls(args: list[str]) -> None:
+    """List calls for a conversation."""
+    number_id = None
+    participant = None
+    limit = 10
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--number-id":
+            if i + 1 >= len(args):
+                error("--number-id requires a value")
+            number_id = args[i + 1]
+            i += 2
+        elif args[i] == "--participant":
+            if i + 1 >= len(args):
+                error("--participant requires a phone number")
+            participant = args[i + 1]
+            i += 2
+        elif args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+                if limit <= 0:
+                    error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            except ValueError:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            i += 2
+        else:
+            error(f"Unknown argument: {args[i]}", "Usage: quo calls --number-id <id> --participant <phone> [--limit N]")
+
+    if not number_id:
+        error("--number-id is required", "Usage: quo calls --number-id <id> --participant <phone>")
+    if not participant:
+        error("--participant is required", "Usage: quo calls --number-id <id> --participant <phone>")
+
+    params = {
+        "phoneNumberId": number_id,
+        "participants": participant,
+        "maxResults": limit,
+    }
+    result = call_api("GET", "/calls", params=params)
+    print(format_calls(result))
+
+
+def cmd_raw(args: list[str]) -> None:
+    """Execute raw API call."""
+    if not args:
+        error("Endpoint required", "Usage: quo raw [METHOD] <endpoint> [json-body]")
+
+    # Determine method and endpoint
+    if args[0].upper() in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+        method = args[0].upper()
+        if len(args) < 2:
+            error("Endpoint required", "Usage: quo raw [METHOD] <endpoint> [json-body]")
+        endpoint = args[1]
+        body_str = args[2] if len(args) > 2 else None
+    else:
+        method = "GET"
+        endpoint = args[0]
+        body_str = args[1] if len(args) > 1 else None
+
+    # Parse body if provided
+    json_body = None
+    if body_str:
+        try:
+            json_body = json.loads(body_str)
+        except json.JSONDecodeError as e:
+            error(f"Invalid JSON body: {e}")
+
+    result = call_api(method, endpoint, json_body=json_body)
+    print(json.dumps(result, indent=2))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""Quo CLI - Query your business phone system (OpenPhone)
 
 Commands:
-  numbers              List your Quo phone numbers
-  conversations [N]    List recent conversations (default: 10)
-  contacts [N]         List contacts (default: 20)
-  users                List workspace users
+  numbers, nums          List your Quo phone numbers
+  conversations, convos  List recent conversations [--limit N]
+  contacts               List contacts [--limit N]
+  users                  List workspace users
 
-  summary <callId>     Get AI summary for a call
-  transcript <callId>  Get transcript for a call
-  recordings <callId>  Get recording URLs for a call
-  voicemails <callId>  Get voicemails for a call
+  summary <callId>       Get AI summary for a call
+  transcript <callId>    Get transcript for a call
+  recordings, recs <callId>   Get recording URLs for a call
+  voicemails, vm <callId>     Get voicemails for a call
 
-  raw <METHOD> <path>  Raw API call
+  send --from <num> --to <num> <message>
+                         Send an SMS message
+
+  messages --number-id <id> --participant <phone> [--limit N]
+                         List messages in a conversation
+  calls --number-id <id> --participant <phone> [--limit N]
+                         List calls in a conversation
+
+  raw [METHOD] <endpoint> [json-body]
+                         Raw API call (default: GET)
+
+  help                   Show this help
 
 Environment:
-  QUO_API_KEY          Required - your API key
+  QUO_API_KEY            Required - your OpenPhone API key
 
 Examples:
   quo numbers
-  quo conversations 20
+  quo conversations --limit 20
   quo contacts
   quo summary AC3700e624eca547eb9f749a06f
   quo transcript AC3700e624eca547eb9f749a06f
-  quo raw GET "/phone-numbers"
-EOF
-    ;;
-esac
+  quo send --from +15551234567 --to +15559876543 "Hello!"
+  quo messages --number-id PN123abc --participant +15555555555
+  quo raw GET /phone-numbers
+  quo raw POST /messages '{"from":"+1555...","to":["+1555..."],"content":"Hi"}'
+
+Get your API key: https://my.openphone.com → Settings → API""")
+
+
+COMMAND_MAP = {
+    "numbers": cmd_numbers,
+    "nums": cmd_numbers,
+    "conversations": cmd_conversations,
+    "convos": cmd_conversations,
+    "contacts": cmd_contacts,
+    "users": cmd_users,
+    "summary": cmd_summary,
+    "transcript": cmd_transcript,
+    "recordings": cmd_recordings,
+    "recs": cmd_recordings,
+    "voicemails": cmd_voicemails,
+    "vm": cmd_voicemails,
+    "send": cmd_send,
+    "messages": cmd_messages,
+    "calls": cmd_calls,
+    "raw": cmd_raw,
+    "help": lambda args: cmd_help(),
+}
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    if command in COMMAND_MAP:
+        COMMAND_MAP[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'quo help' for available commands")
+
+
+if __name__ == "__main__":
+    main()
