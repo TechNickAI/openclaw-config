@@ -1,7 +1,7 @@
 ---
 name: quo
-version: 0.1.0
-description: Query Quo business phone - calls, texts, contacts, transcripts
+version: 0.2.0
+description: Query and interact with Quo business phone - calls, texts, contacts, transcripts, send SMS
 triggers:
   - quo
   - openphone
@@ -32,6 +32,8 @@ API key from my.quo.com → Settings → API. Configure via gateway.
 - "Get the transcript from that call"
 - "What was the summary of my call with [person]?"
 - "List my business contacts"
+- "Send a text to [number]"
+- "Show my recent calls with [number]"
 
 ## Capabilities
 
@@ -40,6 +42,8 @@ API key from my.quo.com → Settings → API. Configure via gateway.
 - Contacts and workspace users
 - Call summaries and transcripts
 - Recording URLs
+- Send SMS messages
+- List messages/calls with specific participants
 
 ## Response Data
 
