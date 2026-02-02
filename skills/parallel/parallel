@@ -42,7 +42,7 @@ def call_api(endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
     headers = {
         "Content-Type": "application/json",
         "x-api-key": api_key,
-        "parallel-beta": "search-extract-2025-10-10",
+        "parallel-beta": BETA_HEADER,
     }
 
     try:
@@ -68,8 +68,17 @@ def call_api(endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         error("API returned invalid JSON", f"Response: {response.text[:200]}")
 
 
-def format_search_results(data: dict[str, Any]) -> str:
+def format_search_results(data: dict[str, Any] | None) -> str:
     """Format search results as markdown."""
+    if data is None:
+        return "No results found"
+
+    if "error" in data:
+        error_msg = data["error"]
+        if isinstance(error_msg, dict):
+            return f"Error: {error_msg.get('message', error_msg)}"
+        return f"Error: {error_msg}"
+
     results = data.get("results", [])
     if not results:
         return "No results found"
@@ -93,8 +102,17 @@ def format_search_results(data: dict[str, Any]) -> str:
     return "\n".join(output)
 
 
-def format_extract_results(data: dict[str, Any]) -> str:
+def format_extract_results(data: dict[str, Any] | None) -> str:
     """Format extraction results as markdown."""
+    if data is None:
+        return "No content extracted"
+
+    if "error" in data:
+        error_msg = data["error"]
+        if isinstance(error_msg, dict):
+            return f"Error: {error_msg.get('message', error_msg)}"
+        return f"Error: {error_msg}"
+
     results = data.get("results", [])
     if not results:
         return "No content extracted"
