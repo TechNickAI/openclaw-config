@@ -11,6 +11,7 @@ Shareable configuration for [OpenClaw](https://github.com/openclaw/openclaw) —
 A battle-tested configuration for running OpenClaw as a personal AI assistant:
 
 - **Three-tier memory architecture** — Daily logs, curated long-term memory, and searchable deep knowledge
+- **Semantic memory search** — Vector embeddings via LM Studio (local, free) or OpenAI for finding relevant context
 - **Decision-making frameworks** — Bezos's one-way/two-way doors, certainty thresholds, priority filters
 - **Group chat behavior** — When to speak, when to stay silent, how to react like a human
 - **Ready-to-use skills** — Limitless Pendant, Fireflies.ai, and Quo phone integrations
@@ -63,8 +64,11 @@ It preserves your customizations and only updates files you haven't modified.
 **Tier 2: Daily Context**
 - `memory/YYYY-MM-DD.md` — Today + yesterday's logs
 
-**Tier 3: Deep Knowledge (RAG-searchable)**
+**Tier 3: Deep Knowledge (Semantic Search)**
 - `memory/people/`, `memory/projects/`, `memory/topics/`, `memory/decisions/`
+- Indexed with vector embeddings for semantic similarity search
+- Use `memory_search("query")` to find relevant context
+- Supports LM Studio (local, recommended) or OpenAI for embeddings
 
 ### Skills
 

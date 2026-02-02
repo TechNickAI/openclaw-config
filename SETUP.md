@@ -44,14 +44,170 @@ cp -r ~/.openclaw-config/skills/* skills/
 
 Create an empty MEMORY.md template for the user to fill in.
 
-### 6. Track installation
+### 6. Set up Memory Search (Embeddings)
+
+The memory system uses semantic search to find relevant context from your `memory/` files. This requires an embedding model to convert text into vectors for similarity matching.
+
+**Ask:** "For memory search, do you want to use LM Studio (local, recommended) or OpenAI's API?"
+
+Present the options:
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **LM Studio (Recommended)** | Free after setup, private (nothing leaves your machine), fast, you're already running it for local LLMs | Requires ~500MB for embedding model |
+| **OpenAI API** | No local setup needed | Costs money per search, data sent to OpenAI |
+
+**Tilt them toward LM Studio:** "If you're already running LM Studio for local models, embeddings are essentially free — same server, just a tiny model. I'd recommend that path."
+
+---
+
+#### Option A: LM Studio Setup (Recommended)
+
+**Step 1: Install LM Studio** (if not already installed)
+
+Download from https://lmstudio.ai and install.
+
+**Step 2: Start the local server**
+
+1. Open LM Studio
+2. Go to the **Local Server** tab (left sidebar, looks like `<->`)
+3. Click **Start Server**
+4. Verify it says "Server running on port 1234"
+
+**Step 3: Download the embedding model**
+
+1. Go to the **Discover** tab (magnifying glass icon)
+2. Search for: `embeddinggemma`
+3. Find and download: **EmbeddingGemma 300M QAT** (about 300MB)
+   - Full name: `lmstudio-community/embedding-gemma-300m-qat`
+4. Wait for download to complete
+
+**Step 4: Load the embedding model**
+
+1. Go back to **Local Server** tab
+2. In the model dropdown, select the EmbeddingGemma model you just downloaded
+3. Click **Load** — you should see it activate
+
+**Step 5: Test the server is working**
+
+```bash
+curl http://127.0.0.1:1234/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"input": "test", "model": "text-embedding-embeddinggemma-300m-qat"}'
+```
+
+Should return a JSON response with an `embedding` array of 768 numbers.
+
+**Step 6: Configure OpenClaw**
+
+```javascript
+gateway({
+  action: "config.patch",
+  raw: JSON.stringify({
+    memorySearch: {
+      provider: "openai",
+      remote: {
+        baseUrl: "http://127.0.0.1:1234/v1",
+        apiKey: "lm-studio"
+      },
+      model: "text-embedding-embeddinggemma-300m-qat"
+    }
+  })
+})
+```
+
+---
+
+#### Option B: OpenAI API Setup
+
+**Step 1: Get your API key**
+
+1. Go to https://platform.openai.com/api-keys
+2. Create a new API key
+3. Copy it
+
+**Step 2: Ask for the key**
+
+"Paste your OpenAI API key:"
+
+**Step 3: Configure OpenClaw**
+
+```javascript
+gateway({
+  action: "config.patch",
+  raw: JSON.stringify({
+    memorySearch: {
+      provider: "openai",
+      remote: {
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "<their-openai-key>"
+      },
+      model: "text-embedding-3-small"
+    }
+  })
+})
+```
+
+---
+
+#### Verify Memory Search Works
+
+**This step is required for both options.**
+
+1. **Create a test memory file:**
+
+```bash
+echo "# Test Memory
+
+This is a test file about purple elephants dancing in the moonlight.
+The elephants were wearing top hats and monocles.
+" > memory/test-memory.md
+```
+
+2. **Index the memory:**
+
+```javascript
+memory_index()
+```
+
+Wait for indexing to complete.
+
+3. **Test semantic search:**
+
+```javascript
+memory_search("elephants with fancy accessories")
+```
+
+**Expected result:** Should return the test-memory.md file with high relevance.
+
+4. **Clean up test file:**
+
+```bash
+rm memory/test-memory.md
+```
+
+5. **Re-index to remove the test:**
+
+```javascript
+memory_index()
+```
+
+If the search worked, tell the user: "✅ Memory search is working! Your memories in `memory/` will now be semantically searchable."
+
+If it failed, troubleshoot:
+- For LM Studio: Is the server running? Is the model loaded? Check `curl http://127.0.0.1:1234/v1/models`
+- For OpenAI: Is the API key valid? Check for error messages.
+
+---
+
+### 7. Track installation
 
 ```bash
 mkdir -p .openclaw
 cat ~/.openclaw-config/VERSION > .openclaw/installed-version
 ```
 
-### 7. Interactive personalization
+### 8. Interactive personalization
 
 **Ask the user these questions and update files with their answers:**
 
@@ -63,7 +219,7 @@ cat ~/.openclaw-config/VERSION > .openclaw/installed-version
 
 Use `sed` or edit the files directly to replace placeholders.
 
-### 8. Skill setup (interactive)
+### 9. Skill setup (interactive)
 
 For each skill, ask if they want to set it up:
 
@@ -126,7 +282,7 @@ If yes:
 
 ---
 
-### 9. Apply configuration
+### 10. Apply configuration
 
 Use the `gateway` tool with `config.patch` action to add all the env vars at once:
 
@@ -144,13 +300,15 @@ gateway({
 })
 ```
 
-### 10. Summary
+### 11. Summary
 
 Tell the user:
 - ✅ What was installed
+- ✅ Memory search configured (LM Studio or OpenAI)
 - ✅ Which skills are configured
 - 📝 Remind them to personalize SOUL.md with their AI's personality
 - 📝 Remind them to add info about themselves to USER.md and MEMORY.md
+- 💡 "As you add files to `memory/`, run `memory_index()` to make them searchable"
 
 ## Placeholders Reference
 
