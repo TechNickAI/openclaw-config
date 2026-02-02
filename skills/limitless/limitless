@@ -1,81 +1,452 @@
-#!/bin/bash
-# Limitless CLI - Query your Pendant lifelogs
-# Requires LIMITLESS_API_KEY environment variable
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
+Limitless CLI - Query your Pendant lifelogs, chats, and audio
 
-API_KEY="${LIMITLESS_API_KEY:-}"
-BASE_URL="https://api.limitless.ai/v1"
-TZ="${LIMITLESS_TIMEZONE:-America/Chicago}"
+Requires LIMITLESS_API_KEY environment variable for API operations.
+"""
 
-if [ -z "$API_KEY" ]; then
-  echo "Error: LIMITLESS_API_KEY not set" >&2
-  echo "Get your key from: https://app.limitless.ai → Settings → Developer" >&2
-  exit 1
-fi
+import json
+import os
+import re
+import sys
+from typing import Any, NoReturn
+from urllib.parse import quote, urlencode
 
-call_api() {
-  local endpoint="$1"
-  shift
-  curl -s -H "X-API-Key: $API_KEY" "${BASE_URL}${endpoint}$*"
-}
+import httpx
 
-format_lifelogs() {
-  jq -r '.data.lifelogs[] | "## \(.title)\n**\(.startTime) - \(.endTime)**\n\n\(.markdown)\n\n---\n"' 2>/dev/null || cat
-}
+BASE_URL = "https://api.limitless.ai/v1"
+DEFAULT_TIMEZONE = "America/Chicago"
+MAX_LIMIT = 10
+DEFAULT_LIMIT = 5
+MAX_AUDIO_DURATION_MS = 7_200_000  # 2 hours
 
-case "${1:-help}" in
-  recent)
-    limit="${2:-5}"
-    call_api "/lifelogs" "?limit=${limit}&timezone=${TZ}&includeContents=false" | format_lifelogs
-    ;;
 
-  today)
-    today=$(date +%Y-%m-%d)
-    call_api "/lifelogs" "?date=${today}&timezone=${TZ}&limit=10&includeContents=false" | format_lifelogs
-    ;;
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("LIMITLESS_API_KEY", "").strip() or None
 
-  date)
-    if [ -z "$2" ]; then
-      echo "Usage: limitless date YYYY-MM-DD" >&2
-      exit 1
-    fi
-    call_api "/lifelogs" "?date=${2}&timezone=${TZ}&limit=10&includeContents=false" | format_lifelogs
-    ;;
 
-  search)
-    if [ -z "$2" ]; then
-      echo "Usage: limitless search \"query\"" >&2
-      exit 1
-    fi
-    query=$(printf '%s' "$2" | jq -sRr @uri)
-    call_api "/lifelogs" "?search=${query}&timezone=${TZ}&limit=10&includeContents=false" | format_lifelogs
-    ;;
+def get_timezone() -> str:
+    """Get timezone from environment or default."""
+    return os.environ.get("LIMITLESS_TIMEZONE", DEFAULT_TIMEZONE)
 
-  raw)
-    shift
-    call_api "/lifelogs" "?$*"
-    ;;
 
-  help|*)
-    cat <<EOF
-Limitless CLI - Query your Pendant lifelogs
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def call_api(endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Make GET API request with proper error handling."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "LIMITLESS_API_KEY not set",
+            "Get your key from: https://app.limitless.ai → Settings → Developer",
+        )
+
+    headers = {"X-API-Key": api_key}
+    url = f"{BASE_URL}{endpoint}"
+    if params:
+        url += "?" + urlencode({k: v for k, v in params.items() if v is not None})
+
+    try:
+        response = httpx.get(url, headers=headers, timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            retry = "60"
+            try:
+                retry = e.response.json().get("retryAfter", "60")
+            except Exception:
+                pass
+            error("Rate limited", f"Retry after {retry} seconds")
+        try:
+            body = e.response.json()
+            msg = body.get("error") or str(body)
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach Limitless API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
+
+
+def download_audio(start_ms: int, end_ms: int, output_path: str) -> None:
+    """Download audio as Ogg Opus file."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "LIMITLESS_API_KEY not set",
+            "Get your key from: https://app.limitless.ai → Settings → Developer",
+        )
+
+    headers = {"X-API-Key": api_key}
+    params = {"startMs": str(start_ms), "endMs": str(end_ms)}
+    url = f"{BASE_URL}/download-audio?" + urlencode(params)
+
+    try:
+        with httpx.stream("GET", url, headers=headers, timeout=120.0) as response:
+            response.raise_for_status()
+            with open(output_path, "wb") as f:
+                for chunk in response.iter_bytes():
+                    f.write(chunk)
+    except httpx.HTTPStatusError as e:
+        error(f"Audio download failed with HTTP {e.response.status_code}")
+    except httpx.RequestError as e:
+        error("Failed to reach Limitless API", str(e))
+
+
+def delete_resource(endpoint: str) -> dict[str, Any]:
+    """Make DELETE API request."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "LIMITLESS_API_KEY not set",
+            "Get your key from: https://app.limitless.ai → Settings → Developer",
+        )
+
+    headers = {"X-API-Key": api_key}
+    url = f"{BASE_URL}{endpoint}"
+
+    try:
+        response = httpx.delete(url, headers=headers, timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        try:
+            body = e.response.json()
+            msg = body.get("error") or str(body)
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach Limitless API", str(e))
+
+
+def validate_limit(value: str) -> int:
+    """Validate and return limit value (1-10)."""
+    try:
+        limit = int(value)
+    except ValueError:
+        error(f"Limit must be a number, got '{value}'")
+    if limit < 1 or limit > MAX_LIMIT:
+        error(f"Limit must be between 1-10, got {limit}")
+    return limit
+
+
+def validate_date(value: str) -> str:
+    """Validate YYYY-MM-DD date format and that the date is real."""
+    from datetime import date
+
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        error(f"Invalid date format: '{value}'", "Expected format: YYYY-MM-DD")
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        error(f"Invalid date: '{value}'", "Expected format: YYYY-MM-DD")
+    return value
+
+
+def format_lifelogs(data: dict[str, Any]) -> str:
+    """Format lifelog results as markdown."""
+    lifelogs = data.get("data", {}).get("lifelogs", [])
+    if not lifelogs:
+        return "No lifelogs found."
+
+    output = []
+    for log in lifelogs:
+        title = log.get("title", "Untitled")
+        start = log.get("startTime", "unknown")
+        end = log.get("endTime", "unknown")
+        starred = " ⭐" if log.get("isStarred") else ""
+        markdown = log.get("markdown", "")
+
+        output.append(f"## {title}{starred}")
+        output.append(f"**{start} — {end}**")
+        if markdown:
+            output.append("")
+            output.append(markdown)
+        output.append("")
+        output.append("---")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_lifelog_single(data: dict[str, Any]) -> str:
+    """Format a single lifelog with full detail."""
+    log = data.get("data", {})
+    if not log:
+        return "Lifelog not found."
+
+    title = log.get("title", "Untitled")
+    start = log.get("startTime", "unknown")
+    end = log.get("endTime", "unknown")
+    starred = " ⭐" if log.get("isStarred") else ""
+    markdown = log.get("markdown", "")
+
+    output = [f"## {title}{starred}", f"**{start} — {end}**"]
+    if markdown:
+        output.extend(["", markdown])
+
+    contents = log.get("contents", [])
+    if contents:
+        output.extend(["", "### Segments"])
+        for segment in contents:
+            speaker = segment.get("speakerName", "Unknown")
+            text = segment.get("text", "")
+            start_time = segment.get("startTime", "")
+            if text:
+                output.append(f"**{speaker}** ({start_time}): {text}")
+
+    return "\n".join(output)
+
+
+def format_chats(data: dict[str, Any]) -> str:
+    """Format chats as markdown."""
+    chats = data.get("data", {}).get("chats", [])
+    if not chats:
+        return "No chats found."
+
+    output = []
+    for chat in chats:
+        title = chat.get("title", "Untitled Chat")
+        output.append(f"## {title}")
+
+        messages = chat.get("messages", [])
+        for msg in messages:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            output.append(f"**{role}:** {content}")
+
+        output.extend(["", "---", ""])
+
+    return "\n".join(output)
+
+
+# --- Commands ---
+
+
+def cmd_recent(args: list[str]) -> None:
+    """List recent lifelogs."""
+    limit = DEFAULT_LIMIT
+    if args:
+        limit = validate_limit(args[0])
+
+    params = {
+        "timezone": get_timezone(),
+        "limit": limit,
+        "includeMarkdown": "false",
+    }
+    result = call_api("/lifelogs", params)
+    print(format_lifelogs(result))
+
+
+def cmd_today(args: list[str]) -> None:
+    """Get today's lifelogs."""
+    from datetime import date
+
+    params = {
+        "timezone": get_timezone(),
+        "date": date.today().isoformat(),
+        "limit": MAX_LIMIT,
+        "includeMarkdown": "true",
+    }
+    result = call_api("/lifelogs", params)
+    print(format_lifelogs(result))
+
+
+def cmd_date(args: list[str]) -> None:
+    """Get lifelogs for a specific date."""
+    if not args:
+        error("Date required", "Usage: limitless date YYYY-MM-DD")
+
+    date_str = validate_date(args[0])
+    params = {
+        "timezone": get_timezone(),
+        "date": date_str,
+        "limit": MAX_LIMIT,
+        "includeMarkdown": "true",
+    }
+    result = call_api("/lifelogs", params)
+    print(format_lifelogs(result))
+
+
+def cmd_search(args: list[str]) -> None:
+    """Semantic search across lifelogs."""
+    if not args:
+        error("Search query required", 'Usage: limitless search "your query"')
+
+    query = " ".join(args)
+    params = {
+        "timezone": get_timezone(),
+        "search": query,
+        "limit": MAX_LIMIT,
+        "includeMarkdown": "true",
+    }
+    result = call_api("/lifelogs", params)
+    print(format_lifelogs(result))
+
+
+def cmd_get(args: list[str]) -> None:
+    """Get a specific lifelog by ID."""
+    if not args:
+        error("Lifelog ID required", "Usage: limitless get <lifelog-id>")
+
+    lifelog_id = quote(args[0], safe="")
+    params = {
+        "timezone": get_timezone(),
+        "includeMarkdown": "true",
+        "includeContents": "true",
+    }
+    result = call_api(f"/lifelogs/{lifelog_id}", params)
+    print(format_lifelog_single(result))
+
+
+def cmd_delete(args: list[str]) -> None:
+    """Delete a lifelog by ID."""
+    if not args:
+        error("Lifelog ID required", "Usage: limitless delete <lifelog-id>")
+
+    lifelog_id = quote(args[0], safe="")
+    result = delete_resource(f"/lifelogs/{lifelog_id}")
+    if result.get("success"):
+        print(f"Deleted lifelog {lifelog_id}")
+    else:
+        print(json.dumps(result, indent=2))
+
+
+def cmd_audio(args: list[str]) -> None:
+    """Download audio for a time range."""
+    if len(args) < 2:
+        error(
+            "Start and end timestamps required",
+            "Usage: limitless audio <start-ms> <end-ms> [output.ogg]",
+        )
+
+    try:
+        start_ms = int(args[0])
+        end_ms = int(args[1])
+    except ValueError:
+        error("Timestamps must be integers (milliseconds)")
+
+    if start_ms < 0:
+        error("Start time must be non-negative")
+
+    if end_ms <= start_ms:
+        error("End time must be after start time")
+
+    duration = end_ms - start_ms
+    if duration > MAX_AUDIO_DURATION_MS:
+        error(f"Duration exceeds 2-hour maximum ({duration}ms > {MAX_AUDIO_DURATION_MS}ms)")
+
+    output_path = args[2] if len(args) > 2 else f"limitless_{start_ms}_{end_ms}.ogg"
+    download_audio(start_ms, end_ms, output_path)
+    print(f"Audio saved to {output_path}")
+
+
+def cmd_chats(args: list[str]) -> None:
+    """List recent chats."""
+    limit = 10
+    if args:
+        try:
+            limit = int(args[0])
+        except ValueError:
+            error(f"Limit must be a number, got '{args[0]}'")
+        if limit < 1 or limit > 100:
+            error(f"Limit must be between 1-100, got {limit}")
+
+    params = {
+        "timezone": get_timezone(),
+        "limit": limit,
+    }
+    result = call_api("/chats", params)
+    print(format_chats(result))
+
+
+def cmd_raw(args: list[str]) -> None:
+    """Raw API call with custom params."""
+    if not args:
+        error("Parameters required", 'Usage: limitless raw "limit=5&isStarred=true"')
+
+    # Parse raw params into dict
+    params = {}
+    for pair in args[0].split("&"):
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            params[k] = v
+
+    result = call_api("/lifelogs", params)
+    print(json.dumps(result, indent=2))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""Limitless CLI - Query your Pendant lifelogs, chats, and audio
 
 Commands:
-  recent [N]           Get N most recent lifelogs (default: 5)
-  today                Get today's conversations
-  date YYYY-MM-DD      Get conversations for a specific date
-  search "query"       Semantic search across all lifelogs
-  raw <params>         Raw API call with custom params
+  recent [N]              Get N most recent lifelogs (default: 5, max: 10)
+  today                   Get today's conversations with full transcripts
+  date YYYY-MM-DD         Get conversations for a specific date
+  search "query"          Semantic search across all lifelogs
+  get <id>                Get a specific lifelog with full content
+  delete <id>             Permanently delete a lifelog
+  chats [N]               List recent Ask AI chats (default: 10)
+  audio <start> <end>     Download audio (millisecond timestamps, max 2h)
+  raw "<params>"          Raw API call with custom query params
+  help                    Show this help
 
 Environment:
-  LIMITLESS_API_KEY    Required - your API key
-  LIMITLESS_TIMEZONE   Optional - timezone (default: America/Chicago)
+  LIMITLESS_API_KEY       Required - your API key
+  LIMITLESS_TIMEZONE      Optional - timezone (default: America/Chicago)
 
 Examples:
   limitless recent 3
   limitless today
   limitless date 2026-01-28
   limitless search "meeting with john"
+  limitless get abc123-def456
+  limitless chats 5
+  limitless audio 1706500000000 1706503600000 meeting.ogg
   limitless raw "limit=5&isStarred=true"
-EOF
-    ;;
-esac
+
+Get your API key: https://app.limitless.ai → Settings → Developer""")
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    commands = {
+        "recent": cmd_recent,
+        "today": cmd_today,
+        "date": cmd_date,
+        "search": cmd_search,
+        "get": cmd_get,
+        "delete": cmd_delete,
+        "chats": cmd_chats,
+        "audio": cmd_audio,
+        "raw": cmd_raw,
+    }
+
+    if command == "help":
+        cmd_help()
+    elif command in commands:
+        commands[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'limitless help' for available commands")
+
+
+if __name__ == "__main__":
+    main()
