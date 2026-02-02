@@ -1,6 +1,6 @@
 ---
 name: parallel
-version: 0.1.0
+version: 0.2.0
 description: Web search and content extraction via Parallel.ai API
 triggers:
   - web search
