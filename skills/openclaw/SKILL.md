@@ -47,6 +47,7 @@ Do these steps in order:
    - "Do you have a Limitless Pendant?" → If yes, get API key from app.limitless.ai → Settings → Developer
    - "Do you use Fireflies.ai for meeting transcripts?" → If yes, get API key from app.fireflies.ai → Integrations → Fireflies API
    - "Do you use Quo for business phone?" → If yes, get API key from my.quo.com → Settings → API
+   - "Do you want Parallel.ai for web search? (better results than built-in)" → If yes, get API key from platform.parallel.ai
 
    Skip any they don't use. Don't assume they want all of them.
 
