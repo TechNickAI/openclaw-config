@@ -13,16 +13,37 @@ if [ -z "$API_KEY" ]; then
   exit 1
 fi
 
-# API helper
+# API helper with error handling
 call_api() {
   local endpoint="$1"
   local payload="$2"
-  curl -s -X POST \
+  local response http_code body
+
+  response=$(curl -s -w "\n%{http_code}" -X POST \
     -H "Content-Type: application/json" \
     -H "x-api-key: $API_KEY" \
     -H "$BETA_HEADER" \
     -d "$payload" \
-    "${BASE_URL}${endpoint}"
+    "${BASE_URL}${endpoint}" 2>&1)
+
+  http_code=$(echo "$response" | tail -n1)
+  body=$(echo "$response" | sed '$d')
+
+  # Check for curl failure
+  if ! [[ "$http_code" =~ ^[0-9]+$ ]]; then
+    echo "Error: Failed to reach Parallel.ai API" >&2
+    echo "Details: $body" >&2
+    return 1
+  fi
+
+  # Check for HTTP errors
+  if [ "$http_code" -ge 400 ]; then
+    echo "Error: API returned HTTP $http_code" >&2
+    echo "$body" | jq -r '.error.message // .error // .' 2>/dev/null >&2
+    return 1
+  fi
+
+  echo "$body"
 }
 
 # Format search results as markdown
@@ -59,17 +80,19 @@ format_extract() {
   '
 }
 
-# Commands
 case "${1:-help}" in
   search)
     shift
     query=""
     limit=5
 
-    # Parse arguments
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --limit)
+          if [ -z "$2" ] || [[ "$2" == --* ]]; then
+            echo "Error: --limit requires a numeric value" >&2
+            exit 1
+          fi
           limit="$2"
           shift 2
           ;;
@@ -90,6 +113,11 @@ case "${1:-help}" in
       exit 1
     fi
 
+    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+      echo "Error: --limit must be a positive integer, got '$limit'" >&2
+      exit 1
+    fi
+
     payload=$(jq -n \
       --arg q "$query" \
       --argjson limit "$limit" \
@@ -102,7 +130,8 @@ case "${1:-help}" in
         }
       }')
 
-    call_api "/search" "$payload" | format_search
+    result=$(call_api "/search" "$payload") || exit 1
+    echo "$result" | format_search
     ;;
 
   extract)
@@ -110,7 +139,6 @@ case "${1:-help}" in
     url=""
     full_content=false
 
-    # Parse arguments
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --full)
@@ -130,6 +158,12 @@ case "${1:-help}" in
       exit 1
     fi
 
+    if [[ ! "$url" =~ ^https?:// ]]; then
+      echo "Error: URL must start with http:// or https://" >&2
+      echo "Got: $url" >&2
+      exit 1
+    fi
+
     payload=$(jq -n \
       --arg url "$url" \
       --argjson full "$full_content" \
@@ -140,7 +174,22 @@ case "${1:-help}" in
         full_content: $full
       }')
 
-    call_api "/extract" "$payload" | format_extract
+    result=$(call_api "/extract" "$payload") || exit 1
+    echo "$result" | format_extract
+    ;;
+
+  raw)
+    shift
+    endpoint="${1:-}"
+    payload="${2:-{}}"
+
+    if [ -z "$endpoint" ]; then
+      echo "Error: Endpoint required" >&2
+      echo "Usage: parallel raw <endpoint> [json-payload]" >&2
+      exit 1
+    fi
+
+    call_api "$endpoint" "$payload"
     ;;
 
   help|*)
@@ -152,6 +201,7 @@ Commands:
   search "query" --limit N    Limit results (default: 5)
   extract <url>               Extract content from URL
   extract <url> --full        Include full page content
+  raw <endpoint> [json]       Raw API call
   help                        Show this help
 
 Environment:
@@ -162,6 +212,7 @@ Examples:
   parallel search "React 19 features" --limit 10
   parallel extract https://example.com/article
   parallel extract https://example.com/doc.pdf --full
+  parallel raw /search '{"search_queries":["test"]}'
 
 Get your API key: https://platform.parallel.ai
 EOF
