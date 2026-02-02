@@ -42,18 +42,6 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - **Text > Brain** 📝
 - **Markdown > JSON** — You're a language model, not a data processor. Use checkboxes, not objects.
 
-## 📋 Task Management
-
-Track non-trivial requests in `memory/tasks.md`. See `memory/TASK-SYSTEM.md` for full protocol.
-
-**Quick rules:**
-- **Immediate** (<30s): Just do it, no tracking
-- **Async** (takes time): Spawn sub-agent, track in tasks.md
-- **Blocked** (waiting): Track with `check back: date`, heartbeat will remind you
-- **Don't lose requests** — if interrupted, the task file has context to resume
-
-**On session start:** Check tasks.md for anything in-progress or blocked.
-
 ## 📁 Where Things Belong
 
 **`memory/`** — Searchable context indexed for chat recall
