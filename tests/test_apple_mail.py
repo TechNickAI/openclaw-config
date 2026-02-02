@@ -31,6 +31,7 @@ def run_skill(
         text=True,
         timeout=timeout,
         env=run_env,
+        check=False,
     )
 
 
@@ -71,10 +72,12 @@ else:
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
-        return "OK" in result.stdout
     except Exception:
         return False
+    else:
+        return "OK" in result.stdout
 
 
 # Check at module load time
