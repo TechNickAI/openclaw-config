@@ -21,22 +21,26 @@ A battle-tested configuration for running Clawdbot as a personal AI assistant:
 
 ```
 Set up openclaw-config from https://github.com/TechNickAI/openclaw-config
-
-Clone the repo to ~/.openclaw-config, then follow SETUP.md to install
-the templates and skills into my workspace.
 ```
 
-That's it. Clawdbot reads SETUP.md and does the work.
+Clawdbot will:
+1. Clone the repo
+2. Copy templates to your workspace
+3. Ask for your name, AI's name, timezone, and priorities
+4. Ask which skills you want and guide you through getting API keys
+5. Configure everything automatically
+
+No manual config editing. No environment variables to export.
 
 ## Updating
 
 **Tell your Clawdbot:**
 
 ```
-Sync my openclaw-config. Follow SYNC.md in ~/.openclaw-config.
+Sync my openclaw-config
 ```
 
-The sync is smart — it preserves your customizations and only updates files you haven't modified.
+It preserves your customizations and only updates files you haven't modified.
 
 ## What's Included
 
@@ -44,51 +48,35 @@ The sync is smart — it preserves your customizations and only updates files yo
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | Complete operating instructions (~400 lines of wisdom) |
-| `SOUL.md` | AI personality and identity template |
+| `AGENTS.md` | Complete operating instructions (~400 lines) |
+| `SOUL.md` | AI personality template |
 | `USER.md` | Human profile template |
 | `TOOLS.md` | Local environment notes |
-| `HEARTBEAT.md` | Periodic check configuration |
+| `HEARTBEAT.md` | Periodic check config |
 | `IDENTITY.md` | Quick reference card |
 
 ### Memory Architecture
 
 **Tier 1: Always-Loaded**
-- `MEMORY.md` — ~100 lines max, curated essentials
+- `MEMORY.md` — Curated essentials (~100 lines max)
 
 **Tier 2: Daily Context**
 - `memory/YYYY-MM-DD.md` — Today + yesterday's logs
 
-**Tier 3: Deep Knowledge**
+**Tier 3: Deep Knowledge (RAG-searchable)**
 - `memory/people/`, `memory/projects/`, `memory/topics/`, `memory/decisions/`
-- Searchable via RAG, loaded on-demand
 
 ### Skills
 
-| Skill | Description | API Key |
-|-------|-------------|---------|
-| **limitless** | Limitless Pendant lifelogs | `LIMITLESS_API_KEY` |
-| **fireflies** | Fireflies.ai meeting transcripts | `FIREFLIES_API_KEY` |
-| **quo** | Quo business phone | `QUO_API_KEY` |
+| Skill | What it does |
+|-------|--------------|
+| **limitless** | Query Limitless Pendant lifelogs |
+| **fireflies** | Search Fireflies.ai meeting transcripts |
+| **quo** | Access Quo business phone calls & texts |
 
-## After Setup
+## The Memory Extraction Criteria
 
-1. **Edit `SOUL.md`** — Define your AI's personality
-2. **Edit `USER.md`** — Add your info  
-3. **Replace placeholders** in `AGENTS.md`:
-
-| Placeholder | Replace with |
-|-------------|--------------|
-| `{{USER_NAME}}` | Your name |
-| `{{ASSISTANT_NAME}}` | Your AI's name |
-| `{{PRIORITY_1}}` | Top priority (e.g., "Work") |
-| `{{PRIORITY_2}}` | Second priority (e.g., "Family") |
-
-4. **Set API keys** for skills you want to use
-
-## The 4 Criteria for Memory Extraction
-
-Built into AGENTS.md — your AI uses these to decide what to remember:
+Your AI uses these to decide what to remember long-term:
 
 1. **Durability** — Will this matter in 30+ days?
 2. **Uniqueness** — Is this new or already captured?
@@ -104,7 +92,7 @@ Built into AGENTS.md — your AI uses these to decide what to remember:
 
 ## Contributing
 
-PRs welcome! Keep templates generic (no personal/specific content).
+PRs welcome! Keep templates generic (no personal content).
 
 ## License
 

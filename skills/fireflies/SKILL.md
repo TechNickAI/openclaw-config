@@ -8,11 +8,12 @@ triggers:
   - what was discussed
   - meeting notes
 metadata:
-  openclaw:
+  clawdbot:
     emoji: "🔥"
+    apiKey:
+      env: FIREFLIES_API_KEY
+      getFrom: https://app.fireflies.ai → Integrations → Fireflies API
     requires:
-      env:
-        - FIREFLIES_API_KEY
       bins:
         - curl
         - jq
@@ -24,9 +25,10 @@ Query meeting transcripts from Fireflies.ai - the AI notetaker that records, tra
 
 ## Setup
 
-1. Get your API key from [app.fireflies.ai](https://app.fireflies.ai) → Integrations → Fireflies API
-2. Set environment variable: `export FIREFLIES_API_KEY=your-key`
-3. Or configure in openclaw.json under `env.FIREFLIES_API_KEY`
+**If not configured:** Ask the user for their API key. They can get it from:
+https://app.fireflies.ai → Integrations → Fireflies API
+
+Then configure via `gateway config.patch` with `env.FIREFLIES_API_KEY`.
 
 ## Quick Commands
 
@@ -37,7 +39,6 @@ fireflies recent 10
 
 # Search for topics across all meetings
 fireflies search "product roadmap"
-fireflies search "budget discussion"
 
 # Get today's meetings
 fireflies today
@@ -59,7 +60,6 @@ fireflies me
 - "Find meetings about [topic]"
 - "What were the action items from yesterday's call?"
 - "Get the transcript from my call with [person]"
-- Building context about professional discussions
 
 ## Response Format
 
@@ -71,24 +71,9 @@ fireflies me
 - `summary` - AI-generated overview and action items
 
 **Full transcript includes:**
-- All list fields plus:
-- `sentences` - Full transcript with speaker names and timestamps
-- `keywords`, `topics_discussed`, `outline`
-- `action_items` - Extracted tasks
-
-## Query Filters (for advanced use)
-
-| Filter | Description |
-|--------|-------------|
-| `limit` | Max results (1-50) |
-| `keyword` | Search in title + transcript |
-| `fromDate`/`toDate` | Date range (ISO 8601) |
-| `mine` | Only meetings you participated in |
-| `host_email` | Filter by meeting host |
+- All list fields plus full transcript with speaker names and timestamps
 
 ## Notes
 
-- Speaker names come from calendar invites (Zoom/Meet integration)
-- Summaries are AI-generated and include action items automatically
-- Works with Zoom, Google Meet, Microsoft Teams, and other platforms
-- API documentation: [docs.fireflies.ai](https://docs.fireflies.ai)
+- Speaker names come from calendar invites
+- Works with Zoom, Google Meet, Microsoft Teams
