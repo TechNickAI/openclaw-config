@@ -1,0 +1,14 @@
+{
+  "name": "@clawdbot/parallel-search",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Parallel.ai web search plugin for Clawdbot",
+  "dependencies": {
+    "@sinclair/typebox": "0.34.47"
+  },
+  "clawdbot": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
