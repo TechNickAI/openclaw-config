@@ -43,7 +43,8 @@ Do these steps in order:
    - "Do you want the email steward workflow?" → Manages inbox automatically
 
    If yes:
-   - Copy `AGENT.md` from `~/.openclaw-config/workflows/email-steward/` to `workflows/email-steward/`
+   - Copy `AGENT.md` from `~/.openclaw-config/workflows/email-steward/` to
+     `workflows/email-steward/`
    - Create `workflows/email-steward/logs/` directory
    - The workflow will interview them on first run to create `rules.md`
 
@@ -88,8 +89,8 @@ modified them, update version file, report changes.
 
 If user wants to force/overwrite: backup to `.openclaw/backup/` first.
 
-**Workflows:** Only update AGENT.md (the algorithm). Never touch rules.md, agent_notes.md,
-or logs/ — those belong to the user.
+**Workflows:** Only update AGENT.md (the algorithm). Never touch rules.md,
+agent_notes.md, or logs/ — those belong to the user.
 
 ---
 

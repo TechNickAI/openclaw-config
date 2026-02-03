@@ -11,7 +11,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **Workflows** — Autonomous agents that run on a schedule with state and learning
   - `email-steward` — Manages inbox automatically (archives, deletes, alerts on urgent)
-  - Workflows have: AGENT.md (algorithm), rules.md (user prefs), agent_notes.md (learning)
+  - Workflows have: AGENT.md (algorithm), rules.md (user prefs), agent_notes.md
+    (learning)
   - AGENT.md updates on sync (the algorithm improves)
   - User files (rules.md, agent_notes.md, logs/) are never overwritten
 
