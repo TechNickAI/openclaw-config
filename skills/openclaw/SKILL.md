@@ -65,9 +65,25 @@ Do these steps in order:
 
    Skip any they don't use. Don't assume they want all of them.
 
-8. **Track version** in `.openclaw/installed-version`
+8. **Health check setup** — Ask: "Do you want automated health monitoring? It runs
+   hourly via cron (Claude Code + Sonnet) to check your gateway and services, fix minor
+   issues, and notify you of problems."
 
-9. **Summary** — Tell them what's configured
+   If yes:
+   - Ask: "Who should be notified if there's a problem?" → `mkdir -p ~/.openclaw` then
+     write their answer to `~/.openclaw/health-check-admin` (just the name, one line)
+   - Resolve the claude CLI path with `which claude` — use the full path in the cron job
+   - Install the cron job (substitute CLAUDE_PATH with the resolved path):
+     ```
+     0 0,7-23 * * * test -f "$HOME/.openclaw-config/devops/health-check.md" && flock -n "$HOME/.openclaw/health-check.lock" CLAUDE_PATH -p "Run health check" --model sonnet --append-system-prompt-file "$HOME/.openclaw-config/devops/health-check.md" --dangerously-skip-permissions --max-budget-usd 5.00 >> "$HOME/.openclaw/health-check.log" 2>&1
+     ```
+   - Verify: `crontab -l | grep health-check`
+   - Do a test run: execute the claude command once and verify it produces output
+   - Tell them: runs hourly 7 AM–midnight, logs at `~/.openclaw/health-check.log`
+
+9. **Track version** in `.openclaw/installed-version`
+
+10. **Summary** — Tell them what's configured
 
 ---
 
