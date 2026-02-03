@@ -76,6 +76,22 @@ with inline dependencies, no project setup required.
 | **quo**       | Access Quo business phone calls & texts                          |
 | **openclaw**  | Manage openclaw-config installation & updates                    |
 
+### Workflows
+
+Workflows are autonomous agents that run on a schedule. Unlike skills (single-purpose
+tools), workflows have state, learn over time, and maintain their own rules and logs.
+
+| Workflow          | What it does                                             |
+| ----------------- | -------------------------------------------------------- |
+| **email-steward** | Manages your inbox — archives, deletes, alerts on urgent |
+
+Each workflow has:
+
+- `AGENT.md` — The algorithm (updates with openclaw-config)
+- `rules.md` — Your preferences (you customize, never overwritten)
+- `agent_notes.md` — Learned patterns (grows over time)
+- `logs/` — Execution history
+
 #### Running Tests
 
 ```bash

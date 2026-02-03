@@ -1,6 +1,6 @@
 ---
 name: openclaw
-version: 0.2.1
+version: 0.2.2
 description: Install, configure, and update openclaw-config
 triggers:
   - openclaw
@@ -39,7 +39,15 @@ Do these steps in order:
 
 4. **Copy skills** to `skills/`
 
-5. **Configure memory search** — Required for semantic search to work. Ask: LM Studio
+5. **Optional: Add workflows** — Ask if they want any workflows:
+   - "Do you want the email steward workflow?" → Manages inbox automatically
+
+   If yes:
+   - Copy `AGENT.md` from `~/.openclaw-config/workflows/email-steward/` to `workflows/email-steward/`
+   - Create `workflows/email-steward/logs/` directory
+   - The workflow will interview them on first run to create `rules.md`
+
+6. **Configure memory search** — Required for semantic search to work. Ask: LM Studio
    (local, free, recommended) or OpenAI?
    - **LM Studio:** Server on port 1234, model
      `lmstudio-community/embedding-gemma-300m-qat`, configure gateway
@@ -49,10 +57,10 @@ Do these steps in order:
    - **Verify it works:** Create test file in memory/, index it, search for it, confirm
      it returns results, clean up
 
-6. **Personalization** — Ask and replace in templates: `{{USER_NAME}}`,
+7. **Personalization** — Ask and replace in templates: `{{USER_NAME}}`,
    `{{ASSISTANT_NAME}}`, `{{TIMEZONE}}`, `{{PRIORITY_1}}`, `{{PRIORITY_2}}`
 
-7. **Optional skills** — These are optional. Ask about each one individually, only
+8. **Optional skills** — These are optional. Ask about each one individually, only
    configure if they say yes:
    - "Do you have a Limitless Pendant?" → If yes, get API key from app.limitless.ai →
      Settings → Developer
@@ -65,9 +73,9 @@ Do these steps in order:
 
    Skip any they don't use. Don't assume they want all of them.
 
-8. **Track version** in `.openclaw/installed-version`
+9. **Track version** in `.openclaw/installed-version`
 
-9. **Summary** — Tell them what's configured
+10. **Summary** — Tell them what's configured
 
 ---
 
@@ -79,6 +87,9 @@ If newer: pull, update skills (safe to overwrite), update templates only if user
 modified them, update version file, report changes.
 
 If user wants to force/overwrite: backup to `.openclaw/backup/` first.
+
+**Workflows:** Only update AGENT.md (the algorithm). Never touch rules.md, agent_notes.md,
+or logs/ — those belong to the user.
 
 ---
 

@@ -5,6 +5,16 @@ All notable changes to openclaw-config will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-02-02
+
+### Added
+
+- **Workflows** — Autonomous agents that run on a schedule with state and learning
+  - `email-steward` — Manages inbox automatically (archives, deletes, alerts on urgent)
+  - Workflows have: AGENT.md (algorithm), rules.md (user prefs), agent_notes.md (learning)
+  - AGENT.md updates on sync (the algorithm improves)
+  - User files (rules.md, agent_notes.md, logs/) are never overwritten
+
 ## [0.2.0] - 2026-02-01
 
 ### Added
