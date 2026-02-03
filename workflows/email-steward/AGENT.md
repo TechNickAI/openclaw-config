@@ -174,7 +174,12 @@ Read full email body only when subject isn't enough. Most triage is sender + sub
 
 ### Housekeeping
 
-First run each day: delete logs older than 30 days.
+First run each day:
+
+1. Delete logs older than 30 days
+2. Purge Agent-Deleted emails older than 30 days:
+   - Search for `label:Agent-Deleted older_than:30d`
+   - Move to TRASH with `gog gmail thread trash <threadId>`
 
 ### Remember
 
