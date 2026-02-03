@@ -75,7 +75,22 @@ If yes:
 4. For each category, ask preference. After any category, offer "looks good, skip to the
    end" so they can bail early if the pattern is clear.
 
-### 4. Alert Preferences
+### 4. Cleanup Preferences
+
+Explain:
+
+"When I 'delete' emails, I actually just label them Agent-Deleted and remove them from
+your inbox. They stay in All Mail so you can recover them if needed. If you want, I can
+automatically trash these after 30 days (Gmail then permanently deletes from trash after
+another 30 days). Or you can keep them in All Mail forever and manually clean up when
+you want."
+
+Ask:
+
+- "Should I auto-trash Agent-Deleted emails after 30 days?"
+  - Save `auto_purge_deleted: true` or `auto_purge_deleted: false`
+
+### 5. Alert Preferences
 
 If they chose `alert_channel: none` earlier, skip this section.
 
@@ -90,7 +105,7 @@ Suggest defaults:
   problems, deadlines
 - Don't alert: receipts, marketing, routine confirmations
 
-### 5. Confirm & Save
+### 6. Confirm & Save
 
 Summarize what the rules mean in plain language:
 
@@ -177,7 +192,8 @@ Read full email body only when subject isn't enough. Most triage is sender + sub
 First run each day:
 
 1. Delete logs older than 30 days
-2. Purge Agent-Deleted emails older than 30 days:
+2. If `auto_purge_deleted: true` in rules.md, purge Agent-Deleted emails older than 30
+   days:
    - Search for `label:Agent-Deleted older_than:30d`
    - Move to TRASH with `gog gmail thread trash <threadId>`
 
