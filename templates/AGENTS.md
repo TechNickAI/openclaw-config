@@ -273,16 +273,14 @@ cron jobs. Use cron for precise schedules and standalone tasks.
 - **Mentions** - Twitter/social notifications?
 - **Weather** - Relevant if your human might go out?
 
-**Track your checks** in `memory/heartbeat-state.json`:
+**Track your checks** in `memory/heartbeat-state.md`:
 
-```json
-{
-  "lastChecks": {
-    "email": null,
-    "calendar": null,
-    "weather": null
-  }
-}
+```markdown
+## Last Check Times
+
+- Email: (not checked yet)
+- Calendar: (not checked yet)
+- Weather: (not checked yet)
 ```
 
 **When to reach out:**
