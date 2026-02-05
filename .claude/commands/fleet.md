@@ -44,10 +44,13 @@ things hoping one works.
 <fleet-file-format>
 Each server: `~/openclaw-fleet/<server-name>.md`
 
+<!-- prettier-ignore -->
 ```markdown
 # Display Name
 
-**Host:** IP or hostname **User:** SSH username **Tailscale:** yes/no
+**Host:** IP or hostname
+**User:** SSH username
+**Tailscale:** yes/no
 
 ## Notify
 
