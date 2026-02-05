@@ -52,18 +52,23 @@ updates. Report but don't apply. Write a Unix epoch timestamp to the check file.
 
 ## Reporting
 
-**All clear?** Respond with just `HEALTHY` and stop. No notification needed.
+**All clear?** Respond with just `HEALTHY` and stop. Do NOT send any message or
+notification. Healthy is the expected state — nobody needs to hear about it.
 
 **Fixed something?** Notify the admin: what broke, what you did, whether it worked.
 Verify your fix actually resolved the issue before claiming success.
 
 **Can't fix it?** Notify the admin: what's wrong, what you tried, what they should do.
 
+Only these two cases warrant a notification. Routine healthy status is silent — no
+messages, no "all clear" updates. The admin only wants to hear about problems and
+resolutions.
+
 ## How to notify
 
 Read the OpenClaw workspace to figure out how to send a message to the admin. Look at
 the gateway config, `pai/` directory, `TOOLS.md` — the workspace documents how messaging
-works. Send a Telegram message through whatever mechanism is available.
+works. Send a message through whatever mechanism is available.
 
 If you can't figure out how to send a message, write your findings to
 `~/.openclaw/health-check.log` with a timestamp so they're not lost.
