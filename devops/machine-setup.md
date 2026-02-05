@@ -18,9 +18,11 @@ sudo pmset -a powernap 1        # Background tasks during display sleep
 sudo pmset -a autorestart 1     # Auto-restart after power failure
 ```
 
-**Verify:** `pmset -g | grep -E 'sleep |displaysleep|womp|tcpkeepalive|powernap|autorestart'`
+**Verify:**
+`pmset -g | grep -E 'sleep |displaysleep|womp|tcpkeepalive|powernap|autorestart'`
 
 **Expected:**
+
 ```
 sleep            0
 displaysleep     10
@@ -59,7 +61,8 @@ If the macOS firewall is enabled, Tailscale and SSH must be allowed through.
 
 ## Permissions
 
-The OpenClaw config directory contains API keys and tokens. It must not be world-readable.
+The OpenClaw config directory contains API keys and tokens. It must not be
+world-readable.
 
 ```bash
 chmod 700 ~/.openclaw
@@ -123,17 +126,18 @@ The OpenClaw gateway runs as a launchd user agent that auto-starts on login.
 
 Core files in `~/.openclaw/workspace/`:
 
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | Operating instructions |
-| `SOUL.md` | Personality definition |
-| `USER.md` | Human profile |
-| `MEMORY.md` | Always-loaded context |
-| `IDENTITY.md` | Quick reference card |
-| `HEARTBEAT.md` | Periodic check config |
-| `TOOLS.md` | Local environment notes |
+| File           | Purpose                 |
+| -------------- | ----------------------- |
+| `AGENTS.md`    | Operating instructions  |
+| `SOUL.md`      | Personality definition  |
+| `USER.md`      | Human profile           |
+| `MEMORY.md`    | Always-loaded context   |
+| `IDENTITY.md`  | Quick reference card    |
+| `HEARTBEAT.md` | Periodic check config   |
+| `TOOLS.md`     | Local environment notes |
 
-**Verify:** `ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS}.md`
+**Verify:**
+`ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS}.md`
 
 ### Memory Structure
 
@@ -147,7 +151,8 @@ Core files in `~/.openclaw/workspace/`:
 └── topics/
 ```
 
-**Verify:** `ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topics}`
+**Verify:**
+`ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topics}`
 
 ### Embeddings
 
