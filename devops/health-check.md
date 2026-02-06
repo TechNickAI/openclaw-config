@@ -17,7 +17,8 @@ this machine (or the context was cleared). Do a full discovery scan before any h
 checks:
 
 1. **Identify the machine** — hostname, OS, role in the fleet
-2. **Find the OpenClaw installation** — workspace path, config path, legacy paths
+2. **Find the OpenClaw installation** — workspace path, config path, legacy paths. If
+   you can't find an OpenClaw installation, say so and stop.
 3. **Discover running services** — gateway process, launchd/systemd units, listening
    ports, Node version
 4. **Discover channels** — which messaging channels are configured (WhatsApp, iMessage,
