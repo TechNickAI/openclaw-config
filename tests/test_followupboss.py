@@ -10,7 +10,9 @@ from pathlib import Path
 
 import pytest
 
-SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "followupboss" / "followupboss")
+SKILL_PATH = str(
+    Path(__file__).parent / ".." / "skills" / "followupboss" / "followupboss"
+)
 
 HAS_API_KEY = bool(os.getenv("FUB_API_KEY"))
 requires_api_key = pytest.mark.skipif(
@@ -91,7 +93,13 @@ class TestValidation:
         assert "task name required" in result.stderr.lower()
 
     def test_add_task_validates_date(self):
-        result = run_skill("add-task", "123", "Call back", "not-a-date", env={"FUB_API_KEY": "fake-key"})
+        result = run_skill(
+            "add-task",
+            "123",
+            "Call back",
+            "not-a-date",
+            env={"FUB_API_KEY": "fake-key"},
+        )
         assert result.returncode == 1
         assert "Invalid date" in result.stderr
 
@@ -114,7 +122,10 @@ class TestSearchIntegration:
         result = run_skill("search", "test")
         assert result.returncode == 0
         # Should return markdown output (either contacts or "No contacts found")
-        assert "contacts" in result.stdout.lower() or "no contacts" in result.stdout.lower()
+        assert (
+            "contacts" in result.stdout.lower()
+            or "no contacts" in result.stdout.lower()
+        )
 
     def test_recent_contacts(self):
         result = run_skill("recent", "3")
