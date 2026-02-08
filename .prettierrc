@@ -1,33 +1,33 @@
 {
-  "printWidth": 88,
-  "tabWidth": 4,
-  "singleQuote": false,
-  "trailingComma": "es5",
-  "arrowParens": "always",
-  "proseWrap": "always",
-  "htmlWhitespaceSensitivity": "css",
-  "embeddedLanguageFormatting": "auto",
-  "singleAttributePerLine": false,
-  "overrides": [
-    {
-      "files": ["*.md", "*.mdc"],
-      "options": {
-        "parser": "markdown",
-        "tabWidth": 2,
-        "printWidth": 88
-      }
-    },
-    {
-      "files": ["*.json", "*.jsonc"],
-      "options": {
-        "tabWidth": 2
-      }
-    },
-    {
-      "files": ["*.yml", "*.yaml"],
-      "options": {
-        "tabWidth": 2
-      }
-    }
-  ]
+    "printWidth": 88,
+    "tabWidth": 4,
+    "singleQuote": false,
+    "trailingComma": "es5",
+    "arrowParens": "always",
+    "proseWrap": "always",
+    "htmlWhitespaceSensitivity": "css",
+    "embeddedLanguageFormatting": "auto",
+    "singleAttributePerLine": false,
+    "overrides": [
+        {
+            "files": ["*.md", "*.mdc"],
+            "options": {
+                "parser": "markdown",
+                "tabWidth": 2,
+                "printWidth": 88
+            }
+        },
+        {
+            "files": ["*.json", "*.jsonc"],
+            "options": {
+                "tabWidth": 2
+            }
+        },
+        {
+            "files": ["*.yml", "*.yaml"],
+            "options": {
+                "tabWidth": 2
+            }
+        }
+    ]
 }

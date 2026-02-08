@@ -1,0 +1,357 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
+Asana CLI - Task and project management via REST API
+
+Supplements the Asana MCP server with direct API operations for workflow
+automation (section moves, tagging, bulk listing).
+
+Requires ASANA_ACCESS_TOKEN environment variable for API operations.
+"""
+
+import json
+import os
+import re
+import sys
+from typing import Any, NoReturn
+
+import httpx
+
+BASE_URL = "https://app.asana.com/api/1.0"
+
+
+def get_api_key() -> str | None:
+    """Get API token from environment."""
+    return os.environ.get("ASANA_ACCESS_TOKEN", "").strip() or None
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def validate_gid(value: str, label: str = "GID") -> str:
+    """Validate that a value is a numeric Asana GID."""
+    if not re.match(r"^\d+$", value):
+        error(f"Invalid {label} '{value}' — must be numeric")
+    return value
+
+
+def call_api(
+    method: str,
+    endpoint: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Make Asana API request with proper error handling."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "ASANA_ACCESS_TOKEN not set",
+            "Get your token from: https://app.asana.com/0/my-apps",
+        )
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    try:
+        response = httpx.request(
+            method,
+            f"{BASE_URL}{endpoint}",
+            json=payload,
+            headers=headers,
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            error("Rate limited by Asana", "Wait a moment and try again")
+        try:
+            body = e.response.json()
+            msg = (
+                body.get("errors", [{}])[0].get("message")
+                or body.get("error")
+                or str(body)
+            )
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach Asana API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
+
+
+# --- Formatters ---
+
+
+def format_tasks(data: dict[str, Any]) -> str:
+    """Format task list as tab-separated output."""
+    tasks = data.get("data", [])
+    if not tasks:
+        return "No tasks found."
+
+    lines = []
+    for t in tasks:
+        gid = t.get("gid", "")
+        name = t.get("name", "Untitled")
+        completed = t.get("completed", False)
+        section = "?"
+        memberships = t.get("memberships", [])
+        if memberships:
+            section = memberships[0].get("section", {}).get("name", "?")
+        lines.append(f"{gid}\t{section}\t{completed}\t{name}")
+    return "\n".join(lines)
+
+
+def format_tasks_in_section(data: dict[str, Any]) -> str:
+    """Format section task list as tab-separated output."""
+    tasks = data.get("data", [])
+    if not tasks:
+        return "No tasks found."
+
+    lines = []
+    for t in tasks:
+        gid = t.get("gid", "")
+        name = t.get("name", "Untitled")
+        completed = t.get("completed", False)
+        tags = ",".join(tag.get("name", "") for tag in t.get("tags", []))
+        lines.append(f"{gid}\t{completed}\t{name}\t{tags}")
+    return "\n".join(lines)
+
+
+def format_sections(data: dict[str, Any]) -> str:
+    """Format sections as tab-separated output."""
+    sections = data.get("data", [])
+    if not sections:
+        return "No sections found."
+
+    return "\n".join(f"{s.get('gid', '')}\t{s.get('name', '')}" for s in sections)
+
+
+def format_tags(data: dict[str, Any]) -> str:
+    """Format tags as tab-separated output."""
+    tags = data.get("data", [])
+    if not tags:
+        return "No tags found."
+
+    return "\n".join(f"{t.get('gid', '')}\t{t.get('name', '')}" for t in tags)
+
+
+# --- Commands ---
+
+
+def cmd_tasks(args: list[str]) -> None:
+    """List all tasks in a project."""
+    if not args:
+        error("Project GID required", "Usage: asana tasks <project_gid>")
+
+    project_gid = validate_gid(args[0], "project_gid")
+    fields = "name,completed,assignee.name,due_on,tags.name,memberships.section.name"
+    result = call_api("GET", f"/projects/{project_gid}/tasks?opt_fields={fields}")
+    print(format_tasks(result))
+
+
+def cmd_tasks_in_section(args: list[str]) -> None:
+    """List tasks in a section."""
+    if not args:
+        error("Section GID required", "Usage: asana tasks-in-section <section_gid>")
+
+    section_gid = validate_gid(args[0], "section_gid")
+    fields = "name,completed,assignee.name,due_on,tags.name"
+    result = call_api("GET", f"/sections/{section_gid}/tasks?opt_fields={fields}")
+    print(format_tasks_in_section(result))
+
+
+def cmd_move(args: list[str]) -> None:
+    """Move a task to a section."""
+    if len(args) < 2:
+        error("Task GID and section GID required", "Usage: asana move <task_gid> <section_gid>")
+
+    task_gid = validate_gid(args[0], "task_gid")
+    section_gid = validate_gid(args[1], "section_gid")
+    result = call_api("POST", f"/sections/{section_gid}/addTask", {"data": {"task": task_gid}})
+    if result.get("data") is not None:
+        print("Moved task to section")
+    else:
+        error("Move failed", str(result))
+
+
+def cmd_tag(args: list[str]) -> None:
+    """Add a tag to a task."""
+    if len(args) < 2:
+        error("Task GID and tag GID required", "Usage: asana tag <task_gid> <tag_gid>")
+
+    task_gid = validate_gid(args[0], "task_gid")
+    tag_gid = validate_gid(args[1], "tag_gid")
+    result = call_api("POST", f"/tasks/{task_gid}/addTag", {"data": {"tag": tag_gid}})
+    if result.get("data") is not None:
+        print("Tag added")
+    else:
+        error("Tag failed", str(result))
+
+
+def cmd_untag(args: list[str]) -> None:
+    """Remove a tag from a task."""
+    if len(args) < 2:
+        error("Task GID and tag GID required", "Usage: asana untag <task_gid> <tag_gid>")
+
+    task_gid = validate_gid(args[0], "task_gid")
+    tag_gid = validate_gid(args[1], "tag_gid")
+    result = call_api("POST", f"/tasks/{task_gid}/removeTag", {"data": {"tag": tag_gid}})
+    if result.get("data") is not None:
+        print("Tag removed")
+    else:
+        error("Untag failed", str(result))
+
+
+def cmd_comment(args: list[str]) -> None:
+    """Add a comment to a task."""
+    if not args:
+        error("Task GID required", "Usage: asana comment <task_gid> <text>")
+
+    task_gid = validate_gid(args[0], "task_gid")
+    text = " ".join(args[1:])
+
+    if not text:
+        if not sys.stdin.isatty():
+            text = sys.stdin.read()
+        else:
+            error("Comment text required", "Usage: asana comment <task_gid> <text>")
+
+    if not text.strip():
+        error("Comment text cannot be empty")
+
+    result = call_api("POST", f"/tasks/{task_gid}/stories", {"data": {"text": text}})
+    if result.get("data"):
+        print("Comment added")
+    else:
+        error("Comment failed", str(result))
+
+
+def cmd_complete(args: list[str]) -> None:
+    """Mark a task as complete."""
+    if not args:
+        error("Task GID required", "Usage: asana complete <task_gid>")
+
+    task_gid = validate_gid(args[0], "task_gid")
+    result = call_api("PUT", f"/tasks/{task_gid}", {"data": {"completed": True}})
+    if result.get("data"):
+        print("Task completed")
+    else:
+        error("Complete failed", str(result))
+
+
+def cmd_sections(args: list[str]) -> None:
+    """List sections in a project."""
+    if not args:
+        error("Project GID required", "Usage: asana sections <project_gid>")
+
+    project_gid = validate_gid(args[0], "project_gid")
+    result = call_api("GET", f"/projects/{project_gid}/sections")
+    print(format_sections(result))
+
+
+def cmd_tags(args: list[str]) -> None:
+    """List tags in a workspace."""
+    if not args:
+        error("Workspace GID required", "Usage: asana tags <workspace_gid>")
+
+    workspace_gid = validate_gid(args[0], "workspace_gid")
+    result = call_api("GET", f"/workspaces/{workspace_gid}/tags")
+    print(format_tags(result))
+
+
+def cmd_create(args: list[str]) -> None:
+    """Create a task in a project."""
+    if not args:
+        error("Project GID required", "Usage: asana create <project_gid> <name>")
+    if len(args) < 2:
+        error("Task name required", "Usage: asana create <project_gid> <name>")
+
+    project_gid = validate_gid(args[0], "project_gid")
+    name = " ".join(args[1:])
+    notes = ""
+    if not sys.stdin.isatty():
+        notes = sys.stdin.read()
+
+    result = call_api("POST", "/tasks", {
+        "data": {
+            "projects": [project_gid],
+            "name": name,
+            "notes": notes,
+        }
+    })
+    data = result.get("data", {})
+    if data:
+        print(f"Created: {data.get('gid')} - {data.get('name')}")
+    else:
+        error("Create failed", str(result))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""Asana CLI - Task and project management
+
+Commands:
+  tasks <project_gid>              List all tasks in a project
+  tasks-in-section <section_gid>   List tasks in a section
+  move <task_gid> <section_gid>    Move task to section
+  tag <task_gid> <tag_gid>         Add tag to task
+  untag <task_gid> <tag_gid>       Remove tag from task
+  comment <task_gid> <text>        Add comment to task
+  complete <task_gid>              Mark task complete
+  sections <project_gid>           List sections in project
+  tags <workspace_gid>             List tags in workspace
+  create <project_gid> <name>      Create task (pipe notes via stdin)
+  help                             Show this help
+
+Environment:
+  ASANA_ACCESS_TOKEN   Required - your Asana personal access token
+
+Examples:
+  asana tasks 1211197449253083
+  asana move 123456 789012
+  asana tag 123456 654321
+  asana comment 123456 "Progress update"
+  echo "Task description" | asana create 1211197449253083 "New Task"
+
+Get your token: https://app.asana.com/0/my-apps""")
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    commands = {
+        "tasks": cmd_tasks,
+        "tasks-in-section": cmd_tasks_in_section,
+        "move": cmd_move,
+        "tag": cmd_tag,
+        "untag": cmd_untag,
+        "comment": cmd_comment,
+        "complete": cmd_complete,
+        "sections": cmd_sections,
+        "tags": cmd_tags,
+        "create": cmd_create,
+    }
+
+    if command == "help":
+        cmd_help()
+    elif command in commands:
+        commands[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'asana help' for available commands")
+
+
+if __name__ == "__main__":
+    main()

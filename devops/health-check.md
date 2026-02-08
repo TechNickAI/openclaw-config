@@ -26,16 +26,17 @@ checks:
 5. **Discover integrations** — which skills are installed, which workflows are active,
    what cron jobs exist (both system and OpenClaw internal)
 6. **Find log locations** — gateway logs, health check logs, error logs
-7. **Find who to notify and how** — read `~/.openclaw/health-check-admin`. This file
-   has two lines: the admin name (line 1) and the notification command (line 2). The
+7. **Find who to notify and how** — read `~/.openclaw/health-check-admin`. This file has
+   two lines: the admin name (line 1) and the notification command (line 2). The
    notification command uses `{MESSAGE}` as a placeholder for the actual message text.
    Example file:
    ```
    Nick
    openclaw message send --channel whatsapp --target "+19253537603" --message "{MESSAGE}"
    ```
-   If the file only has a name (legacy format), fall back to discovering the notification
-   method from the OpenClaw workspace — but prefer the explicit command when present.
+   If the file only has a name (legacy format), fall back to discovering the
+   notification method from the OpenClaw workspace — but prefer the explicit command
+   when present.
 8. **Note anything unusual** — services that look misconfigured, missing expected files,
    legacy paths still in use
 
@@ -82,11 +83,11 @@ running, (2) the log file has entries from the last 30 minutes, and (3) there ar
 repeated error patterns in the last hour. If the process is running but the log is stale
 for >30 minutes, the gateway is likely hung — restart it.
 
-**What counts as log activity:** ANY log entry counts — including `web-heartbeat` entries,
-channel status updates, and internal timers. The gateway emits heartbeat lines every
-minute when healthy. These ARE valid liveness signals. Do not filter them out or treat
-them as noise. Only consider the log "stale" if there are truly zero entries of any kind
-in the last 30 minutes.
+**What counts as log activity:** ANY log entry counts — including `web-heartbeat`
+entries, channel status updates, and internal timers. The gateway emits heartbeat lines
+every minute when healthy. These ARE valid liveness signals. Do not filter them out or
+treat them as noise. Only consider the log "stale" if there are truly zero entries of
+any kind in the last 30 minutes.
 
 **Are there hung processes?** Look for zombie or stuck processes related to OpenClaw
 (excluding the gateway, which is checked above). A non-gateway process is "hung" if it
@@ -137,8 +138,8 @@ Use the notification command from `~/.openclaw/health-check-admin` (line 2). Rep
 `{MESSAGE}` with your actual message text. Also record this command in `CLAUDE.local.md`
 for reference.
 
-If the admin file only has a name (no notification command), fall back to discovering the
-method from the OpenClaw workspace — look at the gateway config, `pai/` directory,
+If the admin file only has a name (no notification command), fall back to discovering
+the method from the OpenClaw workspace — look at the gateway config, `pai/` directory,
 `TOOLS.md`. Then update both `CLAUDE.local.md` and `~/.openclaw/health-check-admin` with
 the working method for future runs.
 
