@@ -159,7 +159,9 @@ class TestValidation:
 
     def test_gid_must_be_numeric(self):
         """Non-numeric GIDs are rejected."""
-        result = run_skill("tasks", "not-a-number", env={"ASANA_ACCESS_TOKEN": "fake-key"})
+        result = run_skill(
+            "tasks", "not-a-number", env={"ASANA_ACCESS_TOKEN": "fake-key"}
+        )
 
         assert result.returncode != 0
         assert "numeric" in result.stderr.lower()
@@ -231,7 +233,9 @@ class TestCreateCommentCompleteIntegration:
     def test_full_task_lifecycle(self):
         """Create a task, comment on it, and complete it."""
         # Create
-        result = run_skill("create", PROJECT_GID, "Integration test task — safe to delete")
+        result = run_skill(
+            "create", PROJECT_GID, "Integration test task — safe to delete"
+        )
         assert result.returncode == 0
         assert "Created:" in result.stdout
 
