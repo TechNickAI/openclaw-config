@@ -1,0 +1,627 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
+Follow Up Boss CLI - Query and manage your real estate CRM.
+
+Requires FUB_API_KEY environment variable for API operations.
+"""
+
+import json
+import os
+import re
+import sys
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, NoReturn
+from urllib.parse import urlencode
+
+import httpx
+
+BASE_URL = "https://api.followupboss.com/v1"
+MAX_LIMIT = 100
+DEFAULT_LIMIT = 10
+
+
+# --- Helpers ---
+
+
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("FUB_API_KEY")
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def call_api(
+    method: str,
+    endpoint: str,
+    params: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Make an API request with Basic Auth (API key as username, blank password)."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "FUB_API_KEY not set",
+            "Get your key from: https://app.followupboss.com → Admin → API",
+        )
+
+    url = f"{BASE_URL}{endpoint}"
+    if params:
+        url += "?" + urlencode({k: v for k, v in params.items() if v is not None})
+
+    try:
+        response = httpx.request(
+            method,
+            url,
+            auth=(api_key, ""),
+            json=body if body else None,
+            headers={"Content-Type": "application/json"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        if response.status_code == 204:
+            return {}
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            retry = e.response.headers.get("Retry-After", "10")
+            error("Rate limited", f"Retry after {retry} seconds")
+        if e.response.status_code == 401:
+            error("Authentication failed", "Check your FUB_API_KEY is correct")
+        try:
+            body_text = e.response.json()
+            msg = body_text.get("error") or body_text.get("message") or str(body_text)
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach Follow Up Boss API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
+
+
+def validate_limit(value: str) -> int:
+    """Validate and return limit value (1-100)."""
+    try:
+        limit = int(value)
+    except ValueError:
+        error(f"Limit must be a number, got '{value}'")
+    if limit < 1 or limit > MAX_LIMIT:
+        error(f"Limit must be between 1-{MAX_LIMIT}, got {limit}")
+    return limit
+
+
+def validate_date(value: str) -> str:
+    """Validate YYYY-MM-DD date format."""
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        error(f"Invalid date format: '{value}'", "Expected format: YYYY-MM-DD")
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        error(f"Invalid date: '{value}'", "Expected format: YYYY-MM-DD")
+    return value
+
+
+def validate_id(value: str) -> int:
+    """Validate and return an integer ID."""
+    try:
+        return int(value)
+    except ValueError:
+        error(f"ID must be a number, got '{value}'")
+
+
+def format_phone(phone: dict[str, Any]) -> str:
+    """Format a phone entry."""
+    value = phone.get("value", "")
+    ptype = phone.get("type", "")
+    primary = " (primary)" if phone.get("isPrimary") else ""
+    return f"{value} [{ptype}]{primary}" if ptype else f"{value}{primary}"
+
+
+def format_email(email: dict[str, Any]) -> str:
+    """Format an email entry."""
+    value = email.get("value", "")
+    etype = email.get("type", "")
+    primary = " (primary)" if email.get("isPrimary") else ""
+    return f"{value} [{etype}]{primary}" if etype else f"{value}{primary}"
+
+
+# --- Formatters ---
+
+
+def format_people(data: dict[str, Any]) -> str:
+    """Format people list as markdown."""
+    people = data.get("people", [])
+    if not people:
+        return "No contacts found."
+
+    metadata = data.get("_metadata", {})
+    total = metadata.get("total", len(people))
+    output = [f"**{total} contacts found**\n"]
+
+    for person in people:
+        name = person.get("name") or f"{person.get('firstName', '')} {person.get('lastName', '')}".strip()
+        pid = person.get("id", "?")
+        stage = person.get("stage", "")
+        source = person.get("source", "")
+        assigned = person.get("assignedTo", "Unassigned")
+
+        phones = ", ".join(p.get("value", "") for p in person.get("phones", []))
+        emails = ", ".join(e.get("value", "") for e in person.get("emails", []))
+
+        output.append(f"### {name} (ID: {pid})")
+        if stage:
+            output.append(f"**Stage:** {stage}")
+        if source:
+            output.append(f"**Source:** {source}")
+        output.append(f"**Assigned to:** {assigned}")
+        if phones:
+            output.append(f"**Phone:** {phones}")
+        if emails:
+            output.append(f"**Email:** {emails}")
+
+        tags = person.get("tags", [])
+        if tags:
+            output.append(f"**Tags:** {', '.join(tags)}")
+
+        last_activity = person.get("lastActivity")
+        if last_activity:
+            output.append(f"**Last activity:** {last_activity}")
+
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_person(person: dict[str, Any]) -> str:
+    """Format a single person detail view."""
+    name = person.get("name") or f"{person.get('firstName', '')} {person.get('lastName', '')}".strip()
+    pid = person.get("id", "?")
+
+    output = [f"## {name} (ID: {pid})\n"]
+
+    stage = person.get("stage", "")
+    source = person.get("source", "")
+    if stage:
+        output.append(f"**Stage:** {stage}")
+    if source:
+        output.append(f"**Source:** {source}")
+
+    assigned = person.get("assignedTo", "Unassigned")
+    output.append(f"**Assigned to:** {assigned}")
+
+    contacted = person.get("contacted")
+    if contacted is not None:
+        output.append(f"**Contacted:** {'Yes' if contacted else 'No'}")
+
+    price = person.get("price")
+    if price:
+        output.append(f"**Price:** ${price:,}")
+
+    # Phones
+    phones = person.get("phones", [])
+    if phones:
+        output.append("\n**Phones:**")
+        for p in phones:
+            output.append(f"  - {format_phone(p)}")
+
+    # Emails
+    emails = person.get("emails", [])
+    if emails:
+        output.append("\n**Emails:**")
+        for e in emails:
+            output.append(f"  - {format_email(e)}")
+
+    # Addresses
+    addresses = person.get("addresses", [])
+    if addresses:
+        output.append("\n**Addresses:**")
+        for addr in addresses:
+            parts = [addr.get("street", ""), addr.get("city", ""), addr.get("state", ""), addr.get("code", "")]
+            output.append(f"  - {', '.join(p for p in parts if p)}")
+
+    # Tags
+    tags = person.get("tags", [])
+    if tags:
+        output.append(f"\n**Tags:** {', '.join(tags)}")
+
+    # Background
+    background = person.get("background")
+    if background:
+        output.append(f"\n**Background:** {background}")
+
+    # Timestamps
+    created = person.get("created")
+    updated = person.get("updated")
+    last_activity = person.get("lastActivity")
+    if created:
+        output.append(f"\n**Created:** {created}")
+    if updated:
+        output.append(f"**Updated:** {updated}")
+    if last_activity:
+        output.append(f"**Last activity:** {last_activity}")
+
+    return "\n".join(output)
+
+
+def format_notes(data: dict[str, Any]) -> str:
+    """Format notes list as markdown."""
+    notes = data.get("notes", [])
+    if not notes:
+        return "No notes found."
+
+    output = []
+    for note in notes:
+        nid = note.get("id", "?")
+        subject = note.get("subject", "")
+        body = note.get("body", "")
+        created = note.get("created", "")
+        created_by = note.get("createdByName", "")
+
+        header = f"### {subject}" if subject else f"### Note #{nid}"
+        output.append(header)
+        if created_by:
+            output.append(f"**By:** {created_by} | **Date:** {created}")
+        elif created:
+            output.append(f"**Date:** {created}")
+        if body:
+            output.append(f"\n{body}")
+        output.append("\n---\n")
+
+    return "\n".join(output)
+
+
+def format_tasks(data: dict[str, Any]) -> str:
+    """Format tasks list as markdown."""
+    tasks = data.get("tasks", [])
+    if not tasks:
+        return "No tasks found."
+
+    output = []
+    for task in tasks:
+        tid = task.get("id", "?")
+        name = task.get("name", "Untitled task")
+        due = task.get("dueDate", "No due date")
+        assigned = task.get("assignedTo", "Unassigned")
+        completed = task.get("completed", False)
+        person_name = task.get("personName", "")
+
+        status = "[x]" if completed else "[ ]"
+        output.append(f"- {status} **{name}** (ID: {tid})")
+        output.append(f"  Due: {due} | Assigned: {assigned}")
+        if person_name:
+            output.append(f"  Contact: {person_name}")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_deals(data: dict[str, Any]) -> str:
+    """Format deals list as markdown."""
+    deals = data.get("deals", [])
+    if not deals:
+        return "No deals found."
+
+    metadata = data.get("_metadata", {})
+    total = metadata.get("total", len(deals))
+    output = [f"**{total} deals found**\n"]
+
+    for deal in deals:
+        did = deal.get("id", "?")
+        name = deal.get("name", "Untitled")
+        price = deal.get("price")
+        stage = deal.get("stageName", deal.get("stage", ""))
+        person_name = deal.get("personName", "")
+
+        price_str = f" — ${price:,}" if price else ""
+        output.append(f"### {name}{price_str} (ID: {did})")
+        if stage:
+            output.append(f"**Stage:** {stage}")
+        if person_name:
+            output.append(f"**Contact:** {person_name}")
+
+        created = deal.get("created")
+        if created:
+            output.append(f"**Created:** {created}")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def format_stages(data: dict[str, Any]) -> str:
+    """Format pipeline stages as markdown."""
+    stages = data.get("stages", [])
+    if not stages:
+        return "No stages found."
+
+    output = []
+    current_pipeline = None
+    for stage in stages:
+        pipeline = stage.get("pipelineName", "")
+        if pipeline != current_pipeline:
+            current_pipeline = pipeline
+            header = pipeline or "Pipeline"
+            output.append(f"\n## {header}\n")
+        sid = stage.get("id", "?")
+        name = stage.get("name", "Unnamed")
+        output.append(f"- **{name}** (ID: {sid})")
+
+    return "\n".join(output)
+
+
+def format_users(data: dict[str, Any]) -> str:
+    """Format users list as markdown."""
+    users = data.get("users", [])
+    if not users:
+        return "No users found."
+
+    output = []
+    for user in users:
+        uid = user.get("id", "?")
+        name = user.get("name", "")
+        email = user.get("email", "")
+        role = user.get("role", "")
+        status = user.get("status", "")
+
+        output.append(f"### {name} (ID: {uid})")
+        if email:
+            output.append(f"**Email:** {email}")
+        if role:
+            output.append(f"**Role:** {role}")
+        if status:
+            output.append(f"**Status:** {status}")
+        output.append("")
+
+    return "\n".join(output)
+
+
+# --- Commands ---
+
+
+def cmd_search(args: list[str]) -> None:
+    """Search for people by name, email, phone, or other fields."""
+    if not args:
+        error("Search query required", "Usage: followupboss search \"query\" [limit]")
+
+    query = args[0]
+    limit = DEFAULT_LIMIT
+    if len(args) > 1:
+        limit = validate_limit(args[1])
+
+    # Detect search type based on query format
+    params: dict[str, Any] = {"limit": limit, "sort": "-lastActivity"}
+
+    if "@" in query:
+        params["email"] = query
+    elif re.match(r"^[\d\s\-\+\(\)]+$", query):
+        params["phone"] = query
+    else:
+        params["name"] = query
+
+    result = call_api("GET", "/people", params)
+    print(format_people(result))
+
+
+def cmd_get(args: list[str]) -> None:
+    """Get full details for a person by ID."""
+    if not args:
+        error("Person ID required", "Usage: followupboss get <person_id>")
+
+    pid = validate_id(args[0])
+    result = call_api("GET", f"/people/{pid}")
+    print(format_person(result))
+
+
+def cmd_recent(args: list[str]) -> None:
+    """List recently active contacts."""
+    limit = DEFAULT_LIMIT
+    if args:
+        limit = validate_limit(args[0])
+
+    params = {"limit": limit, "sort": "-lastActivity"}
+    result = call_api("GET", "/people", params)
+    print(format_people(result))
+
+
+def cmd_notes(args: list[str]) -> None:
+    """List notes for a person."""
+    if not args:
+        error("Person ID required", "Usage: followupboss notes <person_id> [limit]")
+
+    pid = validate_id(args[0])
+    limit = DEFAULT_LIMIT
+    if len(args) > 1:
+        limit = validate_limit(args[1])
+
+    result = call_api("GET", "/notes", {"personId": pid, "limit": limit})
+    print(format_notes(result))
+
+
+def cmd_add_note(args: list[str]) -> None:
+    """Add a note to a person."""
+    if len(args) < 2:
+        error(
+            "Person ID and body required",
+            'Usage: followupboss add-note <person_id> "body" ["subject"]',
+        )
+
+    pid = validate_id(args[0])
+    body_text = args[1]
+    subject = args[2] if len(args) > 2 else ""
+
+    payload: dict[str, Any] = {"personId": pid, "body": body_text}
+    if subject:
+        payload["subject"] = subject
+
+    call_api("POST", "/notes", body=payload)
+    print(f"Note added to person {pid}.")
+
+
+def cmd_tasks(args: list[str]) -> None:
+    """List tasks, optionally filtered by person."""
+    params: dict[str, Any] = {"limit": DEFAULT_LIMIT}
+
+    if args:
+        # First arg could be a person ID or a limit
+        try:
+            pid = int(args[0])
+            params["personId"] = pid
+            if len(args) > 1:
+                params["limit"] = validate_limit(args[1])
+        except ValueError:
+            error(f"Expected person ID (number), got '{args[0]}'")
+
+    result = call_api("GET", "/tasks", params)
+    print(format_tasks(result))
+
+
+def cmd_add_task(args: list[str]) -> None:
+    """Create a task for a person."""
+    if len(args) < 2:
+        error(
+            "Person ID and task name required",
+            'Usage: followupboss add-task <person_id> "task name" [YYYY-MM-DD]',
+        )
+
+    pid = validate_id(args[0])
+    name = args[1]
+
+    payload: dict[str, Any] = {"personId": pid, "name": name}
+
+    if len(args) > 2:
+        due = validate_date(args[2])
+        payload["dueDate"] = due
+
+    result = call_api("POST", "/tasks", body=payload)
+    tid = result.get("id", "?")
+    print(f"Task created (ID: {tid}) for person {pid}.")
+
+
+def cmd_deals(args: list[str]) -> None:
+    """List deals."""
+    limit = DEFAULT_LIMIT
+    if args:
+        limit = validate_limit(args[0])
+
+    result = call_api("GET", "/deals", {"limit": limit})
+    print(format_deals(result))
+
+
+def cmd_stages(args: list[str]) -> None:
+    """List pipeline stages."""
+    result = call_api("GET", "/stages")
+    print(format_stages(result))
+
+
+def cmd_users(args: list[str]) -> None:
+    """List team members."""
+    result = call_api("GET", "/users")
+    print(format_users(result))
+
+
+def cmd_raw(args: list[str]) -> None:
+    """Execute a raw API request."""
+    if len(args) < 2:
+        error(
+            "Method and endpoint required",
+            'Usage: followupboss raw GET /people [\'{"limit": 5}\']',
+        )
+
+    method = args[0].upper()
+    endpoint = args[1] if args[1].startswith("/") else f"/{args[1]}"
+
+    body = None
+    if len(args) > 2:
+        try:
+            body = json.loads(args[2])
+        except json.JSONDecodeError:
+            error("Invalid JSON body", f"Got: {args[2]}")
+
+    if method == "GET":
+        result = call_api(method, endpoint, params=body)
+    else:
+        result = call_api(method, endpoint, body=body)
+
+    print(json.dumps(result, indent=2))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""Follow Up Boss CLI - Query and manage your real estate CRM
+
+Commands:
+  search "query" [N]           Search contacts by name, email, or phone (default: 10)
+  get <person_id>              Get full contact details by ID
+  recent [N]                   List recently active contacts (default: 10)
+  notes <person_id> [N]        View notes on a contact
+  add-note <id> "body" [subj]  Add a note to a contact
+  tasks [person_id] [N]        List tasks (optionally for a specific contact)
+  add-task <id> "name" [date]  Create a task (date: YYYY-MM-DD)
+  deals [N]                    List deals
+  stages                       List pipeline stages
+  users                        List team members
+  raw <METHOD> <endpoint>      Raw API request (e.g., raw GET /people)
+  help                         Show this help
+
+Environment:
+  FUB_API_KEY    Required - your API key
+
+Examples:
+  followupboss search "Jane Smith"
+  followupboss search "jane@example.com"
+  followupboss search "555-123-4567"
+  followupboss get 12264
+  followupboss recent 5
+  followupboss notes 12264
+  followupboss add-note 12264 "Called, left voicemail" "Follow-up call"
+  followupboss tasks 12264
+  followupboss add-task 12264 "Send listing info" 2026-02-15
+  followupboss deals 20
+  followupboss stages
+  followupboss users
+  followupboss raw GET /people
+
+Get your API key: https://app.followupboss.com → Admin → API""")
+
+
+# --- Main ---
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    commands = {
+        "search": cmd_search,
+        "get": cmd_get,
+        "recent": cmd_recent,
+        "notes": cmd_notes,
+        "add-note": cmd_add_note,
+        "tasks": cmd_tasks,
+        "add-task": cmd_add_task,
+        "deals": cmd_deals,
+        "stages": cmd_stages,
+        "users": cmd_users,
+        "raw": cmd_raw,
+    }
+
+    if command == "help":
+        cmd_help()
+    elif command in commands:
+        commands[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'followupboss help' for available commands")
+
+
+if __name__ == "__main__":
+    main()
