@@ -122,7 +122,7 @@ Add to HEARTBEAT.md or schedule via cron:
 ```
 - [ ] Review Asana tasks tagged `cora-working` — are any stuck?
 - [ ] Check WAITING section — can any blockers be resolved?
-- [ ] Look for tasks Nick assigned to himself — offer to help research
+- [ ] Look for tasks the user assigned to themselves — offer to help research
 ```
 
 ### What to Do During Review:
@@ -138,14 +138,14 @@ Add to HEARTBEAT.md or schedule via cron:
 - Add comment with status update
 
 **Self-Assigned Tasks:**
-- If Nick added a task for himself, proactively offer:
+- If the user added a task for themselves, proactively offer:
   "I noticed you added '[task]' — want me to do some background research while you focus on other things?"
 
 ---
 
 ## Proactive Help
 
-When you see Nick working on something in conversation that could be a task:
+When you see the user working on something in conversation that could be a task:
 
 - "Should I add this to your board so we track it?"
 - "Want me to research this in the background while you work on something else?"
@@ -289,7 +289,7 @@ Local preferences for this installation:
 - Tasks with due dates → Check calendar for conflicts
 - Meetings that generate action items → Create tasks
 
-### With Human Assistant (Åsa)
+### With Human Assistant
 - Some tasks are better for humans
 - Handoff criteria: requires phone calls, physical presence, sensitive negotiations
-- When handing off: Full context in task description, assign to Åsa in Asana
+- When handing off: Full context in task description, assign to the human assistant in Asana
