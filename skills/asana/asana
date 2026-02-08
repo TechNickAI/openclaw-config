@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# asana - CLI wrapper for Asana operations
+# Supplements mcporter MCP server with direct API calls
+#
+
+set -euo pipefail
+
+ASANA_API="https://app.asana.com/api/1.0"
+
+# Get token from env or gateway config
+get_token() {
+  if [[ -n "${ASANA_ACCESS_TOKEN:-}" ]]; then
+    echo "$ASANA_ACCESS_TOKEN"
+  else
+    # Try to extract from openclaw config
+    jq -r '.env.ASANA_ACCESS_TOKEN // empty' ~/.openclaw/openclaw.json 2>/dev/null || true
+  fi
+}
+
+TOKEN=$(get_token)
+if [[ -z "$TOKEN" ]]; then
+  echo "Error: ASANA_ACCESS_TOKEN not set" >&2
+  exit 1
+fi
+
+api() {
+  local method="$1"
+  local endpoint="$2"
+  shift 2
+  curl -s -X "$method" "${ASANA_API}${endpoint}" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    "$@"
+}
+
+cmd_help() {
+  cat <<EOF
+asana - Asana CLI helper
+
+Usage: asana <command> [args]
+
+Commands:
+  tasks <project_gid>              List all tasks in a project
+  tasks-in-section <section_gid>   List tasks in a section
+  move <task_gid> <section_gid>    Move task to section
+  tag <task_gid> <tag_gid>         Add tag to task
+  untag <task_gid> <tag_gid>       Remove tag from task
+  comment <task_gid> <text>        Add comment to task
+  complete <task_gid>              Mark task complete
+  sections <project_gid>           List sections in project
+  tags <workspace_gid>             List tags in workspace
+  create <project_gid> <name>      Create task (pipe notes via stdin)
+
+Environment:
+  ASANA_ACCESS_TOKEN   API token (or set in ~/.openclaw/openclaw.json)
+
+Examples:
+  asana tasks 1211197449253083
+  asana move 123456 789012
+  asana tag 123456 654321
+  asana comment 123456 "Progress update"
+  echo "Task description" | asana create 1211197449253083 "New Task"
+EOF
+}
+
+cmd_tasks() {
+  local project_gid="${1:?project_gid required}"
+  api GET "/projects/${project_gid}/tasks?opt_fields=name,completed,assignee.name,due_on,tags.name,memberships.section.name" | \
+    jq -r '.data[] | "\(.gid)\t\(.memberships[0].section.name // "?")\t\(.completed)\t\(.name)"'
+}
+
+cmd_tasks_in_section() {
+  local section_gid="${1:?section_gid required}"
+  api GET "/sections/${section_gid}/tasks?opt_fields=name,completed,assignee.name,due_on,tags.name" | \
+    jq -r '.data[] | "\(.gid)\t\(.completed)\t\(.name)\t\(.tags | map(.name) | join(","))"'
+}
+
+cmd_move() {
+  local task_gid="${1:?task_gid required}"
+  local section_gid="${2:?section_gid required}"
+  api POST "/sections/${section_gid}/addTask" -d "{\"data\":{\"task\":\"${task_gid}\"}}" | \
+    jq -r 'if .data then "Moved task to section" else .errors[0].message end'
+}
+
+cmd_tag() {
+  local task_gid="${1:?task_gid required}"
+  local tag_gid="${2:?tag_gid required}"
+  api POST "/tasks/${task_gid}/addTag" -d "{\"data\":{\"tag\":\"${tag_gid}\"}}" | \
+    jq -r 'if .data then "Tag added" else .errors[0].message end'
+}
+
+cmd_untag() {
+  local task_gid="${1:?task_gid required}"
+  local tag_gid="${2:?tag_gid required}"
+  api POST "/tasks/${task_gid}/removeTag" -d "{\"data\":{\"tag\":\"${tag_gid}\"}}" | \
+    jq -r 'if .data then "Tag removed" else .errors[0].message end'
+}
+
+cmd_comment() {
+  local task_gid="${1:?task_gid required}"
+  shift
+  local text="$*"
+  if [[ -z "$text" ]]; then
+    text=$(cat)
+  fi
+  local escaped=$(echo "$text" | jq -Rs .)
+  api POST "/tasks/${task_gid}/stories" -d "{\"data\":{\"text\":${escaped}}}" | \
+    jq -r 'if .data then "Comment added" else .errors[0].message end'
+}
+
+cmd_complete() {
+  local task_gid="${1:?task_gid required}"
+  api PUT "/tasks/${task_gid}" -d '{"data":{"completed":true}}' | \
+    jq -r 'if .data then "Task completed" else .errors[0].message end'
+}
+
+cmd_sections() {
+  local project_gid="${1:?project_gid required}"
+  api GET "/projects/${project_gid}/sections" | \
+    jq -r '.data[] | "\(.gid)\t\(.name)"'
+}
+
+cmd_tags() {
+  local workspace_gid="${1:?workspace_gid required}"
+  api GET "/workspaces/${workspace_gid}/tags" | \
+    jq -r '.data[] | "\(.gid)\t\(.name)"'
+}
+
+cmd_create() {
+  local project_gid="${1:?project_gid required}"
+  local name="${2:?name required}"
+  local notes=""
+  if [[ ! -t 0 ]]; then
+    notes=$(cat)
+  fi
+  local notes_escaped=$(echo "$notes" | jq -Rs .)
+  api POST "/tasks" -d "{\"data\":{\"projects\":[\"${project_gid}\"],\"name\":$(echo "$name" | jq -Rs .),\"notes\":${notes_escaped}}}" | \
+    jq -r 'if .data then "Created: \(.data.gid) - \(.data.name)" else .errors[0].message end'
+}
+
+# Main dispatch
+case "${1:-help}" in
+  tasks) cmd_tasks "${@:2}" ;;
+  tasks-in-section) cmd_tasks_in_section "${@:2}" ;;
+  move) cmd_move "${@:2}" ;;
+  tag) cmd_tag "${@:2}" ;;
+  untag) cmd_untag "${@:2}" ;;
+  comment) cmd_comment "${@:2}" ;;
+  complete) cmd_complete "${@:2}" ;;
+  sections) cmd_sections "${@:2}" ;;
+  tags) cmd_tags "${@:2}" ;;
+  create) cmd_create "${@:2}" ;;
+  help|--help|-h) cmd_help ;;
+  *) echo "Unknown command: $1" >&2; cmd_help; exit 1 ;;
+esac
