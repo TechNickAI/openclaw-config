@@ -24,13 +24,16 @@ Task and project management via the Asana MCP server.
 ## Setup
 
 ### 1. Get API Token
+
 1. Go to https://app.asana.com/0/my-apps
 2. Click "Create new token"
 3. Name it (e.g., "OpenClaw")
 4. Copy the token
 
 ### 2. Configure Gateway
+
 Add to your OpenClaw config:
+
 ```json
 {
   "env": {
@@ -40,6 +43,7 @@ Add to your OpenClaw config:
 ```
 
 ### 3. Configure MCP Server
+
 ```bash
 mcporter config add asana \
   --command "npx" \
@@ -52,12 +56,14 @@ mcporter config add asana \
 ## MCP Tools Reference
 
 ### Workspaces
+
 ```bash
 # List all workspaces
 mcporter call asana.asana_list_workspaces
 ```
 
 ### Projects
+
 ```bash
 # Search projects by name pattern
 mcporter call asana.asana_search_projects workspace=<workspace_gid> name_pattern=".*"
@@ -73,6 +79,7 @@ mcporter call asana.asana_get_project_task_counts project_id=<project_gid>
 ```
 
 ### Tasks
+
 ```bash
 # Create task
 mcporter call asana.asana_create_task \
@@ -101,6 +108,7 @@ mcporter call asana.asana_get_multiple_tasks_by_gid task_ids='["gid1","gid2"]'
 ```
 
 ### Comments/Stories
+
 ```bash
 # Add comment to task
 mcporter call asana.asana_create_task_story \
@@ -112,6 +120,7 @@ mcporter call asana.asana_get_task_stories task_id=<task_gid>
 ```
 
 ### Dependencies
+
 ```bash
 # Add dependencies (tasks this task depends on)
 mcporter call asana.asana_add_task_dependencies \
@@ -125,6 +134,7 @@ mcporter call asana.asana_add_task_dependents \
 ```
 
 ### Tags
+
 ```bash
 # Get tags in workspace
 mcporter call asana.asana_get_tags_for_workspace workspace_gid=<workspace_gid>
@@ -136,6 +146,7 @@ mcporter call asana.asana_get_tasks_for_tag tag_gid=<tag_gid>
 ## Direct API (for operations MCP doesn't support)
 
 ### Create Section
+
 ```bash
 curl -X POST "https://app.asana.com/api/1.0/projects/<project_gid>/sections" \
   -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" \
@@ -144,6 +155,7 @@ curl -X POST "https://app.asana.com/api/1.0/projects/<project_gid>/sections" \
 ```
 
 ### Move Task to Section
+
 ```bash
 curl -X POST "https://app.asana.com/api/1.0/sections/<section_gid>/addTask" \
   -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" \
@@ -152,6 +164,7 @@ curl -X POST "https://app.asana.com/api/1.0/sections/<section_gid>/addTask" \
 ```
 
 ### Add Tag to Task
+
 ```bash
 curl -X POST "https://app.asana.com/api/1.0/tasks/<task_gid>/addTag" \
   -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" \
@@ -160,6 +173,7 @@ curl -X POST "https://app.asana.com/api/1.0/tasks/<task_gid>/addTag" \
 ```
 
 ### Remove Tag from Task
+
 ```bash
 curl -X POST "https://app.asana.com/api/1.0/tasks/<task_gid>/removeTag" \
   -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" \
@@ -168,6 +182,7 @@ curl -X POST "https://app.asana.com/api/1.0/tasks/<task_gid>/removeTag" \
 ```
 
 ### Search Tasks (requires paid plan)
+
 ```bash
 mcporter call asana.asana_search_tasks \
   workspace=<workspace_gid> \
@@ -183,26 +198,31 @@ Store your specific workspace/project IDs in `TOOLS.md`:
 ## Asana
 
 ### Workspace & Project
+
 - **Workspace:** Your Workspace (`<workspace_gid>`)
 - **Project:** Your Project (`<project_gid>`)
 
 ### Sections
-| Section | GID |
-|---------|-----|
-| TODO | `<section_gid>` |
+
+| Section     | GID             |
+| ----------- | --------------- |
+| TODO        | `<section_gid>` |
 | IN PROGRESS | `<section_gid>` |
-| DONE | `<section_gid>` |
+| DONE        | `<section_gid>` |
 
 ### Tags
-| Tag | GID |
-|-----|-----|
-| urgent | `<tag_gid>` |
+
+| Tag     | GID         |
+| ------- | ----------- |
+| urgent  | `<tag_gid>` |
 | blocked | `<tag_gid>` |
 ```
 
 ## Workflow Integration
 
-This skill is designed to work with the `task-steward` workflow. See `workflows/task-steward/AGENT.md` for:
+This skill is designed to work with the `task-steward` workflow. See
+`workflows/task-steward/AGENT.md` for:
+
 - Task classification (Q&A vs delegated task)
 - Work execution with incremental comments
 - Quality verification before delivery
