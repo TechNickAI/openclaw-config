@@ -1,6 +1,6 @@
 ---
 name: email-steward
-version: 0.1.0
+version: 0.2.0
 description: Inbox management agent that removes obvious debris
 ---
 
@@ -130,8 +130,7 @@ Gmail access through gog CLI:
 
 **Reading:**
 
-- `gog gmail search 'in:inbox is:unread' --max 50 --account [account]`
-- `gog gmail search 'in:inbox' --max 50 --account [account]`
+- **Inbox scan query:** `gog gmail search 'in:inbox -label:Agent-Starred -label:Agent-Reviewed -label:Agent-Archived -label:Agent-Deleted -label:Agent-Unsubscribe' --max 50 --account [account]` — all unprocessed inbox emails
 - `gog gmail get <threadId> --account [account]` — full body (use sparingly)
 
 **Organizing:**
@@ -143,7 +142,7 @@ Gmail access through gog CLI:
 - **Agent-Archived** — searchable history → `--add Agent-Archived --remove INBOX`
 - **Agent-Deleted** — 30-day quarantine → `--add Agent-Deleted --remove INBOX`
 - **Agent-Reviewed** — processed but kept → `--add Agent-Reviewed --remove INBOX`
-- **Agent-Starred** — needs attention → `--add Agent-Starred` (KEEP in INBOX!)
+- **Agent-Starred** — needs attention → `--add Agent-Starred` (stays in inbox — no --remove INBOX)
 - **Agent-Unsubscribe** — unsubscribe candidates →
   `--add Agent-Unsubscribe --remove INBOX`
 
@@ -165,8 +164,14 @@ make judgment calls.
 
 Most emails stay untouched. Only act when the action is obvious:
 
-- **Archive** — Receipts, confirmations, records. Searchable value, no inbox value.
-- **Delete** — Expired notifications, resolved alerts, spam.
+- **Archive** — Searchable value, no inbox value. Receipts, payment confirmations
+  (Venmo, Zelle, etc.), records, delivery confirmations.
+- **Delete** — Zero future reference value. Specifically:
+  - Expired verification/security codes (Instacart, OpenTable, etc.)
+  - Calendar invite acceptances/declines (the event is already on the calendar)
+  - Device signin alerts from known services
+  - Marketing drip campaigns and promotional spam
+  - Resolved alerts ("service restored"), expired coordination
 - **Alert** — Real people, security issues, financial problems, deadlines.
 - **Leave alone** — Recent emails, anything from people, anything uncertain.
 
@@ -174,7 +179,8 @@ Most emails stay untouched. Only act when the action is obvious:
 
 1. Read `rules.md` for their specific preferences
 2. Read `agent_notes.md` for accumulated knowledge (if exists)
-3. Scan inbox
+3. Scan inbox using the **inbox scan query** — this catches ALL unprocessed emails
+   (read and unread) because it filters by agent labels, not read status.
 4. Process obvious items, leave uncertain ones
 5. Alert if anything needs attention (unless `alert_channel: none`)
 6. Append to today's log in `logs/`
