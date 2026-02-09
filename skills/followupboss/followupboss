@@ -149,10 +149,10 @@ def format_people(data: dict[str, Any]) -> str:
     output = [f"**{total} contacts found**\n"]
 
     for person in people:
-        name = (
-            person.get("name")
-            or f"{person.get('firstName', '')} {person.get('lastName', '')}".strip()
-        )
+        # Handle null values from API (dict.get returns None when key exists with null)
+        first = person.get("firstName") or ""
+        last = person.get("lastName") or ""
+        name = person.get("name") or f"{first} {last}".strip()
         pid = person.get("id", "?")
         stage = person.get("stage", "")
         source = person.get("source", "")
@@ -187,10 +187,10 @@ def format_people(data: dict[str, Any]) -> str:
 
 def format_person(person: dict[str, Any]) -> str:
     """Format a single person detail view."""
-    name = (
-        person.get("name")
-        or f"{person.get('firstName', '')} {person.get('lastName', '')}".strip()
-    )
+    # Handle null values from API (dict.get returns None when key exists with null)
+    first = person.get("firstName") or ""
+    last = person.get("lastName") or ""
+    name = person.get("name") or f"{first} {last}".strip()
     pid = person.get("id", "?")
 
     output = [f"## {name} (ID: {pid})\n"]
@@ -479,24 +479,21 @@ def cmd_add_note(args: list[str]) -> None:
 
 def cmd_tasks(args: list[str]) -> None:
     """List tasks, optionally filtered by person."""
-    params: dict[str, Any] = {"limit": DEFAULT_LIMIT}
+    params: dict[str, Any] = {}
 
+    # Parse args as: tasks [person_id] [limit]
+    # No ambiguous heuristics - first arg is always person_id if provided
     if args:
-        # Disambiguate: single arg ≤100 is limit, otherwise person ID
-        # Two args: first is person ID, second is limit
         try:
-            first = int(args[0])
+            params["personId"] = int(args[0])
         except ValueError:
-            error(f"Expected number, got '{args[0]}'")
+            error(f"Expected person ID (number), got '{args[0]}'")
 
-        if len(args) == 1 and first <= MAX_LIMIT:
-            # Single arg ≤100: treat as limit
-            params["limit"] = validate_limit(args[0])
-        else:
-            # Single arg >100 or two args: first is person ID
-            params["personId"] = first
-            if len(args) > 1:
-                params["limit"] = validate_limit(args[1])
+    if len(args) > 1:
+        params["limit"] = validate_limit(args[1])
+    elif "personId" not in params:
+        # No args: list recent tasks across all contacts
+        params["limit"] = DEFAULT_LIMIT
 
     result = call_api("GET", "/tasks", params)
     print(format_tasks(result))
