@@ -41,6 +41,37 @@ you're missing info is not. If something critical is unknown, ask — don't try 
 things hoping one works.
 </boundaries>
 
+<post-update-verification>
+After EVERY `openclaw update` on any machine, you MUST verify models before moving on:
+
+```bash
+openclaw models list | grep -w missing
+```
+
+If ANY configured model shows `missing`, the update changed the model catalog and broke
+those model IDs. Fix them immediately — don't continue to other machines until resolved.
+
+To find the correct current model ID:
+```bash
+openclaw models list --all | grep -i anthropic
+```
+
+Update the model IDs in:
+1. `~/.openclaw/openclaw.json` → `agents.defaults.models` keys and
+   `agents.defaults.model.fallbacks`
+2. Any cron jobs with model overrides → `openclaw cron edit <id> --model <new-id>`
+3. Restart gateway → `openclaw gateway restart`
+4. Verify gateway is back → `openclaw health` should respond within 30s
+5. Re-verify models → `openclaw models list | grep -w missing` should produce no output
+6. Re-verify cron jobs → `openclaw cron list` should show no jobs with status `error`
+
+If cron jobs still show errors after model fixes, check their payload model overrides —
+the global config fix doesn't update cron job-level model overrides.
+
+This is not optional. Model ID formats change between OpenClaw versions (e.g. hyphens to
+dots). Broken model IDs cause silent cron failures that only surface hours later.
+</post-update-verification>
+
 <fleet-file-format>
 Each server: `~/openclaw-fleet/<server-name>.md`
 
