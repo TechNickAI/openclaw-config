@@ -146,7 +146,8 @@ updates. Report but don't apply. Write a Unix epoch timestamp to the check file.
 notification. Healthy is the expected state — nobody needs to hear about it.
 
 **Fixed something?** Notify the admin: what broke, what you did, whether it worked.
-Verify your fix actually resolved the issue before claiming success.
+Verify your fix actually resolved the issue before claiming success. Include the
+hostname — the admin needs to know which machine you are.
 
 **Can't fix it?** Notify the admin: what's wrong, what you tried, what they should do.
 
@@ -154,11 +155,19 @@ Only these two cases warrant a notification. Routine healthy status is silent �
 messages, no "all clear" updates. The admin only wants to hear about problems and
 resolutions.
 
+**Log entries.** When writing to `~/.openclaw/health-check.log`, include a timestamp,
+the hostname, and what happened. Each entry should stand alone — someone reading the log
+months later should understand what occurred and where.
+
 ## How to Notify
 
 Use the notification command from `~/.openclaw/health-check-admin` (line 2). Replace
 `{MESSAGE}` with your actual message text. Also record this command in `CLAUDE.local.md`
 for reference.
+
+**Identify the machine.** The admin manages a fleet of servers. Every notification must
+include the hostname so he knows which machine is talking. An alert without a machine
+name is useless.
 
 If the admin file only has a name (no notification command), fall back to discovering
 the method from the OpenClaw workspace — look at the gateway config, `pai/` directory,
