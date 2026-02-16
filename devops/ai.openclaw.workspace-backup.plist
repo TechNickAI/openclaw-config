@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.openclaw.workspace-backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>
+export PATH="/opt/homebrew/bin:$PATH"
+export RESTIC_PASSWORD_FILE="$HOME/.openclaw/restic-password"
+REPO="$HOME/openclaw-backups"
+LOG="$HOME/.openclaw/logs/workspace-backup.log"
+
+restic -r "$REPO" backup "$HOME/.openclaw" \
+  --exclude browser \
+  --exclude skill-venv \
+  --exclude logs \
+  --tag automated --quiet 2>&amp;1 | tee -a "$LOG"
+
+restic -r "$REPO" forget \
+  --keep-daily 7 --keep-weekly 4 --keep-monthly 6 \
+  --prune --quiet 2>&amp;1 | tee -a "$LOG"
+        </string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>14400</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/openclaw/workspace-backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/openclaw/workspace-backup.log</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>

@@ -116,9 +116,56 @@ The OpenClaw gateway runs as a launchd user agent that auto-starts on login.
 
 **Verify:** `launchctl list | grep ai.openclaw.gateway` (should show a PID)
 
-### Backup (optional, master only)
+### Workspace Backup (required)
 
-**Verify:** `launchctl list | grep ai.openclaw.backup`
+Restic backs up all of `~/.openclaw/` to a local repository. This protects against bad
+updates, accidental overwrites, and AI-mangled memory files — not just machine failure.
+
+Excludes `browser/`, `skill-venv/`, and `logs/` (all regenerable and large).
+
+**Install:**
+
+```bash
+brew install restic
+```
+
+**Initialize:**
+
+```bash
+echo "openclaw-local-backup" > ~/.openclaw/restic-password
+chmod 600 ~/.openclaw/restic-password
+RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic init --repo ~/openclaw-backups
+```
+
+**Automated schedule:** Runs every 4 hours via launchd, keeps 7 daily + 4 weekly + 6
+monthly snapshots. Weekly verification checks repository integrity and alerts on
+failure.
+
+```bash
+cp <openclaw-config>/devops/ai.openclaw.workspace-backup.plist ~/Library/LaunchAgents/
+cp <openclaw-config>/devops/ai.openclaw.backup-verify.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/ai.openclaw.workspace-backup.plist
+launchctl load ~/Library/LaunchAgents/ai.openclaw.backup-verify.plist
+```
+
+**Manual backup:**
+`RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic -r ~/openclaw-backups backup ~/.openclaw --exclude browser --exclude skill-venv --exclude logs`
+
+**Restore a file:**
+`RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic -r ~/openclaw-backups restore latest --target /tmp/restore --include "MEMORY.md"`
+
+**List snapshots:**
+`RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic -r ~/openclaw-backups snapshots`
+
+**Verify integrity:**
+`RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic -r ~/openclaw-backups check --read-data-subset=10%`
+
+**Verify services:**
+
+- `launchctl list | grep ai.openclaw.workspace-backup` (backup agent running)
+- `launchctl list | grep ai.openclaw.backup-verify` (weekly verification running)
+- Snapshots:
+  `RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic -r ~/openclaw-backups snapshots | tail -3`
 
 ## OpenClaw Configuration
 
