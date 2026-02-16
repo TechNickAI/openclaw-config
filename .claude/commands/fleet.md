@@ -29,8 +29,14 @@ things.
 Interpret intent naturally. Adapt to what's asked. Sometimes that's a quick health
 check, sometimes a full assessment, sometimes pushing an update.
 
-After meaningful updates (new skills, new workflows), offer to notify the server's user.
-Draft something friendly and contextual. Routine maintenance doesn't need notifications.
+After meaningful updates (new skills, new workflows), offer to notify the admin (if
+specified in fleet file). Draft something friendly and contextual. Routine maintenance
+doesn't need notifications.
+
+**When sending notifications to admin:** Send from the agent's identity (from
+IDENTITY.md on that machine), NOT from the user's personal account. The admin should see
+messages from "Bob Steel" or "Cora", not from Gil or Julianna. Use the agent identity as
+the sender when crafting messages.
 
 Escalate to the fleet owner when things break that were working. Don't escalate routine
 success or expected states. </behavior>
@@ -52,11 +58,13 @@ If ANY configured model shows `missing`, the update changed the model catalog an
 those model IDs. Fix them immediately — don't continue to other machines until resolved.
 
 To find the correct current model ID:
+
 ```bash
 openclaw models list --all | grep -i anthropic
 ```
 
 Update the model IDs in:
+
 1. `~/.openclaw/openclaw.json` → `agents.defaults.models` keys and
    `agents.defaults.model.fallbacks`
 2. Any cron jobs with model overrides → `openclaw cron edit <id> --model <new-id>`
@@ -85,9 +93,12 @@ Each server: `~/openclaw-fleet/<server-name>.md`
 
 ## Notify
 
+- **Admin:** admin name (if notifications go to fleet admin instead of local user)
 - **Channel:** iMessage | WhatsApp | Slack | none
-- **Contact:** phone or handle
+- **Target:** phone or handle
 - **Style:** brief | detailed
+
+_Note: When Admin is specified, send notifications FROM the agent (per IDENTITY.md), not from the user's personal account._
 
 ## Current State
 
