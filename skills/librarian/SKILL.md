@@ -1,6 +1,6 @@
 ---
 name: librarian
-version: 0.1.0
+version: 0.2.0
 description: >
   Organize and maintain the knowledge base. Promotes durable knowledge from daily files
   into structured locations, trims MEMORY.md, deduplicates, and keeps the filing system
@@ -164,6 +164,52 @@ Append a brief summary to today's daily file (`memory/YYYY-MM-DD.md`):
 
 This creates an audit trail and helps the next run know where the last one left off.
 
+## Wiki-Links (Knowledge Graph)
+
+Use `[[wiki-links]]` to connect information across memory files. This builds an implicit
+knowledge graph that makes relationships visible and improves retrieval.
+
+### Syntax
+
+- **People:** `[[firstname-lastname]]` → links to `memory/people/firstname-lastname.md`
+- **Projects:** `[[project-name]]` → links to `memory/projects/project-name.md`
+- **Topics:** `[[topic-name]]` → links to `memory/topics/topic-name.md`
+- **Decisions:** `[[YYYY-MM-DD-topic]]` → links to `memory/decisions/YYYY-MM-DD-topic.md`
+
+### When to Link
+
+Add wiki-links when writing or updating any memory file:
+
+- Mention a person → `[[thomas-owen]]`
+- Reference a project → `[[openclaw-config]]`
+- Cite a decision → `[[2026-01-15-database-choice]]`
+- Reference a topic → `[[restaurants]]`
+
+**Example daily file entry:**
+```markdown
+Met with [[thomas-owen]] about [[project-atlas]]. He's leaning toward Postgres —
+see [[2026-02-18-database-choice]] for the decision. Grabbed dinner at a new spot
+worth adding to [[restaurants]].
+```
+
+### Link Maintenance (during librarian runs)
+
+As part of each maintenance loop:
+
+1. **Add links to new content** — When promoting daily file content to structured files,
+   add wiki-links to entities mentioned
+2. **Check for orphan links** — Links pointing to files that don't exist yet. If the
+   entity is substantive enough, create the file. If not, remove the brackets.
+3. **Backlink awareness** — When updating a person/project/topic file, note what other
+   files link to it. This reveals connections that might not be obvious.
+
+### Rules
+
+- Link filenames must match the target's kebab-case filename (without `.md`)
+- Don't over-link — link on first mention per section, not every occurrence
+- Don't link to files you're not going to create (no aspirational links)
+- Wiki-links are for cross-referencing, not a replacement for prose
+
 ## File Conventions
 
 - All filenames: **kebab-case** (`thomas-owen.md`, not `Thomas Owen.md`)
@@ -194,3 +240,5 @@ Before finishing, verify:
 - [ ] People files have current-state information (not outdated)
 - [ ] Today's daily file has a librarian run summary
 - [ ] No orphaned topic files (mentioned nowhere, serve no purpose)
+- [ ] Wiki-links added to promoted content (people, projects, topics, decisions)
+- [ ] No orphan wiki-links pointing to nonexistent files

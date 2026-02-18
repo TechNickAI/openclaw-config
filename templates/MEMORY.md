@@ -48,7 +48,8 @@ Explicit requests ("remember this") bypass evaluation — just write it down.
 - **Decisions made** — `memory/decisions/YYYY-MM-DD-topic.md`, pointer in MEMORY.md
 - **Domain knowledge** — `memory/topics/topic-name.md`
 
-All filenames use kebab-case.
+All filenames use kebab-case. Use `[[wiki-links]]` to cross-reference entities
+(e.g. `[[thomas-owen]]`, `[[project-atlas]]`). Link on first mention per section.
 
 ## Progressive Elaboration
 
