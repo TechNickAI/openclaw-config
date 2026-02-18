@@ -270,7 +270,7 @@ Workflows are triggered by **cron jobs** (isolated sessions):
 openclaw cron add \
   --name "Email Steward" \
   --cron "*/30 8-22 * * *" \
-  --tz "America/Chicago" \
+  --tz "YOUR_TIMEZONE" \
   --session isolated \
   --message "Run email steward workflow. Read workflows/email-steward/AGENT.md and follow it." \
   --model sonnet \
