@@ -34,7 +34,7 @@ For any candidate task, score these dimensions:
 | **Repetitiveness** | Same steps every time? (always=3, mostly=2, sometimes=1, never=0) | 0-3 |
 | **Judgment Required** | Needs creative thinking? (none=3, low=2, medium=1, high=0) | 0-3 |
 | **Time Cost** | Minutes per occurrence × frequency per month / 60 = hours/month | raw |
-| **Error Cost** | What happens if it's wrong? (nothing=3, minor=2, moderate=1, severe=0) | 0-3 |
+| **Safety** | How safe to automate? (harmless if wrong=3, annoying=2, costly=1, dangerous=0) | 0-3 |
 
 **Decision:**
 - Score ≥ 10 + Time Cost > 2 hrs/month → **Build a workflow**
@@ -75,7 +75,9 @@ Every workflow follows this structure:
 workflows/<name>/
 ├── AGENT.md          # The algorithm (updates with openclaw-config)
 ├── rules.md          # User preferences (never overwritten by updates)
-├── agent_notes.md    # Learned patterns (grows over time)
+├── agent_notes.md    # Learned patterns (grows over time, optional for some types)
+├── state/            # Continuation state for multi-step work (optional)
+│   └── active-work.json
 └── logs/             # Execution history (auto-pruned)
     └── YYYY-MM-DD.md
 ```
@@ -84,7 +86,7 @@ workflows/<name>/
 
 This is the workflow's brain. It ships with openclaw-config and can be updated.
 
-**Required sections:**
+**Standard sections** (adapt to your workflow — not all are required):
 
 ```markdown
 ---
@@ -199,9 +201,13 @@ Match intelligence to task complexity:
 
 ```
 Obvious/routine items → Spawn sub-agent (cheaper model: Haiku/Sonnet)
-Important/nuanced items → Handle yourself (Opus)
+Important/nuanced items → Handle yourself or spawn a powerful sub-agent (Opus)
+Quality verification → Can use a strong model as QA reviewer (Opus as sub-agent)
 Uncertain items → Sub-agents escalate to you rather than guessing
 ```
+
+**Note:** Don't hardcode model IDs (they go stale fast). Use aliases like
+`sonnet`, `opus`, `haiku` or reference the model by capability level.
 
 ### Pattern 4: State Externalization (Compaction-Safe)
 
@@ -282,9 +288,12 @@ openclaw cron add \
 
 ### Delivery
 
-- **Routine runs:** `announce: none` — work silently, only alert when something needs attention
-- **Reports/summaries:** `announce` — deliver summary to channel
+- **Routine runs:** Omit `--announce` (or set delivery to `none`) — work silently, only alert when something needs attention
+- **Reports/summaries:** Use `--announce` — delivers a summary to the configured channel after completion
 - **Errors/alerts:** Always deliver via the workflow's configured alert channel
+
+Note: Isolated cron jobs **default to announce delivery** (summary posted after run).
+Set `delivery: none` explicitly if you want silent operation.
 
 ---
 
@@ -434,12 +443,14 @@ To retire: disable the cron job, archive the workflow directory, note in
 
 ### email-steward
 - **Purpose:** Inbox debris removal
-- **Schedule:** Every 30 min during business hours
+- **Schedule:** Configured via cron (typically every 30 min during business hours)
 - **Tools:** gog CLI (Gmail)
 - **Key pattern:** Setup interview → graduated trust → sub-agent delegation
+- **Notable:** Uses `agent_notes.md` heavily for learning sender patterns
 
 ### task-steward
 - **Purpose:** Task board management with QA verification
-- **Schedule:** Every 30 min + reactive
+- **Schedule:** Can run via heartbeat or cron (see its AGENT.md for guidance)
 - **Tools:** Asana MCP
-- **Key pattern:** Task classification → work execution → quality gate → delivery
+- **Key pattern:** Task classification → work execution → quality gate (Opus QA) → delivery
+- **Notable:** Spawns Opus as QA sub-agent — demonstrates strong model as worker, not just orchestrator
