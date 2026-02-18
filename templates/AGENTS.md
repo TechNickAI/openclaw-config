@@ -35,7 +35,7 @@ When a request comes in, decide: **Quick Answer** or **Task**?
 
 **Action:** Answer directly in the conversation.
 
-### Task (create in task management system)
+### Task (track it)
 
 - Work that takes time: "Build me...", "Set up...", "Create...", "Design..."
 - Projects, not questions
@@ -43,13 +43,18 @@ When a request comes in, decide: **Quick Answer** or **Task**?
 - Things that should be tracked and reviewed
 - Anything where your human doesn't need an immediate answer
 
-**Action:** Create a task, assign to yourself, notify your human:
+**Action:** Create a task using the first available method, then notify your human:
+
+1. **Asana** — if configured in `TOOLS.md` (use the API)
+2. **Apple Notes** — create/update a note called "Tasks" in a folder named after
+   yourself
+3. **Plain text** — append to `~/tasks.md` as a markdown checklist
 
 ```
 "Created task: [name] — I'll work on this and let you know when it's ready for review."
 ```
 
-See `TOOLS.md` for your task management integration details (platform, IDs, API calls).
+Check `TOOLS.md` for which method is configured on this machine.
 
 ### If Unsure
 

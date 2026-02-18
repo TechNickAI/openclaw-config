@@ -65,21 +65,17 @@ without losing your notes, and share skills without leaking your infrastructure.
 
 ### Task Management
 
-<!-- How tasks are created and tracked. AGENTS.md references this for the Q&A vs Task flow. -->
-<!-- Example (Asana): -->
+<!-- AGENTS.md Q&A vs Task flow uses the first available method: -->
+<!-- 1. Asana (if configured below) -->
+<!-- 2. Apple Notes (macOS — create/update a "Tasks" note in a folder named after you) -->
+<!-- 3. Plain text file (~/tasks.md as markdown checklist) -->
+
+<!-- Uncomment and fill in if Asana is available: -->
 <!--
 - Platform: Asana
 - Workspace ID: 1234567890
 - Project ID: 1234567890
 - Assignee ID: 1234567890 (your assistant user)
-- Tags: Status: Not Started (ID), working (ID)
-- API: `curl -X POST 'https://app.asana.com/api/1.0/tasks' -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" ...`
--->
-<!-- Example (File-based): -->
-<!--
-- Platform: File-based
-- Task file: ~/tasks.md
-- Format: Markdown checklist
 -->
 
 ### Integrations
