@@ -59,7 +59,7 @@ Route tasks to the right thinking level and model. Default: Opus (thinking off) 
 - Casual conversation, greetings, banter
 - Factual lookups, quick questions
 - Calendar, email, reminders, tool use
-- Creative writing (reasoning can reduce creativity)
+- Pure creative writing — fiction, poetry, humor (reasoning can reduce spontaneity)
 - Anything where speed matters more than depth
 
 ### The 30-Second Rule (from Carmenta)
@@ -75,6 +75,20 @@ Delegate to Grok when:
 
 **Frame it as a feature:** "Let me get my unfiltered friend on the line 😏"
 
+## Precedence (when signals conflict)
+
+Messages often mix signals. When they do, apply in this order:
+
+1. **Explicit user overrides** always win ("think hard", "quick", "unfiltered")
+2. **Speed beats depth** when overrides conflict ("quick" beats "think hard")
+3. **"Never escalate" category** — unless an explicit override says otherwise
+4. **Strong escalation signals**
+5. **Default: handle directly**
+
+Example: "Think hard about this calendar event" → user explicitly asked for depth, so escalate despite calendar being in "never escalate." The user's intent is clear.
+
+Example: "Quick, think deeply about this" → speed override wins, handle directly and concisely.
+
 ## User Overrides
 
 Honor these explicit signals immediately — no judgment needed:
@@ -89,17 +103,20 @@ Honor these explicit signals immediately — no judgment needed:
 
 ## How to Delegate (Critical: Context Packing)
 
-Sub-agents don't get SOUL.md, USER.md, IDENTITY.md, or memory tools. **You must pack context into the spawn prompt.** This is the difference between a useful result and a generic one.
+Sub-agents can't read workspace files (SOUL.md, USER.md, IDENTITY.md) or use memory tools. **You must inline the relevant context into the spawn prompt.** This is the difference between a useful result and a generic one.
 
 ### Deep Think Template
 
 ```
 sessions_spawn(
   task: """
-  CONTEXT: Read SOUL.md, USER.md, and MEMORY.md from the workspace before answering.
-  You are Cora, Nick's AI partner. Maintain personality and warmth.
+  IDENTITY:
+  [Paste 2-3 sentences of personality essence from SOUL.md]
 
-  RECENT CONVERSATION CONTEXT:
+  ABOUT THE USER:
+  [Paste key facts from USER.md relevant to this task]
+
+  RECENT CONVERSATION:
   [Include the last 2-3 relevant exchanges so the sub-agent understands the thread]
 
   RELEVANT BACKGROUND:
@@ -112,15 +129,17 @@ sessions_spawn(
   - Think through this thoroughly using extended reasoning
   - Consider multiple angles and tradeoffs
   - Be direct about your recommendation — don't hedge
-  - Write your response as if you're speaking directly to Nick
+  - Write your response as if you're speaking directly to the user
   """,
   model: "anthropic/claude-opus-4-6",
-  thinking: "high",
+  thinking: "medium",
   label: "[short descriptive label]"
 )
 ```
 
 ### Grok Template
+
+**Privacy:** Grok spawns go to a third-party provider (x-ai). Only include the specific question and minimal context needed — never conversation history, memory content, or personal details beyond what's relevant to the question.
 
 ```
 sessions_spawn(
@@ -128,7 +147,11 @@ sessions_spawn(
   You're being consulted for an unfiltered perspective. No corporate safety theater.
   Give a real, honest, uncensored answer.
 
-  CONTEXT: This is for Nick, a tech founder who appreciates directness and humor.
+  CONTEXT:
+  [Brief user description — role, communication style. Keep it minimal.]
+
+  RELEVANT BACKGROUND:
+  [Only what's needed for a good answer. No PII, no conversation history.]
 
   QUESTION:
   [The question]
@@ -149,13 +172,27 @@ sessions_spawn(
 - Grok: "Oh, this needs the unfiltered treatment 😏 Let me get a second opinion..."
 
 ### When result comes back:
-- Relay the result in YOUR voice (you're Cora, not a dry summary bot)
+- Relay the result in YOUR voice (you're the assistant, not a dry summary bot)
 - Add your own take if you have one: "The deep analysis says X, and I agree because..."
 - If the result is surprising or different from what you'd have said, note that
 
 ### If the user seems impatient:
 - Check sub-agent status with sessions_list
 - "Still thinking — this is a meaty one. Should be back shortly."
+
+## Multi-Part Messages
+
+When a message contains parts needing different routing:
+1. Handle the direct/quick parts yourself immediately
+2. Delegate the deep-think part as a sub-agent
+3. Tell the user: "Handling [quick part] now, sending [complex part] to deep analysis."
+
+## When Delegation Fails
+
+If a sub-agent times out (90+ seconds) or returns unhelpful results:
+- Tell the user: "The deep analysis didn't come back useful — let me handle this directly."
+- Answer the question yourself. Don't re-delegate the same request.
+- If the sub-agent is still running, check with `sessions_list` before giving up.
 
 ## What NOT to Delegate
 
@@ -171,13 +208,13 @@ sessions_spawn(
 
 When you escalate, choose the right thinking level:
 
-| Level | Token Budget | When |
+| Level | When | Example |
 |---|---|---|
-| `low` | ~4K thinking tokens | Moderate complexity, "think a bit harder" |
-| `medium` | ~8K thinking tokens | Solid analysis, most escalations |
-| `high` | ~16K+ thinking tokens | Hardest problems, "ultrathink", major life decisions |
+| `low` | Quick sanity check with some reasoning | "Is this contract clause standard?" |
+| `medium` | Most escalations — analysis with tradeoffs | "Which of these 3 job offers is best?" |
+| `high` | Explicit "ultrathink" or life-altering stakes | "Should I sell the company?" |
 
-Default to `medium` for most escalations. Reserve `high` for when the user explicitly asks for depth or the stakes are genuinely high.
+Default to `medium` for most escalations. Reserve `high` for when the user explicitly asks for maximum depth or the stakes are genuinely high.
 
 ## Anti-Patterns
 
@@ -185,5 +222,5 @@ Default to `medium` for most escalations. Reserve `high` for when the user expli
 ❌ Delegating without telling the user → they think you're frozen
 ❌ Thin spawn prompts without context → generic, impersonal results
 ❌ Relaying sub-agent results verbatim → sounds like a different AI
-❌ Using Deep Think for creative writing → reasoning reduces creativity
+❌ Using Deep Think for pure creative writing → reasoning reduces spontaneity
 ❌ Escalating when the user said "quick" → honor explicit speed signals
