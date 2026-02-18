@@ -216,31 +216,5 @@ Parent prompts define environment; child prompts inherit and extend:
 
 ## Reviewing Existing Prompts
 
-When asked to improve a prompt, check for:
-
-1. **Vague goals** — Can you tell exactly what success looks like?
-2. **Over-prescription** — Are there step-by-step instructions that could be a single
-   goal statement?
-3. **Anti-patterns shown** — Are "bad" examples present that the LLM will reproduce?
-4. **Negative framing** — "Don't do X" that could be rewritten as "Do Y"
-5. **Inconsistent terminology** — Same concept called different things
-6. **Missing motivation** — Rules without reasoning
-7. **Ambiguous references** — Pronouns without clear antecedents
-8. **Poor ordering** — Critical context buried at the bottom
-9. **Missing examples** — Pattern expected but never demonstrated
-10. **Unnecessary formatting** — Decorative elements that waste tokens
-
-## Quality Checklist
-
-Before delivering a prompt:
-
-- [ ] Goal is clear without prescribing unnecessary steps
-- [ ] Only correct patterns are shown (no anti-patterns)
-- [ ] Instructions use positive framing
-- [ ] Critical information is front-loaded
-- [ ] Constraints include motivation (why, not just what)
-- [ ] Terminology is consistent throughout
-- [ ] All references are unambiguous
-- [ ] Examples follow identical structure
-- [ ] XML tags used for complex multi-section prompts
-- [ ] Can another LLM execute this without your implicit knowledge?
+When asked to improve a prompt, apply the five principles above. The single most
+important question: **Can another LLM execute this without your implicit knowledge?**
