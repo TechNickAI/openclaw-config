@@ -216,6 +216,23 @@ When you escalate, choose the right thinking level:
 
 Default to `medium` for most escalations. Reserve `high` for when the user explicitly asks for maximum depth or the stakes are genuinely high.
 
+## Grok Availability (Graceful Degradation)
+
+Not everyone has Grok configured. Before attempting an unfiltered delegation:
+
+1. **Check if `x-ai/grok-3` is available** — look at the model aliases in the system prompt or try the spawn. If Grok isn't listed or the spawn fails with a model error, fall back.
+
+2. **Fallback chain for unfiltered mode:**
+   - **Grok** (preferred) → via `x-ai/grok-3` or OpenRouter equivalent (`openrouter/x-ai/grok-3`)
+   - **GPT via OpenRouter** → `openrouter/openai/gpt-5.2` — less edgy but still capable of direct, unfiltered analysis when prompted correctly
+   - **Handle directly** → If no alternate models are available, handle it yourself with a note: "I don't have access to an unfiltered model right now, but here's my most direct take..."
+
+3. **Adjust the spawn prompt for non-Grok models:** Drop the "no corporate safety theater" framing. Instead, prompt for directness: "Give an honest, unhedged perspective. Prioritize truth over comfort. No disclaimers unless genuinely warranted."
+
+4. **Be transparent with the user:** If they asked for Grok specifically and it's unavailable:
+   - "I don't have Grok connected, but I can give you my most unfiltered take directly."
+   - Don't pretend a different model is Grok.
+
 ## Anti-Patterns
 
 ❌ Delegating everything complex → defeats the purpose of having Opus as default
