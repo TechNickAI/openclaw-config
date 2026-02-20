@@ -54,8 +54,8 @@ projects already have dedicated files.
 
 ### Step 2: Process Recent Daily Files
 
-Read daily files (`memory/YYYY-MM-DD.md`) from the past 7 days — or since your last
-run, whichever is shorter. For each piece of information, evaluate whether it's worth
+Read daily files (`memory/YYYY-MM-DD.md`) from the past 7 days — or since your last run,
+whichever is shorter. For each piece of information, evaluate whether it's worth
 promoting.
 
 ### Step 3: Evaluate What to Keep
@@ -78,6 +78,7 @@ details, calendar items that have passed, troubleshooting steps for resolved iss
 Follow these routing rules:
 
 **People** (`memory/people/firstname-lastname.md`):
+
 - New person mentioned with meaningful context → create file
 - Existing person, new info → update their file
 - Relationship changes, contact info, key interactions
@@ -85,18 +86,21 @@ Follow these routing rules:
 - Include: relationship to human, key facts, last updated date
 
 **Projects** (`memory/projects/project-name.md`):
+
 - New project with substance → create file
 - Status updates, decisions, milestones → update existing file
 - Architecture decisions, goals, team members
 - Keep project files current-state focused
 
 **Topics** (`memory/topics/topic-name.md`):
+
 - Domain knowledge, preferences, recurring themes
 - When a section in MEMORY.md grows past ~20 lines → extract to topic file, leave
   pointer
 - Examples: restaurants, health practices, financial patterns, travel preferences
 
 **Decisions** (`memory/decisions/YYYY-MM-DD-topic.md`):
+
 - Important decisions with reasoning worth preserving
 - Include: what was decided, why, what alternatives were considered
 - Date-prefixed for chronological ordering
@@ -107,6 +111,7 @@ MEMORY.md is the **index and executive summary** — not the encyclopedia. Targe
 lines of curated content (below the instructions section).
 
 **What belongs in MEMORY.md:**
+
 - One-liner pointers to detailed files ("See `memory/people/julianna.md`")
 - Core identity facts (name, location, key relationships)
 - Active preferences that affect daily interactions
@@ -114,6 +119,7 @@ lines of curated content (below the instructions section).
 - Index of what's in the memory subdirectories
 
 **What to extract OUT of MEMORY.md:**
+
 - Detailed people descriptions → move to people files, leave pointer
 - Project details → move to project files, leave pointer
 - Long preference lists → move to topic files, leave pointer
@@ -124,6 +130,7 @@ When extracting, always leave a pointer: `See memory/topics/restaurants.md` so t
 information is findable.
 
 **Trim stale entries:**
+
 - Events that have passed (dinners, meetings, deadlines)
 - Resolved issues
 - Outdated preferences or status info

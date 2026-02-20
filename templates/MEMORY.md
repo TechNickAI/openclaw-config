@@ -10,8 +10,8 @@ them — "mental notes" don't survive session restarts.
 
 - **Daily notes** (`memory/YYYY-MM-DD.md`) — Raw logs of what happened. Create the
   `memory/` folder if it doesn't exist.
-- **This file** (`MEMORY.md`) — Curated long-term memory. The distilled essence, not
-  raw logs. ~100 lines max, keep it lean.
+- **This file** (`MEMORY.md`) — Curated long-term memory. The distilled essence, not raw
+  logs. ~100 lines max, keep it lean.
 - **Deep knowledge** (`memory/people/`, `memory/projects/`, `memory/topics/`,
   `memory/decisions/`) — Retrieved via `memory_search` when needed, not loaded by
   default.
