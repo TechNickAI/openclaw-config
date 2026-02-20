@@ -1,124 +1,172 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/OpenClaw-Config-D97757?style=for-the-badge" alt="OpenClaw Config">
+  <img src="https://img.shields.io/badge/OpenClaw-Config-D97757?style=for-the-badge&labelColor=1a1a2e" alt="OpenClaw Config">
+  <br><br>
+  <a href="https://github.com/TechNickAI/openclaw-config/releases"><img src="https://img.shields.io/badge/version-0.10.0-D97757?style=flat-square" alt="Version"></a>
+  <img src="https://img.shields.io/badge/python-3.11+-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <a href="https://github.com/TechNickAI/openclaw-config/stargazers"><img src="https://img.shields.io/github/stars/TechNickAI/openclaw-config?style=flat-square&color=D97757" alt="Stars"></a>
+  <img src="https://img.shields.io/badge/skills-9-blueviolet?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/workflows-2-blueviolet?style=flat-square" alt="Workflows">
+  <a href="https://github.com/TechNickAI/openclaw-config/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome"></a>
 </p>
 
-# OpenClaw Config 🐾
+<p align="center">
+  <strong>Your AI's operating system.</strong><br>
+  Memory, skills, workflows, and autonomous agents — all in markdown.
+</p>
 
-Shareable configuration for [OpenClaw](https://github.com/openclaw/openclaw) — memory
-system, skills, and agent instructions.
+---
 
-## What This Is
+# OpenClaw Config
 
-A battle-tested configuration for running OpenClaw as a personal AI assistant:
+A battle-tested configuration for running your AI assistant the way it should be run —
+with real memory, useful skills, and agents that work while you sleep.
 
-- **Three-tier memory architecture** — Daily logs, curated long-term memory, and
-  searchable deep knowledge
-- **Semantic memory search** — Vector embeddings via LM Studio (local, free) or OpenAI
-  for finding relevant context
-- **Decision-making frameworks** — Bezos's one-way/two-way doors, certainty thresholds,
+This is what powers [OpenClaw](https://github.com/TechNickAI): a personal AI that
+remembers everything, connects to your tools, and gets better over time.
+
+## Highlights
+
+- **Three-tier memory** — Daily logs, curated long-term memory, and semantic search
+  across deep knowledge
+- **9 skills** — From web research to meeting transcripts to CRM access, each a
+  standalone UV script
+- **Autonomous workflows** — Agents that run on a schedule, learn your preferences, and
+  manage themselves
+- **Decision frameworks** — Bezos's one-way/two-way doors, certainty thresholds,
   priority filters
-- **Group chat behavior** — When to speak, when to stay silent, how to react like a
-  human
-- **Ready-to-use skills** — Limitless Pendant, Fireflies.ai, and Quo phone integrations
+- **DevOps built in** — Health checks, backup verification, and fleet management across
+  machines
 
 ## Quick Start
+
+Tell your OpenClaw instance:
 
 ```
 Set up openclaw-config from https://github.com/TechNickAI/openclaw-config
 ```
 
-## Updating
+To update later:
 
 ```
 Update my openclaw config
 ```
 
-## What's Included
+That's it. Your AI handles the rest.
 
-### Templates
+## Architecture
 
-| File           | Purpose                                      |
-| -------------- | -------------------------------------------- |
-| `AGENTS.md`    | Complete operating instructions (~400 lines) |
-| `SOUL.md`      | AI personality template                      |
-| `USER.md`      | Human profile template                       |
-| `TOOLS.md`     | Local environment notes                      |
-| `HEARTBEAT.md` | Periodic check config                        |
-| `IDENTITY.md`  | Quick reference card                         |
+```
+openclaw-config/
+├── templates/          # Your AI's identity and operating instructions
+│   ├── AGENTS.md       # Complete operating instructions
+│   ├── SOUL.md         # AI personality definition
+│   ├── USER.md         # Human profile
+│   ├── MEMORY.md       # Curated essentials (~100 lines max)
+│   ├── TOOLS.md        # Local environment config
+│   ├── HEARTBEAT.md    # Periodic check schedule
+│   └── IDENTITY.md     # Quick reference card
+│
+├── skills/             # Standalone UV scripts — no setup required
+│   ├── asana/          # Task & project management
+│   ├── fireflies/      # Meeting transcript search
+│   ├── followupboss/   # Real estate CRM
+│   ├── librarian/      # Knowledge base curation
+│   ├── limitless/      # Pendant lifelog search
+│   ├── openclaw/       # Self-management & updates
+│   ├── parallel/       # Web research & extraction
+│   ├── quo/            # Business phone & SMS
+│   └── smart-delegation/ # Intelligent task routing
+│
+├── workflows/          # Autonomous agents with state & learning
+│   ├── email-steward/  # Inbox triage & management
+│   └── task-steward/   # Task classification & execution
+│
+├── memory/             # Example memory structure
+│   ├── people/         # Relationship context
+│   ├── projects/       # Project knowledge
+│   ├── topics/         # Domain expertise
+│   └── decisions/      # Decision history
+│
+└── devops/             # Health checks & fleet management
+```
 
-### Memory Architecture
-
-**Tier 1: Always-Loaded**
-
-- `MEMORY.md` — Curated essentials (~100 lines max)
-
-**Tier 2: Daily Context**
-
-- `memory/YYYY-MM-DD.md` — Today + yesterday's logs
-
-**Tier 3: Deep Knowledge (Semantic Search)**
-
-- `memory/people/`, `memory/projects/`, `memory/topics/`, `memory/decisions/`
-- Indexed with vector embeddings for semantic similarity search
-- Use `memory_search("query")` to find relevant context
-- Supports LM Studio (local, recommended) or OpenAI for embeddings
-
-### Skills
+## Skills
 
 Skills are standalone [UV scripts](https://docs.astral.sh/uv/guides/scripts/) — Python
-with inline dependencies, no project setup required.
+with inline dependencies, no project setup required. Each skill is self-contained and
+versioned independently.
 
-| Skill         | What it does                                                     |
-| ------------- | ---------------------------------------------------------------- |
-| **parallel**  | Web search & content extraction via Parallel.ai (Python, tested) |
-| **limitless** | Query Limitless Pendant lifelogs                                 |
-| **fireflies** | Search Fireflies.ai meeting transcripts                          |
-| **quo**       | Access Quo business phone calls & texts                          |
-| **openclaw**  | Manage openclaw-config installation & updates                    |
+| Skill                | What it does                                                                     | Version |
+| -------------------- | -------------------------------------------------------------------------------- | ------- |
+| **parallel**         | Web research & content extraction via Parallel.ai                                | 0.2.0   |
+| **limitless**        | Query Limitless Pendant lifelogs & conversations                                 | 0.2.0   |
+| **fireflies**        | Search Fireflies.ai meeting transcripts & action items                           | 0.2.0   |
+| **quo**              | Business phone — calls, texts, transcripts, contacts                             | 0.2.0   |
+| **asana**            | Task & project management — create, update, organize                             | 0.1.0   |
+| **followupboss**     | Real estate CRM — contacts, deals, pipeline                                      | 0.1.0   |
+| **librarian**        | Knowledge base curation — promotes, deduplicates, maintains                      | 0.1.0   |
+| **smart-delegation** | Intelligent task routing — Opus for deep reasoning, Grok for unfiltered analysis | 0.1.0   |
+| **openclaw**         | Self-management — setup, updates, health checks                                  | 0.2.2   |
 
-### Workflows
+## Workflows
 
-Workflows are autonomous agents that run on a schedule. Unlike skills (single-purpose
-tools), workflows have state, learn over time, and maintain their own rules and logs.
+Workflows are autonomous agents that run on a schedule. Unlike skills (tools you call),
+workflows have state, learn your preferences over time, and manage themselves.
 
-| Workflow          | What it does                                             |
-| ----------------- | -------------------------------------------------------- |
-| **email-steward** | Manages your inbox — archives, deletes, alerts on urgent |
+| Workflow          | What it does                                                           | Version |
+| ----------------- | ---------------------------------------------------------------------- | ------- |
+| **email-steward** | Inbox triage — archives debris, manages labels, alerts on important    | 0.2.0   |
+| **task-steward**  | Task orchestration — classifies work, creates tasks, spawns sub-agents | 0.1.0   |
 
-Each workflow has:
+Each workflow maintains:
 
 - `AGENT.md` — The algorithm (updates with openclaw-config)
 - `rules.md` — Your preferences (you customize, never overwritten)
 - `agent_notes.md` — Learned patterns (grows over time)
 - `logs/` — Execution history
 
-#### Running Tests
+## Memory System
 
-```bash
-uv run --with pytest pytest tests/ -v
-```
+Your AI decides what to remember using four criteria:
 
-Integration tests auto-skip if API keys aren't set.
+| Criterion          | Question                          |
+| ------------------ | --------------------------------- |
+| **Durability**     | Will this matter in 30+ days?     |
+| **Uniqueness**     | Is this new or already captured?  |
+| **Retrievability** | Will I want to recall this later? |
+| **Authority**      | Is this reliable?                 |
 
-## The Memory Extraction Criteria
+**Tier 1: Always-Loaded** — `MEMORY.md`, curated essentials in context at all times
 
-Your AI uses these to decide what to remember long-term:
+**Tier 2: Daily Context** — `memory/YYYY-MM-DD.md`, today + yesterday loaded
+automatically
 
-1. **Durability** — Will this matter in 30+ days?
-2. **Uniqueness** — Is this new or already captured?
-3. **Retrievability** — Will I want to recall this later?
-4. **Authority** — Is this reliable?
+**Tier 3: Deep Knowledge** — `memory/people/`, `projects/`, `topics/`, `decisions/`,
+indexed with vector embeddings for semantic search. Supports LM Studio (local, free) or
+OpenAI.
 
 ## Philosophy
 
 - **File-based memory** — Text files beat databases for AI context
-- **Markdown over JSON** — Language models work better with prose
-- **Two-way doors** — Act freely on reversible decisions; ask first on irreversible ones
-- **Quality over quantity** — In groups, participate, don't dominate
+- **Markdown over JSON** — Language models think better in prose
+- **Two-way doors** — Act freely on reversible decisions; pause on irreversible ones
+- **Self-contained skills** — No shared dependencies, no coordination overhead
+- **Workflows that learn** — Agents should get better at their job, not just repeat it
+
+## Development
+
+```bash
+# Run tests
+uv run --with pytest pytest tests/ -v
+```
+
+Integration tests auto-skip when API keys aren't set.
 
 ## Contributing
 
-PRs welcome! Keep templates generic (no personal content).
+PRs welcome! Keep templates generic (no personal content). Each skill should remain
+self-contained with its own inline dependencies.
 
 ## License
 
@@ -126,4 +174,7 @@ MIT
 
 ---
 
-**Author:** [TechNickAI](https://github.com/TechNickAI)
+<p align="center">
+  Built by <a href="https://github.com/TechNickAI">TechNickAI</a><br>
+  <sub>Your AI deserves an operating system.</sub>
+</p>
