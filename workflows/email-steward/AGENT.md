@@ -130,7 +130,9 @@ Gmail access through gog CLI:
 
 **Reading:**
 
-- **Inbox scan query:** `gog gmail search 'in:inbox -label:Agent-Starred -label:Agent-Reviewed -label:Agent-Archived -label:Agent-Deleted -label:Agent-Unsubscribe' --max 50 --account [account]` — all unprocessed inbox emails
+- **Inbox scan query:**
+  `gog gmail search 'in:inbox -label:Agent-Starred -label:Agent-Reviewed -label:Agent-Archived -label:Agent-Deleted -label:Agent-Unsubscribe' --max 50 --account [account]`
+  — all unprocessed inbox emails
 - `gog gmail get <threadId> --account [account]` — full body (use sparingly)
 
 **Organizing:**
@@ -142,7 +144,8 @@ Gmail access through gog CLI:
 - **Agent-Archived** — searchable history → `--add Agent-Archived --remove INBOX`
 - **Agent-Deleted** — 30-day quarantine → `--add Agent-Deleted --remove INBOX`
 - **Agent-Reviewed** — processed but kept → `--add Agent-Reviewed --remove INBOX`
-- **Agent-Starred** — needs attention → `--add Agent-Starred` (stays in inbox — no --remove INBOX)
+- **Agent-Starred** — needs attention → `--add Agent-Starred` (stays in inbox — no
+  --remove INBOX)
 - **Agent-Unsubscribe** — unsubscribe candidates →
   `--add Agent-Unsubscribe --remove INBOX`
 
@@ -179,8 +182,8 @@ Most emails stay untouched. Only act when the action is obvious:
 
 1. Read `rules.md` for their specific preferences
 2. Read `agent_notes.md` for accumulated knowledge (if exists)
-3. Scan inbox using the **inbox scan query** — this catches ALL unprocessed emails
-   (read and unread) because it filters by agent labels, not read status.
+3. Scan inbox using the **inbox scan query** — this catches ALL unprocessed emails (read
+   and unread) because it filters by agent labels, not read status.
 4. Process obvious items, leave uncertain ones
 5. Alert if anything needs attention (unless `alert_channel: none`)
 6. Append to today's log in `logs/`
