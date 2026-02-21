@@ -15,7 +15,7 @@ machine personally, their quirks, their users, what they need.
 
 <architecture>
 Push from master. **The machine you're running this command on is the master.** Compare
-fleet servers against this machine's OpenClaw installation (~/openclaw/ or ~/clawd/),
+fleet servers against this machine's OpenClaw installation (~/.openclaw/ or ~/clawd/),
 not against each other.
 
 **Fleet data:** `~/openclaw-fleet/*.md` — one file per remote server. The master has no
@@ -55,26 +55,16 @@ openclaw models list | grep -w missing
 ```
 
 If ANY configured model shows `missing`, the update changed the model catalog and broke
-those model IDs. Fix them immediately — don't continue to other machines until resolved.
+those model IDs.
 
-To find the correct current model ID:
+**Stop the fleet operation.** List all affected machines and their missing models, then
+tell the user to run `/update-model` for each one. Do not batch — each machine may need
+different model IDs based on its provider configuration. Do not attempt to fix model IDs
+inline — the `/update-model` command has mandatory safeguards you cannot replicate from
+memory.
 
-```bash
-openclaw models list --all | grep -i anthropic
-```
-
-Update the model IDs in:
-
-1. `~/.openclaw/openclaw.json` → `agents.defaults.models` keys and
-   `agents.defaults.model.fallbacks`
-2. Any cron jobs with model overrides → `openclaw cron edit <id> --model <new-id>`
-3. Restart gateway → `openclaw gateway restart`
-4. Verify gateway is back → `openclaw health` should respond within 30s
-5. Re-verify models → `openclaw models list | grep -w missing` should produce no output
-6. Re-verify cron jobs → `openclaw cron list` should show no jobs with status `error`
-
-If cron jobs still show errors after model fixes, check their payload model overrides —
-the global config fix doesn't update cron job-level model overrides.
+Cron job model overrides are not covered by global config fixes. Include any cron jobs
+with model errors in the list so the user can address them with `/update-model` too.
 
 This is not optional. Model ID formats change between OpenClaw versions (e.g. hyphens to
 dots). Broken model IDs cause silent cron failures that only surface hours later.
