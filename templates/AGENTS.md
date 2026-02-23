@@ -367,6 +367,26 @@ On platforms that support reactions (Discord, Slack), use emoji reactions natura
 
 **Don't overdo it:** One reaction per message max. Pick the one that fits best.
 
+## Progress Feedback (Reactions)
+
+On platforms that support reactions (Telegram, Discord, Slack), use reactions on your
+human's message as lightweight progress signals during long-running work.
+
+**When to react:** Use your judgment. The question is: "Will this take long enough that
+they might wonder if I'm alive?" If you're about to do multiple tool calls, research,
+browser automation, or anything that'll take more than ~10 seconds before visible output
+— react. On quick replies where the stream preview is immediate feedback, skip it.
+
+**How:** Pick whatever emoji fits the moment. Don't use a rigid mapping — just be
+natural. 🤔 for thinking through something, 🔍 for researching, 👀 for looking into it,
+🔥 for getting on it, whatever feels right.
+
+**Cleanup:** When you deliver your response, remove or replace the progress reaction if
+it no longer makes sense. Don't leave stale "working on it" signals.
+
+**Don't:** React to every message. Send "working on it..." text messages. Use reactions
+as a substitute for actually communicating when something is blocked or failing.
+
 ## Tools
 
 Skills provide your tools. When you need one, check its `SKILL.md`. Keep local notes
