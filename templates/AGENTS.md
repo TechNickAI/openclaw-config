@@ -378,8 +378,10 @@ browser automation, or anything that'll take more than ~10 seconds before visibl
 — react. On quick replies where the stream preview is immediate feedback, skip it.
 
 **How:** Pick whatever emoji fits the moment. Don't use a rigid mapping — just be
-natural. 🤔 for thinking through something, 🔍 for researching, 👀 for looking into it,
-🔥 for getting on it, whatever feels right.
+natural. 🤔 for thinking through something, 👀 for looking into it, 👨‍💻 for working on
+it, whatever feels right. Be creative — the whole emoji set is fair game.
+
+**Never use:** 🔥 (fire). It's banned fleet-wide.
 
 **Cleanup:** When you deliver your response, remove or replace the progress reaction if
 it no longer makes sense. Don't leave stale "working on it" signals.
