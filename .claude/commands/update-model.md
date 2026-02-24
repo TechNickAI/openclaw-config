@@ -20,19 +20,20 @@ be trusted to do this from memory.
 ## Step 0: Understand the Request
 
 Parse what the user wants changed. If invoked from `/fleet` after detecting missing
-models, the "request" is to fix each model that shows `missing` in `openclaw models list`.
+models, the "request" is to fix each model that shows `missing` in
+`openclaw models list`.
 
 Model configuration has **6 distinct locations** — identify which one(s) are being
 modified:
 
-| Location | Config path | Example |
-|----------|------------|---------|
-| **Primary model** | `agents.defaults.model.primary` | `anthropic/claude-opus-4-6` |
-| **Fallback chain** | `agents.defaults.model.fallbacks` | `["openrouter/openai/gpt-5.2", "anthropic/claude-sonnet-4-6"]` |
-| **Model definitions** | `agents.defaults.models` | Map of model ID → {alias, params} |
-| **Heartbeat model** | `agents.defaults.heartbeat.model` | `anthropic/claude-sonnet-4-6` |
-| **Subagent model** | `agents.defaults.subagents.model` | `anthropic/claude-sonnet-4-6` |
-| **Cron job overrides** | Per-job `payload.model` | Set via `openclaw cron edit <id> --model <id>` |
+| Location               | Config path                       | Example                                                        |
+| ---------------------- | --------------------------------- | -------------------------------------------------------------- |
+| **Primary model**      | `agents.defaults.model.primary`   | `anthropic/claude-opus-4-6`                                    |
+| **Fallback chain**     | `agents.defaults.model.fallbacks` | `["openrouter/openai/gpt-5.2", "anthropic/claude-sonnet-4-6"]` |
+| **Model definitions**  | `agents.defaults.models`          | Map of model ID → {alias, params}                              |
+| **Heartbeat model**    | `agents.defaults.heartbeat.model` | `anthropic/claude-sonnet-4-6`                                  |
+| **Subagent model**     | `agents.defaults.subagents.model` | `anthropic/claude-sonnet-4-6`                                  |
+| **Cron job overrides** | Per-job `payload.model`           | Set via `openclaw cron edit <id> --model <id>`                 |
 
 If the request is ambiguous about which location, **ask**. Do not guess.
 
@@ -76,6 +77,7 @@ openclaw cron list
 ```
 
 **Record all of this.** You need to know:
+
 - Which **providers** have `yes` in the Auth column from `openclaw models list` (these
   are the ONLY providers you can use)
 - What the **current model IDs** look like (format, provider prefix)
@@ -89,8 +91,7 @@ DO NOT GUESS MODEL IDS.
 DO NOT CONSTRUCT MODEL IDS BY COMBINING PARTS.
 
 The ONLY source of truth is the output of `openclaw models list --all` on the target
-machine.
-</critical>
+machine. </critical>
 
 ```bash
 # Find the exact model ID you need — search the FULL catalog
@@ -98,6 +99,7 @@ openclaw models list --all | grep -i <search-term>
 ```
 
 Examples of valid searches:
+
 - `grep -i sonnet` — find all sonnet variants
 - `grep -i "anthropic/claude"` — find all Anthropic Claude models
 - `grep -i "openrouter/anthropic"` — find OpenRouter's Anthropic models
@@ -109,11 +111,13 @@ modifications. No "close enough."
 ### Provider-Specific Rules
 
 **Anthropic direct** models look like: `anthropic/claude-{tier}-{version}`
+
 - Uses hyphens: `anthropic/claude-sonnet-4-6`
 - Auth column must show `yes` for these to work
 - Requires Anthropic OAuth token or API key
 
 **OpenRouter** models look like: `openrouter/{org}/{model-name}`
+
 - OpenRouter Anthropic uses dots in version: `openrouter/anthropic/claude-sonnet-4.6`
 - Note the THREE-part path: `openrouter/anthropic/claude-sonnet-4.6`
 - NOT `openrouter/claude-sonnet-4.6` (missing org segment)
@@ -121,16 +125,19 @@ modifications. No "close enough."
 - Auth column must show `yes`
 
 **LM Studio** models look like: `lmstudio/{org}/{model-name}`
+
 - Only works if LM Studio is running locally or accessible via network
 
 ### What Makes a Valid Model ID
 
 A valid model ID:
+
 - Appears in `openclaw models list --all` output, character for character
 - Has `yes` in the Auth column for this machine (or is a locally-served model)
 - Follows the format `provider/model-name` or `provider/org/model-name`
 
 A model ID is INVALID if:
+
 - It's an alias (`sonnet`, `opus`, `haiku`, `gpt`) — aliases are NOT model IDs
 - It's a provider + alias (`openrouter/sonnet`) — this is garbage
 - It doesn't appear in `openclaw models list --all`
@@ -153,6 +160,7 @@ Edit the config using the appropriate method:
 
 **For openclaw.json changes** (primary, fallbacks, model definitions, heartbeat,
 subagents):
+
 ```bash
 # Edit the config file directly
 # Use python3 or jq for surgical JSON edits — never hand-edit JSON
@@ -168,21 +176,25 @@ with open('$CONFIG_PATH', 'w') as f:
 ```
 
 **For cron job model overrides:**
+
 ```bash
 openclaw cron edit <job-id> --model <new-model-id>
 ```
 
 **After ANY config file change, restart the gateway:**
+
 ```bash
 openclaw gateway restart
 ```
 
 Wait 10 seconds, then verify the gateway is back:
+
 ```bash
 openclaw health
 ```
 
 **If the gateway fails to restart:**
+
 1. Check logs: `tail -20 /tmp/openclaw/openclaw-$(date +%Y-%m-%d).log`
 2. Validate JSON: `python3 -c "import json; json.load(open('$CONFIG_PATH'))"`
 3. If JSON is corrupt, restore backup: `cp "${CONFIG_PATH}.bak" "$CONFIG_PATH"`
@@ -290,13 +302,13 @@ If verification fails at any step:
 
 ## Quick Reference: Common Model ID Differences
 
-| Machine Auth | Claude Sonnet | Claude Opus |
-|-------------|---------------|-------------|
-| Anthropic direct | `anthropic/claude-sonnet-4-6` | `anthropic/claude-opus-4-6` |
-| OpenRouter | `openrouter/anthropic/claude-sonnet-4.6` | `openrouter/anthropic/claude-opus-4.6` |
+| Machine Auth     | Claude Sonnet                            | Claude Opus                            |
+| ---------------- | ---------------------------------------- | -------------------------------------- |
+| Anthropic direct | `anthropic/claude-sonnet-4-6`            | `anthropic/claude-opus-4-6`            |
+| OpenRouter       | `openrouter/anthropic/claude-sonnet-4.6` | `openrouter/anthropic/claude-opus-4.6` |
 
-Note: Anthropic direct uses **hyphens** (`4-6`). OpenRouter uses **dots** (`4.6`).
-These are NOT interchangeable. The catalog is the source of truth — when in doubt, grep.
+Note: Anthropic direct uses **hyphens** (`4-6`). OpenRouter uses **dots** (`4.6`). These
+are NOT interchangeable. The catalog is the source of truth — when in doubt, grep.
 
 ## Reporting
 

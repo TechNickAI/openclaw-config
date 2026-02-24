@@ -1,7 +1,12 @@
 ---
 name: workflow-builder
 version: 0.1.0
-description: Design, build, and maintain autonomous OpenClaw workflows (stewards). Use when creating new workflow agents, improving existing ones, evaluating automation opportunities, or debugging workflow reliability. Triggers on "build a workflow", "create a steward", "automate this process", "workflow audit", "what should I automate".
+description:
+  Design, build, and maintain autonomous OpenClaw workflows (stewards). Use when
+  creating new workflow agents, improving existing ones, evaluating automation
+  opportunities, or debugging workflow reliability. Triggers on "build a workflow",
+  "create a steward", "automate this process", "workflow audit", "what should I
+  automate".
 metadata:
   openclaw:
     emoji: "🏗️"
@@ -15,6 +20,7 @@ The meta-skill for designing and building autonomous OpenClaw workflows. A workf
 time, and does real work without prompting.
 
 **Skills vs Workflows:**
+
 - **Skill** = single-purpose tool (how to use a CLI, API, or pattern)
 - **Workflow** = autonomous agent with state, learning, and scheduling
 
@@ -28,15 +34,16 @@ Not everything deserves a workflow. Use this framework to decide.
 
 For any candidate task, score these dimensions:
 
-| Dimension | Question | Score |
-|---|---|---|
-| **Frequency** | How often? (daily=3, weekly=2, monthly=1, rare=0) | 0-3 |
-| **Repetitiveness** | Same steps every time? (always=3, mostly=2, sometimes=1, never=0) | 0-3 |
-| **Judgment Required** | Needs creative thinking? (none=3, low=2, medium=1, high=0) | 0-3 |
-| **Time Cost** | Minutes per occurrence × frequency per month / 60 = hours/month | raw |
-| **Safety** | How safe to automate? (harmless if wrong=3, annoying=2, costly=1, dangerous=0) | 0-3 |
+| Dimension             | Question                                                                       | Score |
+| --------------------- | ------------------------------------------------------------------------------ | ----- |
+| **Frequency**         | How often? (daily=3, weekly=2, monthly=1, rare=0)                              | 0-3   |
+| **Repetitiveness**    | Same steps every time? (always=3, mostly=2, sometimes=1, never=0)              | 0-3   |
+| **Judgment Required** | Needs creative thinking? (none=3, low=2, medium=1, high=0)                     | 0-3   |
+| **Time Cost**         | Minutes per occurrence × frequency per month / 60 = hours/month                | raw   |
+| **Safety**            | How safe to automate? (harmless if wrong=3, annoying=2, costly=1, dangerous=0) | 0-3   |
 
 **Decision:**
+
 - Score ≥ 10 + Time Cost > 2 hrs/month → **Build a workflow**
 - Score 7-9 → **Add to heartbeat checklist** (batch with other checks)
 - Score < 7 → **Keep manual** or add as a cron one-liner
@@ -55,12 +62,12 @@ Payback = Setup Cost / Monthly Value
 
 ### Workflow vs Heartbeat vs Cron
 
-| Approach | When to Use |
-|---|---|
+| Approach               | When to Use                                         |
+| ---------------------- | --------------------------------------------------- |
 | **Workflow (steward)** | Needs state, learning, rules, multi-step processing |
-| **Heartbeat item** | Quick check, batch with others, context-aware |
-| **Cron (isolated)** | Exact timing, standalone, different model |
-| **Cron (main)** | One-shot reminder, system event injection |
+| **Heartbeat item**     | Quick check, batch with others, context-aware       |
+| **Cron (isolated)**    | Exact timing, standalone, different model           |
+| **Cron (main)**        | One-shot reminder, system event injection           |
 
 **Rule of thumb:** If it needs `rules.md` and `agent_notes.md`, it's a workflow. If it's
 a 2-line check, add it to HEARTBEAT.md.
@@ -100,16 +107,20 @@ description: <one-line description>
 <One paragraph: what this workflow does and why it exists.>
 
 ## Prerequisites
+
 <What tools/access/labels/setup are needed before first run.>
 
 ## First Run — Setup Interview
-<Interactive setup that creates rules.md. Ask preferences, scan existing
-data, suggest smart defaults. Always let the user skip/bail early.>
+
+<Interactive setup that creates rules.md. Ask preferences, scan existing data, suggest
+smart defaults. Always let the user skip/bail early.>
 
 ## Regular Operation
+
 <The main loop: what to read, how to process, when to alert, what to log.>
 
 ## Housekeeping
+
 <Daily/weekly maintenance: log pruning, data cleanup, self-audit.>
 ```
 
@@ -118,17 +129,21 @@ data, suggest smart defaults. Always let the user skip/bail early.>
 Created during first-run setup interview. **Never overwritten** by updates.
 
 **Pattern:**
+
 ```markdown
 # <Workflow> Rules
 
 ## Account
+
 - account: user@example.com
 - alert_channel: whatsapp (or: none, telegram, slack)
 
 ## Preferences
+
 - <workflow-specific settings>
 
 ## VIPs / Exceptions
+
 - <people or patterns to handle specially>
 ```
 
@@ -137,17 +152,21 @@ Created during first-run setup interview. **Never overwritten** by updates.
 The workflow writes here as it learns. Accumulates over time.
 
 **Pattern:**
+
 ```markdown
 # Agent Notes
 
 ## Patterns Observed
+
 - <sender X always sends receipts on Fridays>
 - <task type Y usually takes 2 hours>
 
 ## Mistakes Made
+
 - <once archived an important email — now check for X before archiving>
 
 ## Optimizations
+
 - <batch processing senders A, B, C saves 3 API calls>
 ```
 
@@ -156,10 +175,12 @@ The workflow writes here as it learns. Accumulates over time.
 One file per day, auto-pruned after 30 days.
 
 **Pattern:**
+
 ```markdown
 # <Workflow> Log — YYYY-MM-DD
 
 ## Run: HH:MM
+
 - Processed: N items
 - Actions: archived X, deleted Y, alerted on Z
 - Errors: none
@@ -175,6 +196,7 @@ One file per day, auto-pruned after 30 days.
 Every workflow should start with an interactive setup that creates `rules.md`.
 
 **Best practices:**
+
 1. Check prerequisites first (API access, labels, etc.)
 2. Ask questions one category at a time
 3. Offer smart defaults based on scanning existing data
@@ -206,28 +228,24 @@ Quality verification → Can use a strong model as QA reviewer (Opus as sub-agen
 Uncertain items → Sub-agents escalate to you rather than guessing
 ```
 
-**Note:** Don't hardcode model IDs (they go stale fast). Use aliases like
-`sonnet`, `opus`, `haiku` or reference the model by capability level.
+**Note:** Don't hardcode model IDs (they go stale fast). Use aliases like `sonnet`,
+`opus`, `haiku` or reference the model by capability level.
 
 ### Pattern 4: State Externalization (Compaction-Safe)
 
-**Critical:** Chat history is a cache, not the source of truth. After every
-meaningful step, write state to disk.
+**Critical:** Chat history is a cache, not the source of truth. After every meaningful
+step, write state to disk.
 
 ```markdown
 # state/active-work.json (or inline in agent_notes.md)
 
-{
-  "current_phase": "processing",
-  "next_action": "Review batch 2 of inbox",
-  "last_completed": "Batch 1: archived 12, deleted 3",
-  "resume_prompt": "Continue inbox processing from message ID xyz",
-  "updated_at": "2026-02-18T14:30:00Z"
-}
+{ "current_phase": "processing", "next_action": "Review batch 2 of inbox",
+"last_completed": "Batch 1: archived 12, deleted 3", "resume_prompt": "Continue inbox
+processing from message ID xyz", "updated_at": "2026-02-18T14:30:00Z" }
 ```
 
-**Rule in AGENT.md:** "On every run, read state first. Either advance it or
-explicitly conclude it."
+**Rule in AGENT.md:** "On every run, read state first. Either advance it or explicitly
+conclude it."
 
 ### Pattern 5: Error Handling & Alerting
 
@@ -247,13 +265,16 @@ Workflows should declare how they connect to other workflows:
 ## Integration Points
 
 ### Receives From
+
 - email-steward: Emails needing follow-up → creates task
 
 ### Sends To
+
 - task-steward: Creates tasks when work is discovered
 - message channel: Alerts when human attention needed
 
 ### Shared State
+
 - None (or: reads from workflows/shared/contacts.md)
 ```
 
@@ -279,17 +300,19 @@ openclaw cron add \
 
 ### Cron Configuration Guidelines
 
-| Workflow Type | Schedule | Model | Session |
-|---|---|---|---|
-| High-frequency triage (email, notifications) | Every 15-30 min | Sonnet | Isolated |
-| Daily reports/summaries | Once daily at fixed time | Opus | Isolated |
-| Weekly reviews/audits | Weekly cron | Opus + thinking | Isolated |
-| Reactive (triggered by events) | Via webhook or system event | Varies | Main or Isolated |
+| Workflow Type                                | Schedule                    | Model           | Session          |
+| -------------------------------------------- | --------------------------- | --------------- | ---------------- |
+| High-frequency triage (email, notifications) | Every 15-30 min             | Sonnet          | Isolated         |
+| Daily reports/summaries                      | Once daily at fixed time    | Opus            | Isolated         |
+| Weekly reviews/audits                        | Weekly cron                 | Opus + thinking | Isolated         |
+| Reactive (triggered by events)               | Via webhook or system event | Varies          | Main or Isolated |
 
 ### Delivery
 
-- **Routine runs:** Omit `--announce` (or set delivery to `none`) — work silently, only alert when something needs attention
-- **Reports/summaries:** Use `--announce` — delivers a summary to the configured channel after completion
+- **Routine runs:** Omit `--announce` (or set delivery to `none`) — work silently, only
+  alert when something needs attention
+- **Reports/summaries:** Use `--announce` — delivers a summary to the configured channel
+  after completion
 - **Errors/alerts:** Always deliver via the workflow's configured alert channel
 
 Note: Isolated cron jobs **default to announce delivery** (summary posted after run).
@@ -334,29 +357,37 @@ description: <one-line description>
 If `rules.md` doesn't exist or is empty:
 
 ### 0. Prerequisites Check
+
 <Verify all tools and access work.>
 
 ### 1. Basics
+
 <Core configuration questions.>
 
 ### 2. Preferences
+
 <How aggressive, what to touch, what to skip.>
 
 ### 3. Data Scan (Optional)
+
 <Offer to scan existing data and suggest rules.>
 
 ### 4. Alert Preferences
+
 <What triggers alerts vs silent processing.>
 
 ### 5. Confirm & Save
+
 <Summarize in plain language, save rules.md.>
 
 ## Regular Operation
 
 ### Your Tools
+
 <List all tools/commands the workflow uses.>
 
 ### Each Run
+
 1. Read `rules.md` for preferences
 2. Read `agent_notes.md` for learned patterns (if exists)
 3. <Scan/fetch new items>
@@ -366,13 +397,16 @@ If `rules.md` doesn't exist or is empty:
 7. Update `agent_notes.md` if you learned something
 
 ### Judgment Guidelines
+
 <When to act vs leave alone. Confidence thresholds.>
 
 ## Housekeeping
+
 - Delete logs older than 30 days
 - <Any other periodic cleanup>
 
 ## Integration Points
+
 <How this connects to other workflows.>
 ```
 
@@ -442,6 +476,7 @@ To retire: disable the cron job, archive the workflow directory, note in
 ## Existing Workflows Reference
 
 ### email-steward
+
 - **Purpose:** Inbox debris removal
 - **Schedule:** Configured via cron (typically every 30 min during business hours)
 - **Tools:** gog CLI (Gmail)
@@ -449,8 +484,11 @@ To retire: disable the cron job, archive the workflow directory, note in
 - **Notable:** Uses `agent_notes.md` heavily for learning sender patterns
 
 ### task-steward
+
 - **Purpose:** Task board management with QA verification
 - **Schedule:** Can run via heartbeat or cron (see its AGENT.md for guidance)
 - **Tools:** Asana MCP
-- **Key pattern:** Task classification → work execution → quality gate (Opus QA) → delivery
-- **Notable:** Spawns Opus as QA sub-agent — demonstrates strong model as worker, not just orchestrator
+- **Key pattern:** Task classification → work execution → quality gate (Opus QA) →
+  delivery
+- **Notable:** Spawns Opus as QA sub-agent — demonstrates strong model as worker, not
+  just orchestrator

@@ -73,6 +73,16 @@ changed (new service, different port, new channel, removed workflow), update the
 relevant section of `CLAUDE.local.md`. Keep it current — stale context is worse than no
 context.
 
+## Notification Routing
+
+This agent is part of the **admin lane** — you notify the fleet admin (Nick), not the
+local user. See `devops/notification-routing.md` for the full two-lane model.
+
+**The cron job running this agent MUST have `delivery.mode: "none"`.** You handle your
+own notifications via the health-check-admin command. If delivery mode is set to
+`announce` or anything else, it will try to auto-deliver your output AND fail (causing
+spurious consecutive errors that mask real health issues).
+
 ## Health Checks
 
 Run these checks every time, **for every instance on this machine.**
@@ -126,6 +136,27 @@ Note: if a cron job's `delivery.mode` is `"none"` AND `state.lastError` matches
 "delivery target" or "no delivery method", that's a known OpenClaw bug where mode:none
 still attempts delivery — skip it. If `lastError` mentions anything else (model errors,
 API failures, execution errors), report it regardless of delivery mode.
+
+**Cron delivery target verification.** Once per day (check `CLAUDE.local.md` for when
+you last ran this — skip if checked within the last 20 hours), verify that every cron
+job with `delivery.mode` set to `"announce"` or `"deliver"` can actually reach its
+target. For Telegram targets:
+
+1. Read the bot token from `~/.openclaw/openclaw.json` → `channels.telegram.botToken`
+2. For each delivery target chat ID, call the Telegram Bot API:
+   ```
+   curl -s "https://api.telegram.org/bot<TOKEN>/getChat?chat_id=<TARGET>"
+   ```
+3. If the response is not `"ok": true`, the delivery target is unreachable — report it
+   to the admin with the job name, target ID, and the API error.
+
+Also verify the admin notification target itself: read `~/.openclaw/health-check-admin`
+(line 2), extract the Telegram target ID, and run the same `getChat` check. If the admin
+target is unreachable, you can't notify anyone — log it prominently and attempt to fix
+(e.g., check if the bot token changed).
+
+This catches stale chat IDs, users who haven't /started the bot, and misconfigured
+targets before they cause delivery failures.
 
 **Hung processes.** Look for zombie or stuck processes related to OpenClaw (excluding
 the gateway, which is checked above). A non-gateway process is "hung" if it has been

@@ -119,8 +119,8 @@ When someone asks you to write a prompt:
    that could work — you can always add specificity.
 
 4. **Stress-test mentally.** Could a different model interpret this differently than you
-   intend? Are there ambiguities? Would this work without your implicit knowledge of
-   the project?
+   intend? Are there ambiguities? Would this work without your implicit knowledge of the
+   project?
 
 ## Improving an Existing Prompt
 
