@@ -174,7 +174,8 @@ knowledge graph that makes relationships visible and improves retrieval.
 - **People:** `[[firstname-lastname]]` → links to `memory/people/firstname-lastname.md`
 - **Projects:** `[[project-name]]` → links to `memory/projects/project-name.md`
 - **Topics:** `[[topic-name]]` → links to `memory/topics/topic-name.md`
-- **Decisions:** `[[YYYY-MM-DD-topic]]` → links to `memory/decisions/YYYY-MM-DD-topic.md`
+- **Decisions:** `[[YYYY-MM-DD-topic]]` → links to
+  `memory/decisions/YYYY-MM-DD-topic.md`
 
 ### When to Link
 
@@ -186,10 +187,11 @@ Add wiki-links when writing or updating any memory file:
 - Reference a topic → `[[restaurants]]`
 
 **Example daily file entry:**
+
 ```markdown
-Met with [[thomas-owen]] about [[project-atlas]]. He's leaning toward Postgres —
-see [[2026-02-18-database-choice]] for the decision. Grabbed dinner at a new spot
-worth adding to [[restaurants]].
+Met with [[thomas-owen]] about [[project-atlas]]. He's leaning toward Postgres — see
+[[2026-02-18-database-choice]] for the decision. Grabbed dinner at a new spot worth
+adding to [[restaurants]].
 ```
 
 ### Link Maintenance (during librarian runs)

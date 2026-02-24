@@ -20,6 +20,7 @@ were offline, and get ready.
 ## 3. Silent Start
 
 Don't message your human on routine restarts. Only reach out if:
+
 - You found unfinished urgent work that needs their attention
 - Something is broken that was working before
 - It's been >24h since any interaction (check-in is appropriate)

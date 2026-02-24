@@ -1,7 +1,7 @@
 # Notification Routing — Definitive Process
 
-OpenClaw fleet notifications use a **two-lane model**: admin lane for system health, user
-lane for cron outputs. Never mix them.
+OpenClaw fleet notifications use a **two-lane model**: admin lane for system health,
+user lane for cron outputs. Never mix them.
 
 ## Lane 1: Admin (System Health → Nick)
 
@@ -50,13 +50,13 @@ commitment extracts — anything produced FOR the user.
 
 **User Telegram IDs:**
 
-| Machine | User | Telegram ID | Bot |
-|---------|------|-------------|-----|
-| Master | Nick | 469214633 | Cora's bot |
-| Gil's Mac Mini | Gil Penchina | 6234387199 | @Gils_bob_bot |
-| Thomas's Mac Mini | Thomas Owen | 8546096241 | @thomas_roxy_bot |
-| Ali's Mac Mini | Ali Katz | 1168760671 | ShantiMa's bot |
-| Julianna's Mac Mini | Julianna | TBD | @Juliannas_Ace_bot |
+| Machine             | User         | Telegram ID | Bot                |
+| ------------------- | ------------ | ----------- | ------------------ |
+| Master              | Nick         | 469214633   | Cora's bot         |
+| Gil's Mac Mini      | Gil Penchina | 6234387199  | @Gils_bob_bot      |
+| Thomas's Mac Mini   | Thomas Owen  | 8546096241  | @thomas_roxy_bot   |
+| Ali's Mac Mini      | Ali Katz     | 1168760671  | ShantiMa's bot     |
+| Julianna's Mac Mini | Julianna     | TBD         | @Juliannas_Ace_bot |
 
 **Rules:**
 
@@ -67,21 +67,23 @@ commitment extracts — anything produced FOR the user.
 
 ## Job Classification Guide
 
-| Classification | Description | Lane | delivery.mode |
-|---------------|-------------|------|---------------|
-| **System** | Health checks, update checks, infrastructure monitoring | Admin | `none` (agent self-notifies via health-check-admin) |
-| **User** | Briefings, reviews, alerts, stewards that produce output for the user | User | `announce` or `none` with in-prompt messaging |
-| **Internal** | Librarian, memory org, knowledge extraction — no notification needed | Neither | `none` |
+| Classification | Description                                                           | Lane    | delivery.mode                                       |
+| -------------- | --------------------------------------------------------------------- | ------- | --------------------------------------------------- |
+| **System**     | Health checks, update checks, infrastructure monitoring               | Admin   | `none` (agent self-notifies via health-check-admin) |
+| **User**       | Briefings, reviews, alerts, stewards that produce output for the user | User    | `announce` or `none` with in-prompt messaging       |
+| **Internal**   | Librarian, memory org, knowledge extraction — no notification needed  | Neither | `none`                                              |
 
 ## Setting Up a New Fleet Machine
 
 1. **Create health-check-admin** (admin lane):
+
    ```
    Nick
    openclaw message send --channel telegram --target "469214633" --message "{MESSAGE}"
    ```
 
 2. **Find the user's Telegram ID**:
+
    ```python
    # On the machine, use its bot token to query:
    # GET https://api.telegram.org/bot<TOKEN>/getChat?chat_id=<ID>
@@ -105,6 +107,7 @@ them up when you touch the job.
 
 **"cron announce delivery failed"**: The `delivery.mode: announce` is trying to send via
 a channel that can't reach the target. Common causes:
+
 - Target hasn't /started the bot (Telegram bots require the user to initiate)
 - Wrong chat ID
 - Channel not configured on that machine's gateway
