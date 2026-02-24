@@ -78,7 +78,7 @@ miss messages.
 **Verify:**
 `pmset -g | grep -E 'sleep |displaysleep|womp|tcpkeepalive|powernap|autorestart'`
 
-**Fix:**
+**Fix (MANUAL — requires sudo):**
 
 ```bash
 sudo pmset -a sleep 0
@@ -121,7 +121,7 @@ The gateway runs on Node.js. Install via nvm for version management.
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-nvm install 24
+nvm install node
 ```
 
 ### OpenClaw
@@ -176,6 +176,8 @@ official installer (lands in `~/.local/bin/`).
 - Must work over non-interactive SSH, not just local terminal
 
 **Verify:** `claude --version` — must also work via `ssh <host> "claude --version"`
+
+**Fix:** `npm install -g @anthropic-ai/claude-code`
 
 ---
 
@@ -249,7 +251,7 @@ Two launchd agents handle backup automation:
 | Backup | `ai.openclaw.workspace-backup` | Every 4 hours        | Incremental backup + prune      |
 | Verify | `ai.openclaw.backup-verify`    | Weekly (Sunday 4 AM) | Integrity check (10% data read) |
 
-Plist files are in `<openclaw-config>/devops/`:
+Plist files are in `~/.openclaw-config/devops/`:
 
 - `ai.openclaw.workspace-backup.plist`
 - `ai.openclaw.backup-verify.plist`
@@ -257,8 +259,8 @@ Plist files are in `<openclaw-config>/devops/`:
 **Fix (deploy schedule):**
 
 ```bash
-cp <openclaw-config>/devops/ai.openclaw.workspace-backup.plist ~/Library/LaunchAgents/
-cp <openclaw-config>/devops/ai.openclaw.backup-verify.plist ~/Library/LaunchAgents/
+cp ~/.openclaw-config/devops/ai.openclaw.workspace-backup.plist ~/Library/LaunchAgents/
+cp ~/.openclaw-config/devops/ai.openclaw.backup-verify.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/ai.openclaw.workspace-backup.plist
 launchctl load ~/Library/LaunchAgents/ai.openclaw.backup-verify.plist
 ```
@@ -299,6 +301,11 @@ These settings go in `~/.openclaw/openclaw.json` under `agents.defaults`. They d
 shared behavior for every OpenClaw instance — not model choices or API keys (those are
 user-specific).
 
+**`USE_MID_TIER_MODEL` is a placeholder** — replace it with the actual mid-tier model ID
+for this machine's provider (e.g. `anthropic/claude-sonnet-4-6` for Anthropic,
+`openrouter/anthropic/claude-sonnet-4.6` for OpenRouter). The point is: don't burn the
+primary (opus-class) model on hourly pings and background work.
+
 ```json
 {
   "agents": {
@@ -333,11 +340,6 @@ user-specific).
 - `compaction: safeguard` — safe compaction when approaching context limits
 - `thinkingDefault: high` — agents think deeply by default
 - `typingMode: message` — deliver full messages rather than streaming partial text
-- `heartbeat` and `subagents` use a mid-tier model — not the primary model.
-  `USE_MID_TIER_MODEL` is a placeholder: replace it with the actual mid-tier model ID
-  for this machine's provider (e.g. `anthropic/claude-sonnet-4-6` for Anthropic,
-  `openrouter/anthropic/claude-sonnet-4-6` for OpenRouter). The point is: don't burn the
-  primary (opus-class) model on hourly pings and background work.
 - `maxConcurrent: 4` — max simultaneous conversations
 - `subagents.maxConcurrent: 8` — max parallel subagent calls
 
@@ -442,8 +444,9 @@ openclaw message send --channel telegram --target "<admin-telegram-id>" --messag
 - The health check agent reads this file and uses it to notify the fleet admin
 - This is for **system health alerts only** — not user-facing cron outputs
 
-**Verify:** `cat ~/.openclaw/health-check-admin` — should have 2 lines, a name and a
-send command.
+**Verify:** `cat ~/.openclaw/health-check-admin` — should have exactly 2 lines: a real
+name and a send command with a real Telegram ID. `<admin-name>` and
+`<admin-telegram-id>` are placeholders — they must be replaced with actual values.
 
 ---
 

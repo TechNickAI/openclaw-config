@@ -22,8 +22,11 @@ if restic -r "$REPO" check --read-data-subset=10% 2>&amp;1 >> "$LOG"; then
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$(hostname -s)] Verification passed. Latest: $SNAPSHOTS" >> "$LOG"
 else
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$(hostname -s)] VERIFICATION FAILED" >> "$LOG"
-  if command -v openclaw &amp;&gt; /dev/null; then
-    openclaw message send --channel whatsapp --target "+19253537603" --message "[$(hostname -s)] Backup verification FAILED. Check ~/.openclaw/logs/backup-verify.log"
+  ADMIN_FILE="$HOME/.openclaw/health-check-admin"
+  if [ -f "$ADMIN_FILE" ]; then
+    ADMIN_CMD=$(sed -n '2p' "$ADMIN_FILE")
+    MSG="[$(hostname -s)] Backup verification FAILED. Check ~/.openclaw/logs/backup-verify.log"
+    eval "$(echo "$ADMIN_CMD" | sed "s/{MESSAGE}/$MSG/")"
   fi
 fi
         </string>
