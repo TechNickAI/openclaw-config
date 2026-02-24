@@ -173,8 +173,9 @@ The following paths must be in PATH for all shell contexts:
 a local terminal.
 
 **Verify:**
-`ssh <tailscale-ip> "echo node: $(node --version) && echo uv: $(uv --version) && echo claude: $(claude --version)"`
-— all three must resolve.
+`ssh <tailscale-ip> 'echo node: $(node --version) && echo uv: $(uv --version) && echo claude: $(claude --version)'`
+— all three must resolve. (Single quotes required — double quotes expand substitutions
+locally before SSH.)
 
 ---
 
@@ -454,14 +455,14 @@ echo "restic: $(restic version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "claude: $(claude --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "=== services ===" && \
 GW_PID=$(launchctl list 2>/dev/null | grep ai.openclaw.gateway | awk '{print $1}') && \
-echo "gateway: ${GW_PID:+running (PID $GW_PID)}${GW_PID:-NOT RUNNING}" && \
+{ [[ "$GW_PID" =~ ^[0-9]+$ ]] && echo "gateway: running (PID $GW_PID)" || echo "gateway: NOT RUNNING"; } && \
 echo "backup: $(launchctl list 2>/dev/null | grep -q ai.openclaw.workspace-backup && echo 'loaded' || echo 'NOT LOADED')" && \
 echo "backup-verify: $(launchctl list 2>/dev/null | grep -q ai.openclaw.backup-verify && echo 'loaded' || echo 'NOT LOADED')" && \
 echo "backup-freshness: $(RESTIC_PASSWORD_FILE=~/.openclaw/restic-password restic -r ~/openclaw-backups snapshots --latest 1 --json 2>/dev/null | python3 -c "import sys,json; s=json.load(sys.stdin); print(s[0]['time'][:19] if s else 'NO SNAPSHOTS')" 2>/dev/null || echo 'NO REPO')" && \
 echo "=== workspace ===" && \
 ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS,BOOT}.md >/dev/null 2>&1 && echo "core files: all present" || echo "core files: MISSING" && \
 ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topics} >/dev/null 2>&1 && echo "memory dirs: all present" || echo "memory dirs: MISSING" && \
-echo "config-repo: $(ls ~/.openclaw-config/VERSION 2>/dev/null && echo 'present' || echo 'MISSING')" && \
+echo "config-repo: $(test -f ~/.openclaw-config/VERSION && echo 'present' || echo 'MISSING')" && \
 echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')"
 ```
 
