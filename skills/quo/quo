@@ -251,23 +251,40 @@ def format_transcript(data: dict[str, Any]) -> str:
     if not item:
         return "No transcript available."
 
-    status = item.get("status", "unknown")
-    segments = item.get("segments", [])
+    call_id = item.get("callId", "unknown")
+    created = item.get("createdAt", "")
+    dialogue = item.get("dialogue", [])
 
     output = ["# Call Transcript", ""]
-    output.append(f"**Status:** {status}")
-    output.append("")
+    if created:
+        output.append(f"**Created:** {created}")
+        output.append("")
 
-    if segments:
-        for seg in segments:
-            start_time = seg.get("startTime", "?")
-            speaker = seg.get("speaker", "Speaker")
-            text = seg.get("text", "")
-            output.append(f"[{start_time}] **{speaker}:** {text}")
-            output.append("")
+    if dialogue:
+        for entry in dialogue:
+            start = entry.get("start", 0)
+            speaker = entry.get("identifier", "Unknown")
+            user_id = entry.get("userId")
+            text = entry.get("content", "")
+            # Format timestamp as mm:ss
+            mins = int(start // 60)
+            secs = int(start % 60)
+            label = f"{speaker} (user)" if user_id else speaker
+            output.append(f"[{mins:02d}:{secs:02d}] **{label}:** {text}")
+        output.append("")
     else:
-        transcript = item.get("transcript") or item.get("text", "No transcript available")
-        output.append(transcript)
+        # Fallback for older format
+        segments = item.get("segments", [])
+        if segments:
+            for seg in segments:
+                start_time = seg.get("startTime", "?")
+                speaker = seg.get("speaker", "Speaker")
+                text = seg.get("text", "")
+                output.append(f"[{start_time}] **{speaker}:** {text}")
+                output.append("")
+        else:
+            transcript = item.get("transcript") or item.get("text", "No transcript available")
+            output.append(transcript)
 
     return "\n".join(output)
 
@@ -294,18 +311,37 @@ def format_recordings(data: dict[str, Any]) -> str:
 
 def format_voicemails(data: dict[str, Any]) -> str:
     """Format voicemails as markdown."""
-    items = data.get("data", [])
-    if not items:
+    item = data.get("data", {})
+    if not item:
         return "No voicemails found."
 
+    # API returns a single voicemail object, not an array
+    if isinstance(item, list):
+        items = item
+    else:
+        items = [item]
+
     output = []
-    for item in items:
+    for vm in items:
         output.append("## Voicemail")
-        output.append(f"**ID:** {item.get('id', 'N/A')}")
-        output.append(f"**Duration:** {item.get('duration', 0)}s")
-        output.append(f"**Status:** {item.get('status', 'unknown')}")
-        output.append(f"**URL:** {item.get('url', 'not available')}")
-        output.append(f"**Transcript:** {item.get('transcript', 'No transcript')}")
+        output.append(f"**Call ID:** {vm.get('callId', 'N/A')}")
+        duration = vm.get("duration")
+        if duration is not None:
+            output.append(f"**Duration:** {duration}s")
+        status = vm.get("status")
+        if status:
+            output.append(f"**Status:** {status}")
+        url = vm.get("url")
+        if url:
+            output.append(f"**URL:** {url}")
+        transcript = vm.get("transcript")
+        if transcript:
+            output.append(f"**Transcript:** {transcript}")
+        else:
+            output.append("**Transcript:** Not available")
+        created = vm.get("createdAt")
+        if created:
+            output.append(f"**Created:** {created}")
         output.append("")
         output.append("---")
         output.append("")
@@ -380,9 +416,67 @@ def cmd_numbers(args: list[str]) -> None:
 
 
 def cmd_conversations(args: list[str]) -> None:
-    """List recent conversations."""
-    limit, _ = parse_limit(args, default=10)
-    params = {"maxResults": limit, "excludeInactive": "true"}
+    """List recent conversations with optional filters."""
+    limit = 10
+    phone_numbers: list[str] = []
+    updated_after = None
+    updated_before = None
+    created_after = None
+    created_before = None
+    include_inactive = False
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            limit = int(args[i + 1])
+            i += 2
+        elif args[i] == "--phone":
+            if i + 1 >= len(args):
+                error("--phone requires a phone number or ID")
+            phone_numbers.append(args[i + 1])
+            i += 2
+        elif args[i] == "--updated-after":
+            if i + 1 >= len(args):
+                error("--updated-after requires an ISO 8601 timestamp")
+            updated_after = args[i + 1]
+            i += 2
+        elif args[i] == "--updated-before":
+            if i + 1 >= len(args):
+                error("--updated-before requires an ISO 8601 timestamp")
+            updated_before = args[i + 1]
+            i += 2
+        elif args[i] == "--created-after":
+            if i + 1 >= len(args):
+                error("--created-after requires an ISO 8601 timestamp")
+            created_after = args[i + 1]
+            i += 2
+        elif args[i] == "--created-before":
+            if i + 1 >= len(args):
+                error("--created-before requires an ISO 8601 timestamp")
+            created_before = args[i + 1]
+            i += 2
+        elif args[i] == "--include-inactive":
+            include_inactive = True
+            i += 1
+        else:
+            error(f"Unknown argument: {args[i]}")
+
+    params: dict[str, Any] = {"maxResults": limit}
+    if not include_inactive:
+        params["excludeInactive"] = "true"
+    if phone_numbers:
+        params["phoneNumbers"] = phone_numbers
+    if updated_after:
+        params["updatedAfter"] = updated_after
+    if updated_before:
+        params["updatedBefore"] = updated_before
+    if created_after:
+        params["createdAfter"] = created_after
+    if created_before:
+        params["createdBefore"] = created_before
+
     result = call_api("GET", "/conversations", params=params)
     print(format_conversations(result))
 
@@ -536,6 +630,8 @@ def cmd_calls(args: list[str]) -> None:
     number_id = None
     participant = None
     limit = 10
+    created_after = None
+    created_before = None
 
     i = 0
     while i < len(args):
@@ -559,21 +655,46 @@ def cmd_calls(args: list[str]) -> None:
             except ValueError:
                 error(f"--limit must be a positive integer, got '{args[i + 1]}'")
             i += 2
+        elif args[i] == "--created-after":
+            if i + 1 >= len(args):
+                error("--created-after requires an ISO 8601 timestamp")
+            created_after = args[i + 1]
+            i += 2
+        elif args[i] == "--created-before":
+            if i + 1 >= len(args):
+                error("--created-before requires an ISO 8601 timestamp")
+            created_before = args[i + 1]
+            i += 2
         else:
-            error(f"Unknown argument: {args[i]}", "Usage: quo calls --number-id <id> --participant <phone> [--limit N]")
+            error(f"Unknown argument: {args[i]}", "Usage: quo calls --number-id <id> --participant <phone> [--limit N] [--created-after ISO] [--created-before ISO]")
 
     if not number_id:
         error("--number-id is required", "Usage: quo calls --number-id <id> --participant <phone>")
     if not participant:
         error("--participant is required", "Usage: quo calls --number-id <id> --participant <phone>")
 
-    params = {
+    params: dict[str, Any] = {
         "phoneNumberId": number_id,
         "participants": participant,
         "maxResults": limit,
     }
+    if created_after:
+        params["createdAfter"] = created_after
+    if created_before:
+        params["createdBefore"] = created_before
     result = call_api("GET", "/calls", params=params)
     print(format_calls(result))
+
+
+def cmd_custom_fields(args: list[str]) -> None:
+    """List contact custom fields."""
+    result = call_api("GET", "/contact-custom-fields")
+    items = result.get("data", [])
+    if not items:
+        print("No custom fields defined.")
+        return
+    for item in items:
+        print(f"- **{item.get('name', 'N/A')}** (key: `{item.get('key', '')}`, type: {item.get('type', 'unknown')})")
 
 
 def cmd_raw(args: list[str]) -> None:
@@ -611,14 +732,18 @@ def cmd_help() -> None:
 
 Commands:
   numbers, nums          List your Quo phone numbers
-  conversations, convos  List recent conversations [--limit N]
+  conversations, convos  List recent conversations
+                         [--limit N] [--phone <num-or-id>] [--include-inactive]
+                         [--updated-after ISO] [--updated-before ISO]
+                         [--created-after ISO] [--created-before ISO]
   contacts               List contacts [--limit N]
+  custom-fields          List contact custom fields
   users                  List workspace users
 
   summary <callId>       Get AI summary for a call
-  transcript <callId>    Get transcript for a call
+  transcript <callId>    Get full dialogue transcript for a call
   recordings, recs <callId>   Get recording URLs for a call
-  voicemails, vm <callId>     Get voicemails for a call
+  voicemails, vm <callId>     Get voicemail + transcript for a call
 
   send --from <num> --to <num> <message>
                          Send an SMS message
@@ -626,6 +751,7 @@ Commands:
   messages --number-id <id> --participant <phone> [--limit N]
                          List messages in a conversation
   calls --number-id <id> --participant <phone> [--limit N]
+                         [--created-after ISO] [--created-before ISO]
                          List calls in a conversation
 
   raw [METHOD] <endpoint> [json-body]
@@ -639,11 +765,14 @@ Environment:
 Examples:
   quo numbers
   quo conversations --limit 20
+  quo conversations --phone PNo9lSEKaP --updated-after 2026-02-01T00:00:00Z
   quo contacts
+  quo custom-fields
   quo summary AC3700e624eca547eb9f749a06f
   quo transcript AC3700e624eca547eb9f749a06f
   quo send --from +15551234567 --to +15559876543 "Hello!"
   quo messages --number-id PN123abc --participant +15555555555
+  quo calls --number-id PN123abc --participant +15555555555 --created-after 2026-01-01T00:00:00Z
   quo raw GET /phone-numbers
   quo raw POST /messages '{"from":"+1555...","to":["+1555..."],"content":"Hi"}'
 
@@ -663,6 +792,8 @@ COMMAND_MAP = {
     "recs": cmd_recordings,
     "voicemails": cmd_voicemails,
     "vm": cmd_voicemails,
+    "custom-fields": cmd_custom_fields,
+    "cf": cmd_custom_fields,
     "send": cmd_send,
     "messages": cmd_messages,
     "calls": cmd_calls,
