@@ -1,8 +1,8 @@
 # OpenClaw Machine Baseline
 
 Declarative desired state for every machine running an OpenClaw gateway. This document
-describes **what a correctly configured machine looks like**, not how to get there. An LLM
-agent (or human) reads this, checks actual state, and reconciles any drift.
+describes **what a correctly configured machine looks like**, not how to get there. An
+LLM agent (or human) reads this, checks actual state, and reconciles any drift.
 
 **How to use this document:**
 
@@ -71,14 +71,14 @@ If the macOS firewall is enabled, Tailscale and SSH must be allowed through.
 OpenClaw gateways must be always-reachable. Machines that sleep drop off the network and
 miss messages.
 
-| Setting | Value | Why |
-|---------|-------|-----|
-| `sleep` | `0` | Never system sleep |
-| `displaysleep` | `10` | Display can sleep (saves energy, doesn't affect network) |
-| `womp` | `1` | Wake on LAN |
-| `tcpkeepalive` | `1` | Keep network connections alive during display sleep |
-| `powernap` | `1` | Background tasks during display sleep |
-| `autorestart` | `1` | Auto-restart after power failure |
+| Setting        | Value | Why                                                      |
+| -------------- | ----- | -------------------------------------------------------- |
+| `sleep`        | `0`   | Never system sleep                                       |
+| `displaysleep` | `10`  | Display can sleep (saves energy, doesn't affect network) |
+| `womp`         | `1`   | Wake on LAN                                              |
+| `tcpkeepalive` | `1`   | Keep network connections alive during display sleep      |
+| `powernap`     | `1`   | Background tasks during display sleep                    |
+| `autorestart`  | `1`   | Auto-restart after power failure                         |
 
 **Verify:**
 `pmset -g | grep -E 'sleep |displaysleep|womp|tcpkeepalive|powernap|autorestart'`
@@ -169,10 +169,12 @@ The following paths must be in PATH for all shell contexts:
 - nvm's Node.js bin directory
 
 **How this is configured depends on the shell.** The important thing is that
-`ssh <host> "node --version && uv --version && claude --version"` all work — not just
-in a local terminal.
+`ssh <host> "node --version && uv --version && claude --version"` all work — not just in
+a local terminal.
 
-**Verify:** `ssh <tailscale-ip> "echo node: $(node --version) && echo uv: $(uv --version) && echo claude: $(claude --version)"` — all three must resolve.
+**Verify:**
+`ssh <tailscale-ip> "echo node: $(node --version) && echo uv: $(uv --version) && echo claude: $(claude --version)"`
+— all three must resolve.
 
 ---
 
@@ -184,8 +186,8 @@ The OpenClaw gateway runs as a launchd user agent that auto-starts on login.
 - Binding: loopback (localhost only — Tailscale handles remote access)
 - Must have a running PID
 
-**Verify:** `launchctl list | grep ai.openclaw.gateway` — should show a PID in the
-first column (not `-`)
+**Verify:** `launchctl list | grep ai.openclaw.gateway` — should show a PID in the first
+column (not `-`)
 
 **Health:** `openclaw health` — should report gateway up, channels connected
 
@@ -210,12 +212,13 @@ updates, accidental overwrites, and AI-mangled memory files.
 
 Two launchd agents handle backup automation:
 
-| Agent | Label | Schedule | Purpose |
-|-------|-------|----------|---------|
-| Backup | `ai.openclaw.workspace-backup` | Every 4 hours | Incremental backup + prune |
-| Verify | `ai.openclaw.backup-verify` | Weekly (Sunday 4 AM) | Integrity check (10% data read) |
+| Agent  | Label                          | Schedule             | Purpose                         |
+| ------ | ------------------------------ | -------------------- | ------------------------------- |
+| Backup | `ai.openclaw.workspace-backup` | Every 4 hours        | Incremental backup + prune      |
+| Verify | `ai.openclaw.backup-verify`    | Weekly (Sunday 4 AM) | Integrity check (10% data read) |
 
 Plist files are in `<openclaw-config>/devops/`:
+
 - `ai.openclaw.workspace-backup.plist`
 - `ai.openclaw.backup-verify.plist`
 
@@ -228,6 +231,7 @@ Copy to `~/Library/LaunchAgents/` and load via `launchctl load`.
 - Keep 6 monthly snapshots
 
 **Verify services running:**
+
 - `launchctl list | grep ai.openclaw.workspace-backup` (shows PID)
 - `launchctl list | grep ai.openclaw.backup-verify` (loaded, may show `-` PID between
   runs)
@@ -279,8 +283,8 @@ user-specific).
 - `heartbeat` and `subagents` use a mid-tier model — not the primary model.
   `USE_MID_TIER_MODEL` is a placeholder: replace it with the actual mid-tier model ID
   for this machine's provider (e.g. `anthropic/claude-sonnet-4-6` for Anthropic,
-  `openrouter/anthropic/claude-sonnet-4-6` for OpenRouter). The point is: don't burn
-  the primary (opus-class) model on hourly pings and background work.
+  `openrouter/anthropic/claude-sonnet-4-6` for OpenRouter). The point is: don't burn the
+  primary (opus-class) model on hourly pings and background work.
 - `maxConcurrent: 4` — max simultaneous conversations
 - `subagents.maxConcurrent: 8` — max parallel subagent calls
 
@@ -312,7 +316,8 @@ These settings go in `~/.openclaw/openclaw.json` under `messages`.
 - `ackReaction: 👀` — immediately react to every incoming message with eyes, so the user
   knows the agent received it
 - `ackReactionScope: all` — react to all messages, not just direct mentions
-- `removeAckAfterReply: true` — remove the 👀 reaction once the agent responds (clean UX)
+- `removeAckAfterReply: true` — remove the 👀 reaction once the agent responds (clean
+  UX)
 
 **Verify:** Check `messages` section in `~/.openclaw/openclaw.json`.
 
@@ -324,16 +329,16 @@ These settings go in `~/.openclaw/openclaw.json` under `messages`.
 
 Every workspace at `~/.openclaw/workspace/` must contain these files:
 
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | Operating instructions |
-| `SOUL.md` | Personality definition |
-| `USER.md` | Human profile |
-| `MEMORY.md` | Always-loaded context |
-| `IDENTITY.md` | Quick reference card (must be under 305 characters) |
-| `HEARTBEAT.md` | Periodic check config |
-| `TOOLS.md` | Local environment notes |
-| `BOOT.md` | Startup routine |
+| File           | Purpose                                             |
+| -------------- | --------------------------------------------------- |
+| `AGENTS.md`    | Operating instructions                              |
+| `SOUL.md`      | Personality definition                              |
+| `USER.md`      | Human profile                                       |
+| `MEMORY.md`    | Always-loaded context                               |
+| `IDENTITY.md`  | Quick reference card (must be under 305 characters) |
+| `HEARTBEAT.md` | Periodic check config                               |
+| `TOOLS.md`     | Local environment notes                             |
+| `BOOT.md`      | Startup routine                                     |
 
 **Verify:**
 `ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS,BOOT}.md`
@@ -411,11 +416,11 @@ These internal hooks should be enabled in `~/.openclaw/openclaw.json` under `hoo
 }
 ```
 
-| Hook | Purpose |
-|------|---------|
-| `boot-md` | Runs BOOT.md on agent startup — establishes context and orientation |
-| `command-logger` | Logs all commands executed — audit trail |
-| `session-memory` | Tracks session state in memory — continuity across conversations |
+| Hook             | Purpose                                                             |
+| ---------------- | ------------------------------------------------------------------- |
+| `boot-md`        | Runs BOOT.md on agent startup — establishes context and orientation |
+| `command-logger` | Logs all commands executed — audit trail                            |
+| `session-memory` | Tracks session state in memory — continuity across conversations    |
 
 **Verify:** Check `hooks.internal.entries` in `~/.openclaw/openclaw.json` — all three
 should be present and enabled.
