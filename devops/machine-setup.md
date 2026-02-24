@@ -91,6 +91,28 @@ npm install -g openclaw@latest
 
 **Verify:** `which openclaw && openclaw --version`
 
+### pnpm
+
+Required for OpenClaw skill installation. Install globally via npm:
+
+```bash
+npm install -g pnpm
+```
+
+**Verify:** `pnpm --version` (should be 10+)
+
+### uv
+
+Python package runner used by standalone skills (Python-based CLIs with inline
+dependencies). Install via Homebrew for consistent fleet management:
+
+```bash
+brew install uv
+```
+
+**Verify:** `which uv && uv --version` — path should be under `/opt/homebrew/bin`
+(should be 0.10+)
+
 ### Claude CLI
 
 Used by the health check agent and for fleet operations. Installed via Anthropic's
@@ -182,9 +204,10 @@ Core files in `~/.openclaw/workspace/`:
 | `IDENTITY.md`  | Quick reference card    |
 | `HEARTBEAT.md` | Periodic check config   |
 | `TOOLS.md`     | Local environment notes |
+| `BOOT.md`      | Startup routine         |
 
 **Verify:**
-`ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS}.md`
+`ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS,BOOT}.md`
 
 ### Memory Structure
 
@@ -231,6 +254,9 @@ ssh <alias> "echo 'sleep:' && pmset -g | grep ' sleep ' | awk '{print \$2}' && \
 echo 'autorestart:' && pmset -g | grep autorestart | awk '{print \$2}' && \
 echo 'permissions:' && stat -f '%Lp' ~/.openclaw && \
 echo 'gateway:' && (launchctl list | grep -q ai.openclaw.gateway && echo 'running' || echo 'NOT RUNNING') && \
+echo 'node:' && (node --version 2>/dev/null || echo 'NOT FOUND') && \
+echo 'pnpm:' && (pnpm --version 2>/dev/null || echo 'NOT FOUND') && \
+echo 'uv:' && (uv --version 2>/dev/null || echo 'NOT FOUND') && \
 echo 'claude:' && (~/.local/bin/claude --version 2>/dev/null || echo 'NOT FOUND') && \
 echo 'tailscale:' && (tailscale status --self 2>/dev/null | head -1 || echo 'NOT RUNNING')"
 ```
