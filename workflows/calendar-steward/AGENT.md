@@ -45,9 +45,9 @@ Ask:
 Suggest the formula approach:
 
 - Drive time + pad (default 15 min), then:
-  - No checked bags: 30 min before departure
-  - Domestic with checked bags: 45 min before departure
-  - International: 1 hour before departure
+  - No checked bags: 90 min before departure
+  - Domestic with checked bags: 2 hours before departure
+  - International: 3 hours before departure
 
 Or: "I just like to be there X minutes early" for a simpler approach.
 
@@ -103,7 +103,7 @@ For any flights found:
 
 1. **Calculate "leave by" time** using the saved arrival formula
 2. **Check if a "leave by" calendar event already exists** — don't create duplicates
-3. **Create a calendar event** for the departure time if none exists, including:
+3. **Create a calendar event** for the leave-by time if none exists, including:
    - Drive time estimate from current location
    - Which terminal/gate (if searchable)
    - Whether bags need checking
@@ -174,9 +174,9 @@ user@example.com
 ## Airport Arrival
 
 - Drive time + 15 min pad
-- No checked bags: 30 min before departure
-- Domestic with checked bags: 45 min before departure
-- International: 1 hour before departure
+- No checked bags: 90 min before departure
+- Domestic with checked bags: 2 hours before departure
+- International: 3 hours before departure
 
 ## Lounge Access
 
@@ -217,7 +217,6 @@ openclaw cron add \
   --session isolated \
   --channel <your_channel> \
   --to <your_chat_id> \
-  --no-deliver \
   --timeout-seconds 300 \
   --message "Run the calendar steward workflow. Read workflows/calendar-steward/AGENT.md and follow it."
 ```
