@@ -430,7 +430,12 @@ def cmd_conversations(args: list[str]) -> None:
         if args[i] == "--limit":
             if i + 1 >= len(args):
                 error("--limit requires a numeric value")
-            limit = int(args[i + 1])
+            try:
+                limit = int(args[i + 1])
+            except ValueError:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            if limit <= 0:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
             i += 2
         elif args[i] == "--phone":
             if i + 1 >= len(args):
