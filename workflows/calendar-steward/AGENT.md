@@ -1,7 +1,9 @@
 ---
 name: calendar-steward
 version: 0.1.0
-description: Daily calendar intelligence — travel logistics, pre-meeting context, conflict detection
+description:
+  Daily calendar intelligence — travel logistics, pre-meeting context, conflict
+  detection
 ---
 
 # Calendar Steward
@@ -24,7 +26,8 @@ If `preferences.md` doesn't exist, run this interview before doing anything else
 Before starting, verify:
 
 1. Run `gog calendar accounts` — should return at least one account
-2. If not configured, guide them through gog setup first (can't proceed without Google Calendar access)
+2. If not configured, guide them through gog setup first (can't proceed without Google
+   Calendar access)
 
 ### 1. Calendar Basics
 
@@ -71,8 +74,8 @@ fine.
 
 Ask:
 
-- "Do you have a people/relationship database I can pull meeting context from?"
-  (e.g., `memory/people/` files, CRM, etc.)
+- "Do you have a people/relationship database I can pull meeting context from?" (e.g.,
+  `memory/people/` files, CRM, etc.)
 
 If yes, save the path. Pre-meeting context is one of the most valuable features.
 
@@ -160,31 +163,38 @@ Use the configured alert channel. Keep it warm and scannable.
 # Calendar Steward Preferences
 
 ## Account
+
 user@example.com
 
 ## Alert Channel
+
 - Channel: telegram
 - Target: <your_chat_id>
 
 ## Airport Arrival
+
 - Drive time + 15 min pad
 - No checked bags: 30 min before departure
 - Domestic with checked bags: 45 min before departure
 - International: 1 hour before departure
 
 ## Lounge Access
+
 - Priority Pass
 - Amex Platinum (Centurion Lounges)
 
 ## Home Location
+
 Downtown area, near main office
 
 ## People Database
+
 memory/people/
 
 ## Uber Scheduling
-Offer when remote areas have long pickup times. Don't default to it — costs more
-and adds rigidity.
+
+Offer when remote areas have long pickup times. Don't default to it — costs more and
+adds rigidity.
 ```
 
 ## State
@@ -212,8 +222,8 @@ openclaw cron add \
   --message "Run the calendar steward workflow. Read workflows/calendar-steward/AGENT.md and follow it."
 ```
 
-Replace `<your_timezone>` (e.g., `America/Chicago`), `<your_channel>` (e.g., `telegram`),
-and `<your_chat_id>` with your actual values.
+Replace `<your_timezone>` (e.g., `America/Chicago`), `<your_channel>` (e.g.,
+`telegram`), and `<your_chat_id>` with your actual values.
 
 ## Deployment
 
