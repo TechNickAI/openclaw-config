@@ -65,7 +65,7 @@ seconds later.
 - Kill hung processes (log PID and reason before killing)
 - Clear stale lock files, temp files, and old logs
 - Fix file permissions to match machine-setup.md spec (700 for ~/.openclaw)
-- Reinstall software via Homebrew (uv, restic, pnpm)
+- Reinstall software: uv and restic via Homebrew, pnpm via `npm install -g pnpm`
 - Re-enable or reload launchd agents (gateway, backup, backup-verify)
 - Correct shell PATH issues for non-interactive sessions
 - Modify `~/.openclaw/openclaw.json` to fix model IDs, delivery modes, and agent

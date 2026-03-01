@@ -204,11 +204,12 @@ findings, and note "DEBUGGER LAUNCH FAILED" so the admin knows the escalation pa
 itself is broken. If the debugger started successfully, log the escalation to
 `~/.openclaw/health-check.log` and stop.
 
-**When to escalate vs notify the admin directly.** The simple heuristic: if you
-attempted a fix and the issue persists, escalate — the debugger has wider authority and
-deeper reasoning. If the issue is outside your authority to even attempt (hardware
-failures, expired API keys, network problems requiring credentials), notify the admin
-directly. Escalation invokes Opus, so reserve it for issues that require reasoning about
+**When to escalate vs notify the admin directly.** Escalate when: you attempted a fix
+and the issue persists, OR the problem is config drift, cron failure, backup issue,
+software missing, or launchd agents not loaded — things the debugger can repair even if
+you can't. Notify the admin directly when the problem is fundamentally beyond
+programmatic repair: hardware failures, expired API keys, network issues requiring human
+credentials. Escalation invokes Opus, so reserve it for issues requiring reasoning about
 config, state, or multi-step repair.
 
 Escalation is free — write the debug request and hand off without budget concern.
