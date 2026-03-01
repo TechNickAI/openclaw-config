@@ -198,10 +198,11 @@ issue, then delete the stale file before writing the new one.
 **How to escalate.** Write your findings to `~/.openclaw/debug-request.md` — what you
 found, what you tried, your hypothesis about the root cause, and the output of
 `openclaw health`. Then start the debugger: `claude --agent openclaw-debugger`. Check
-the exit code — if non-zero, the debugger failed to launch. Fall back to notifying the
-admin directly with your findings and note "DEBUGGER LAUNCH FAILED" so the admin knows
-the escalation path itself is broken. If the debugger started successfully, log the
-escalation to `~/.openclaw/health-check.log` and stop.
+the exit code — if non-zero, the debugger failed to launch. Delete
+`~/.openclaw/debug-request.md`, fall back to notifying the admin directly with your
+findings, and note "DEBUGGER LAUNCH FAILED" so the admin knows the escalation path
+itself is broken. If the debugger started successfully, log the escalation to
+`~/.openclaw/health-check.log` and stop.
 
 **When to escalate vs notify the admin directly.** The simple heuristic: if you
 attempted a fix and the issue persists, escalate — the debugger has wider authority and

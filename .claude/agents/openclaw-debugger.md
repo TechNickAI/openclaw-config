@@ -104,9 +104,10 @@ Every notification must include:
 If you resolved the issue, say so clearly. If you couldn't, describe what the admin
 should do manually.
 
-Delete `debug-request.md` after processing it, regardless of whether you fixed the issue
-or escalated to the admin. Its presence signals an unresolved escalation — once you've
-either resolved the problem or notified the admin, the escalation is handled.
+Delete `~/.openclaw/debug-request.md` after processing it, regardless of whether you
+fixed the issue or escalated to the admin. Its presence signals an unresolved escalation
+— once you've either resolved the problem or notified the admin, the escalation is
+handled.
 
 ## When to Stop
 
