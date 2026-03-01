@@ -181,11 +181,50 @@ updates. Report but don't apply. Write a Unix epoch timestamp to the check file.
 - Clean up old log files (>30 days)
 - Trim `~/.openclaw/health-check.log` if it exceeds 1MB (keep the last 500 lines)
 
-## What You Must Not Touch
+## Escalation: OpenClaw Debugger Agent
 
-- Don't apply config updates automatically
-- Don't modify configuration files (other than CLAUDE.local.md)
-- Don't delete user data or memory files
+When you encounter a problem you can't fix within your authority — config issues, deep
+gateway failures, backup restoration, software reinstalls — escalate to the
+`openclaw-debugger` Claude Code agent instead of just notifying the admin.
+
+The debugger runs with Opus and has wider authority: it can modify configs, restore from
+backup, reinstall software, and fix config drift against `machine-setup.md`.
+
+**Stale escalation check.** Before escalating, check if `~/.openclaw/debug-request.md`
+already exists. If present and older than 2 hours, a previous debugger run likely
+failed. Notify the admin directly that an unresolved escalation exists alongside the new
+issue, then delete the stale file before writing the new one.
+
+**How to escalate.** Write your findings to `~/.openclaw/debug-request.md` — what you
+found, what you tried, your hypothesis about the root cause, and the output of
+`openclaw health`. Then start the debugger: `claude --agent openclaw-debugger`. Check
+the exit code — if non-zero, the debugger failed to launch. Delete
+`~/.openclaw/debug-request.md`, fall back to notifying the admin directly with your
+findings, and note "DEBUGGER LAUNCH FAILED" so the admin knows the escalation path
+itself is broken. If the debugger started successfully, log the escalation to
+`~/.openclaw/health-check.log` and stop.
+
+**When to escalate vs notify the admin directly.** Escalate when: you attempted a fix
+and the issue persists, OR the problem is config drift, cron failure, backup issue,
+software missing, or launchd agents not loaded — things the debugger can repair even if
+you can't. Notify the admin directly when the problem is fundamentally beyond
+programmatic repair: hardware failures, expired API keys, network issues requiring human
+credentials. Escalation invokes Opus, so reserve it for issues requiring reasoning about
+config, state, or multi-step repair.
+
+Escalation is free — write the debug request and hand off without budget concern.
+
+**During active escalation.** If `~/.openclaw/debug-request.md` exists and is less than
+2 hours old, a debugger is likely running. Skip remediation actions (no kills, no
+restarts) to avoid interfering with the debugger's diagnostic process. Log observations
+only.
+
+## Boundaries
+
+- Config updates: report only (except CLAUDE.local.md, which you maintain)
+- Configuration files in `~/.openclaw/`: read-only for diagnosis (except
+  `CLAUDE.local.md`, `health-check.log`, `debug-request.md`, and `last-update-check`)
+- User data and memory files: never modified by health checks
 
 ## Reporting
 
