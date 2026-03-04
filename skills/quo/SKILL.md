@@ -163,6 +163,7 @@ Returns `dialogue[]` array with speaker-attributed entries:
 - Transcripts require call recording enabled in Quo settings
 - Phone numbers in E.164 format (+1XXXXXXXXXX)
 - Contacts API has no phone number search — `search-phone`, `--unknown`, and `gather`
-  use a local cache at `/tmp/quo-contacts-cache.json` (5-min TTL, use `--refresh` to rebuild)
+  use a local cache at `/tmp/quo-contacts-cache.json` (5-min TTL, use `--refresh` to
+  rebuild)
 - Voicemail endpoint returns single object (not array)
 - `gather` defaults to last 30 days, text only (no audio URLs or media)
