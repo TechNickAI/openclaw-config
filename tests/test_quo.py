@@ -8,6 +8,7 @@ import importlib.machinery
 import importlib.util
 import os
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -20,8 +21,6 @@ _loader = importlib.machinery.SourceFileLoader("quo", SKILL_PATH)
 _spec = importlib.util.spec_from_loader("quo", _loader)
 _quo = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_quo)
-
-from datetime import datetime, timezone
 
 format_numbers = _quo.format_numbers
 format_conversations = _quo.format_conversations
@@ -695,7 +694,7 @@ class TestDefaultSince:
 
     def test_is_approximately_30_days_ago(self):
         result = datetime.fromisoformat(default_since())
-        delta = datetime.now(timezone.utc) - result
+        delta = datetime.now(UTC) - result
         assert 29 <= delta.days <= 31
 
 

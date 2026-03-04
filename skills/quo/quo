@@ -544,7 +544,11 @@ def cmd_conversations(args: list[str]) -> None:
         else:
             error(f"Unknown argument: {args[i]}")
 
-    params: dict[str, Any] = {"maxResults": limit}
+    # When filtering for unknown numbers, fetch a larger batch to ensure we get
+    # enough results after filtering (otherwise limit applies before the filter)
+    fetch_size = limit if not unknown_only else min(max(limit * 5, 50), 200)
+
+    params: dict[str, Any] = {"maxResults": fetch_size}
     if not include_inactive:
         params["excludeInactive"] = "true"
     if phone_numbers:
@@ -572,7 +576,7 @@ def cmd_conversations(args: list[str]) -> None:
             conv for conv in result["data"]
             if any(p not in recognized for p in conv.get("participants", []))
         ]
-        result = {"data": filtered}
+        result = {"data": filtered[:limit]}
 
     print(format_conversations(result))
 
