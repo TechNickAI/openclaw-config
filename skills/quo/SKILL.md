@@ -1,6 +1,6 @@
 ---
 name: quo
-version: 0.4.0
+version: 0.6.0
 description:
   Quo (formerly OpenPhone) business phone system — check calls, texts, voicemails,
   missed calls, send SMS/texts, manage contacts, read call transcripts and summaries,
@@ -22,6 +22,10 @@ triggers:
   - business messages
   - who called
   - who texted
+  - search phone
+  - unknown callers
+  - gather
+  - who is this number
 metadata: { "openclaw": { "emoji": "📞", "primaryEnv": "QUO_API_KEY" } }
 ---
 
@@ -49,6 +53,9 @@ API key from my.quo.com → Settings → API. Configure via gateway under
 - "Text [person] from my work number"
 - "Check my voicemails"
 - "What messages came in on the business line?"
+- "Who is this number?"
+- "Show me everything from this number"
+- "Show conversations from unknown numbers"
 
 ## CLI Reference
 
@@ -56,6 +63,8 @@ API key from my.quo.com → Settings → API. Configure via gateway under
 {baseDir}/quo numbers                    List phone numbers
 {baseDir}/quo conversations [filters]    List conversations
 {baseDir}/quo contacts [--limit N]       List contacts
+{baseDir}/quo search-phone <phone> [--refresh]  Find contact by phone (cached)
+{baseDir}/quo gather <phone> [--since ISO] [--until ISO] [--limit N] [--refresh]
 {baseDir}/quo custom-fields              List contact custom fields
 {baseDir}/quo users                      List workspace users
 {baseDir}/quo summary <callId>           Get AI call summary
@@ -77,6 +86,7 @@ API key from my.quo.com → Settings → API. Configure via gateway under
 --created-after ISO       Conversations created after date
 --created-before ISO      Conversations created before date
 --include-inactive        Include inactive/snoozed conversations
+--unknown                 Only show conversations with unrecognized numbers
 --limit N                 Max results (default 10)
 ```
 
@@ -152,5 +162,7 @@ Returns `dialogue[]` array with speaker-attributed entries:
 
 - Transcripts require call recording enabled in Quo settings
 - Phone numbers in E.164 format (+1XXXXXXXXXX)
-- Contacts API has no phone number search — must page through or use externalIds
+- Contacts API has no phone number search — `search-phone`, `--unknown`, and `gather`
+  use a local cache at `/tmp/quo-contacts-cache.json` (5-min TTL, use `--refresh` to rebuild)
 - Voicemail endpoint returns single object (not array)
+- `gather` defaults to last 30 days, text only (no audio URLs or media)

@@ -13,6 +13,8 @@ import json
 import os
 import re
 import sys
+import time
+from datetime import datetime, timedelta, timezone
 from typing import Any, NoReturn
 
 import httpx
@@ -41,8 +43,9 @@ def call_api(
     endpoint: str,
     params: dict[str, Any] | None = None,
     json_body: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Make API request with proper error handling."""
+    raise_on_404: bool = True,
+) -> dict[str, Any] | None:
+    """Make API request. Returns None on 404 when raise_on_404=False."""
     api_key = get_api_key()
     if not api_key:
         error("QUO_API_KEY not set", "Get your key from: https://my.openphone.com → Settings → API")
@@ -64,6 +67,8 @@ def call_api(
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404 and not raise_on_404:
+            return None
         try:
             body = e.response.json()
             msg = body.get("message") or body.get("error") or str(body)
@@ -105,6 +110,66 @@ def parse_limit(args: list[str], default: int = 10) -> tuple[int, list[str]]:
             remaining.append(args[i])
             i += 1
     return limit, remaining
+
+
+# Contact cache — pages all contacts to /tmp, 5-minute TTL
+
+CONTACT_CACHE_PATH = "/tmp/quo-contacts-cache.json"
+CONTACT_CACHE_TTL = 300  # 5 minutes
+
+
+def load_contact_cache(refresh: bool = False) -> list[dict[str, Any]]:
+    """Load all contacts, using /tmp cache with 5-minute TTL."""
+    if not refresh:
+        try:
+            with open(CONTACT_CACHE_PATH) as f:
+                cache = json.load(f)
+            if time.time() - cache["fetched_at"] < CONTACT_CACHE_TTL:
+                return cache["contacts"]
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass  # Cache missing or corrupt — rebuild
+
+    all_contacts: list[dict[str, Any]] = []
+    page_token = None
+    max_pages = 100  # Circuit breaker: 10,000 contacts max
+    for _ in range(max_pages):
+        params: dict[str, Any] = {"maxResults": 100}
+        if page_token:
+            params["pageToken"] = page_token
+        result = call_api("GET", "/contacts", params=params)
+        all_contacts.extend(result["data"])
+        page_token = result.get("nextPageToken")
+        if not page_token:
+            break
+
+    cache_data = {"fetched_at": time.time(), "contacts": all_contacts}
+    with open(CONTACT_CACHE_PATH, "w") as f:
+        json.dump(cache_data, f)
+    return all_contacts
+
+
+def find_contact_by_phone(phone: str, contacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Find contacts whose phoneNumbers contain the given number."""
+    matches = []
+    for contact in contacts:
+        contact_phones = [p["value"] for p in contact["defaultFields"]["phoneNumbers"]]
+        if phone in contact_phones:
+            matches.append(contact)
+    return matches
+
+
+def get_known_phones(contacts: list[dict[str, Any]]) -> set[str]:
+    """Return set of all phone numbers from contacts."""
+    phones = set()
+    for contact in contacts:
+        for p in contact["defaultFields"]["phoneNumbers"]:
+            phones.add(p["value"])
+    return phones
+
+
+def default_since() -> str:
+    """Return ISO timestamp for 30 days ago."""
+    return (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
 
 
 # Formatting functions
@@ -168,18 +233,25 @@ def format_contacts(data: dict[str, Any]) -> str:
 
     output = []
     for item in items:
-        first = item.get("firstName", "")
-        last = item.get("lastName", "")
+        fields = item["defaultFields"]
+        first = fields.get("firstName") or ""
+        last = fields.get("lastName") or ""
         name = f"{first} {last}".strip() or "Unknown"
-        company = item.get("company") or "—"
-        emails = ", ".join(e.get("value", "") for e in item.get("emails", [])) or "None"
-        phones = ", ".join(p.get("value", "") for p in item.get("phoneNumbers", [])) or "None"
+        company = fields.get("company") or "—"
+        role = fields.get("role") or ""
+        emails = ", ".join(e["value"] for e in fields.get("emails", [])) or "None"
+        phones = ", ".join(p["value"] for p in fields.get("phoneNumbers", [])) or "None"
+        source = item.get("source") or ""
 
         output.append(f"## {name}")
-        output.append(f"**ID:** {item.get('id', 'N/A')}")
+        output.append(f"**ID:** {item['id']}")
         output.append(f"**Company:** {company}")
+        if role:
+            output.append(f"**Role:** {role}")
         output.append(f"**Emails:** {emails}")
         output.append(f"**Phones:** {phones}")
+        if source:
+            output.append(f"**Source:** {source}")
         output.append("")
         output.append("---")
         output.append("")
@@ -424,6 +496,7 @@ def cmd_conversations(args: list[str]) -> None:
     created_after = None
     created_before = None
     include_inactive = False
+    unknown_only = False
 
     i = 0
     while i < len(args):
@@ -465,6 +538,9 @@ def cmd_conversations(args: list[str]) -> None:
         elif args[i] == "--include-inactive":
             include_inactive = True
             i += 1
+        elif args[i] == "--unknown":
+            unknown_only = True
+            i += 1
         else:
             error(f"Unknown argument: {args[i]}")
 
@@ -483,6 +559,21 @@ def cmd_conversations(args: list[str]) -> None:
         params["createdBefore"] = created_before
 
     result = call_api("GET", "/conversations", params=params)
+
+    if unknown_only:
+        contacts = load_contact_cache()
+        known = get_known_phones(contacts)
+        # Exclude our own Quo phone numbers — they're participants in every conversation
+        numbers_result = call_api("GET", "/phone-numbers")
+        our_numbers = {pn.get("number") for pn in numbers_result["data"]}
+        our_numbers |= {pn["id"] for pn in numbers_result["data"]}
+        recognized = known | our_numbers
+        filtered = [
+            conv for conv in result["data"]
+            if any(p not in recognized for p in conv.get("participants", []))
+        ]
+        result = {"data": filtered}
+
     print(format_conversations(result))
 
 
@@ -492,6 +583,36 @@ def cmd_contacts(args: list[str]) -> None:
     params = {"maxResults": limit}
     result = call_api("GET", "/contacts", params=params)
     print(format_contacts(result))
+
+
+def cmd_search_phone(args: list[str]) -> None:
+    """Find contacts by phone number."""
+    refresh = False
+    phone = None
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--refresh":
+            refresh = True
+            i += 1
+        elif phone is None:
+            phone = args[i]
+            i += 1
+        else:
+            error(f"Unknown argument: {args[i]}")
+
+    if not phone:
+        error("Phone number required", "Usage: quo search-phone <+1XXXXXXXXXX> [--refresh]")
+
+    validate_e164(phone)
+    contacts = load_contact_cache(refresh=refresh)
+    matches = find_contact_by_phone(phone, contacts)
+
+    if not matches:
+        print(f"No contacts found matching {phone} (searched {len(contacts)} contacts)")
+        return
+
+    print(format_contacts({"data": matches}))
 
 
 def cmd_users(args: list[str]) -> None:
@@ -691,6 +812,180 @@ def cmd_calls(args: list[str]) -> None:
     print(format_calls(result))
 
 
+def cmd_gather(args: list[str]) -> None:
+    """Gather all text-based data for a phone number."""
+    phone = None
+    since = None
+    until = None
+    limit = 20
+    refresh = False
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--since":
+            if i + 1 >= len(args):
+                error("--since requires an ISO 8601 timestamp")
+            since = args[i + 1]
+            i += 2
+        elif args[i] == "--until":
+            if i + 1 >= len(args):
+                error("--until requires an ISO 8601 timestamp")
+            until = args[i + 1]
+            i += 2
+        elif args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+                if limit <= 0:
+                    error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            except ValueError:
+                error(f"--limit must be a positive integer, got '{args[i + 1]}'")
+            i += 2
+        elif args[i] == "--refresh":
+            refresh = True
+            i += 1
+        elif phone is None:
+            phone = args[i]
+            i += 1
+        else:
+            error(f"Unknown argument: {args[i]}")
+
+    if not phone:
+        error("Phone number required", "Usage: quo gather <+1XXXXXXXXXX> [--since ISO] [--until ISO] [--limit N]")
+
+    validate_e164(phone)
+
+    if not since:
+        since = default_since()
+
+    output = [f"# Gather: {phone}", ""]
+
+    # Contact lookup
+    contacts = load_contact_cache(refresh=refresh)
+    matches = find_contact_by_phone(phone, contacts)
+    if matches:
+        output.append("## Contact")
+        output.append(format_contacts({"data": matches}))
+    else:
+        output.append(f"*No contact found for {phone}*")
+        output.append("")
+
+    # Get phone number IDs (our lines)
+    numbers_result = call_api("GET", "/phone-numbers")
+    phone_number_ids = [pn["id"] for pn in numbers_result["data"]]
+
+    # Fetch messages across all our phone lines
+    all_messages: list[dict[str, Any]] = []
+    for pn_id in phone_number_ids:
+        msg_params: dict[str, Any] = {
+            "phoneNumberId": pn_id,
+            "participants": phone,
+            "maxResults": limit,
+            "createdAfter": since,
+        }
+        if until:
+            msg_params["createdBefore"] = until
+        msg_result = call_api("GET", "/messages", params=msg_params, raise_on_404=False)
+        if msg_result:
+            all_messages.extend(msg_result["data"])
+
+    # Fetch calls across all our phone lines
+    all_calls: list[dict[str, Any]] = []
+    for pn_id in phone_number_ids:
+        call_params: dict[str, Any] = {
+            "phoneNumberId": pn_id,
+            "participants": phone,
+            "maxResults": limit,
+            "createdAfter": since,
+        }
+        if until:
+            call_params["createdBefore"] = until
+        calls_result = call_api("GET", "/calls", params=call_params, raise_on_404=False)
+        if calls_result:
+            all_calls.extend(calls_result["data"])
+
+    # Messages section
+    output.append("## Messages")
+    output.append("")
+    if all_messages:
+        all_messages.sort(key=lambda m: m.get("createdAt", ""))
+        output.append(format_messages({"data": all_messages}))
+    else:
+        output.append(f"No messages found since {since}")
+        output.append("")
+
+    # Calls section with inline transcripts/summaries/voicemail transcripts
+    output.append("## Calls")
+    output.append("")
+    if all_calls:
+        all_calls.sort(key=lambda c: c.get("createdAt", ""))
+        for call in all_calls:
+            call_id = call["id"]
+            direction = call.get("direction", "unknown")
+            created = call.get("createdAt", "unknown")
+            duration = call.get("duration", 0)
+            status = call.get("status", "unknown")
+
+            output.append(f"### Call ({direction}) — {created}")
+            output.append(f"**ID:** {call_id}")
+            output.append(f"**Status:** {status} | **Duration:** {duration}s")
+            output.append("")
+
+            # Transcript (text only)
+            transcript_result = call_api("GET", f"/call-transcripts/{call_id}", raise_on_404=False)
+            if transcript_result:
+                transcript_data = transcript_result.get("data", {})
+                dialogue = transcript_data.get("dialogue", [])
+                if dialogue:
+                    output.append("**Transcript:**")
+                    for entry in dialogue:
+                        start = entry.get("start", 0)
+                        mins = int(start // 60)
+                        secs = int(start % 60)
+                        speaker = entry.get("identifier", "Unknown")
+                        user_id = entry.get("userId")
+                        label = f"{speaker} (user)" if user_id else speaker
+                        output.append(f"[{mins:02d}:{secs:02d}] **{label}:** {entry.get('content', '')}")
+                    output.append("")
+
+            # Summary
+            summary_result = call_api("GET", f"/call-summaries/{call_id}", raise_on_404=False)
+            if summary_result:
+                summary_data = summary_result.get("data", {})
+                summary_raw = summary_data.get("summary", [])
+                summary_lines = [summary_raw] if isinstance(summary_raw, str) else summary_raw
+                if summary_lines:
+                    output.append("**Summary:**")
+                    for line in summary_lines:
+                        output.append(f"- {line}")
+                    output.append("")
+                next_steps = summary_data.get("nextSteps", [])
+                next_steps = [next_steps] if isinstance(next_steps, str) else next_steps
+                if next_steps:
+                    output.append("**Next Steps:**")
+                    for step in next_steps:
+                        output.append(f"- {step}")
+                    output.append("")
+
+            # Voicemail transcript (text only)
+            vm_result = call_api("GET", f"/call-voicemails/{call_id}", raise_on_404=False)
+            if vm_result:
+                vm_data = vm_result.get("data", {})
+                transcript = vm_data.get("transcript")
+                if transcript:
+                    output.append(f"**Voicemail Transcript:** {transcript}")
+                    output.append("")
+
+            output.append("---")
+            output.append("")
+    else:
+        output.append(f"No calls found since {since}")
+        output.append("")
+
+    print("\n".join(output))
+
+
 def cmd_custom_fields(args: list[str]) -> None:
     """List contact custom fields."""
     result = call_api("GET", "/contact-custom-fields")
@@ -739,9 +1034,11 @@ Commands:
   numbers, nums          List your Quo phone numbers
   conversations, convos  List recent conversations
                          [--limit N] [--phone <num-or-id>] [--include-inactive]
-                         [--updated-after ISO] [--updated-before ISO]
+                         [--unknown] [--updated-after ISO] [--updated-before ISO]
                          [--created-after ISO] [--created-before ISO]
   contacts               List contacts [--limit N]
+  search-phone, sp <phone> [--refresh]
+                         Find contact by phone number (cached)
   custom-fields          List contact custom fields
   users                  List workspace users
 
@@ -749,6 +1046,9 @@ Commands:
   transcript <callId>    Get full dialogue transcript for a call
   recordings, recs <callId>   Get recording URLs for a call
   voicemails, vm <callId>     Get voicemail + transcript for a call
+
+  gather <phone> [--since ISO] [--until ISO] [--limit N] [--refresh]
+                         Pull all text data for a phone number (default: last 30 days)
 
   send --from <num> --to <num> <message>
                          Send an SMS message
@@ -770,8 +1070,11 @@ Environment:
 Examples:
   quo numbers
   quo conversations --limit 20
+  quo conversations --unknown --limit 10
   quo conversations --phone PNo9lSEKaP --updated-after 2026-02-01T00:00:00Z
   quo contacts
+  quo search-phone +15551234567
+  quo gather +15551234567 --since 2026-02-01T00:00:00Z
   quo custom-fields
   quo summary AC3700e624eca547eb9f749a06f
   quo transcript AC3700e624eca547eb9f749a06f
@@ -790,6 +1093,8 @@ COMMAND_MAP = {
     "conversations": cmd_conversations,
     "convos": cmd_conversations,
     "contacts": cmd_contacts,
+    "search-phone": cmd_search_phone,
+    "sp": cmd_search_phone,
     "users": cmd_users,
     "summary": cmd_summary,
     "transcript": cmd_transcript,
@@ -799,6 +1104,7 @@ COMMAND_MAP = {
     "vm": cmd_voicemails,
     "custom-fields": cmd_custom_fields,
     "cf": cmd_custom_fields,
+    "gather": cmd_gather,
     "send": cmd_send,
     "messages": cmd_messages,
     "calls": cmd_calls,
