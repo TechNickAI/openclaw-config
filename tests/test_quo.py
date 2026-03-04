@@ -281,7 +281,11 @@ class TestFormatNumbers:
         assert format_numbers({"data": []}) == "No phone numbers found."
 
     def test_falls_back_to_raw_number(self):
-        data = {"data": [{"id": "PN1", "number": "+15551234567", "type": "local", "users": []}]}
+        data = {
+            "data": [
+                {"id": "PN1", "number": "+15551234567", "type": "local", "users": []}
+            ]
+        }
         result = format_numbers(data)
         assert "+15551234567" in result
 
@@ -327,8 +331,12 @@ class TestFormatContacts:
                         "lastName": "Doe",
                         "company": "Acme Corp",
                         "role": "CEO",
-                        "emails": [{"name": "work", "value": "john@acme.com", "id": "e1"}],
-                        "phoneNumbers": [{"name": "mobile", "value": "+15551234567", "id": "p1"}],
+                        "emails": [
+                            {"name": "work", "value": "john@acme.com", "id": "e1"}
+                        ],
+                        "phoneNumbers": [
+                            {"name": "mobile", "value": "+15551234567", "id": "p1"}
+                        ],
                     },
                     "customFields": [],
                 }
@@ -354,7 +362,9 @@ class TestFormatContacts:
                         "company": None,
                         "role": None,
                         "emails": [],
-                        "phoneNumbers": [{"name": "cell", "value": "+15559876543", "id": "p2"}],
+                        "phoneNumbers": [
+                            {"name": "cell", "value": "+15559876543", "id": "p2"}
+                        ],
                     },
                 }
             ]
@@ -605,7 +615,12 @@ class TestFormatTranscript:
             "data": {
                 "callId": "AC123",
                 "dialogue": [
-                    {"content": "Still here", "start": 125.5, "identifier": "+1555", "userId": None}
+                    {
+                        "content": "Still here",
+                        "start": 125.5,
+                        "identifier": "+1555",
+                        "userId": None,
+                    }
                 ],
             }
         }
@@ -621,8 +636,14 @@ class TestFindContactByPhone:
 
     def test_finds_matching_contact(self):
         contacts = [
-            {"id": "CT1", "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]}},
-            {"id": "CT2", "defaultFields": {"phoneNumbers": [{"value": "+15559999999"}]}},
+            {
+                "id": "CT1",
+                "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]},
+            },
+            {
+                "id": "CT2",
+                "defaultFields": {"phoneNumbers": [{"value": "+15559999999"}]},
+            },
         ]
         matches = find_contact_by_phone("+15551234567", contacts)
         assert len(matches) == 1
@@ -630,24 +651,38 @@ class TestFindContactByPhone:
 
     def test_no_match_returns_empty(self):
         contacts = [
-            {"id": "CT1", "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]}},
+            {
+                "id": "CT1",
+                "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]},
+            },
         ]
         assert find_contact_by_phone("+10000000000", contacts) == []
 
     def test_multiple_matches(self):
         contacts = [
-            {"id": "CT1", "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]}},
-            {"id": "CT2", "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]}},
+            {
+                "id": "CT1",
+                "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]},
+            },
+            {
+                "id": "CT2",
+                "defaultFields": {"phoneNumbers": [{"value": "+15551234567"}]},
+            },
         ]
         matches = find_contact_by_phone("+15551234567", contacts)
         assert len(matches) == 2
 
     def test_contact_with_multiple_phones(self):
         contacts = [
-            {"id": "CT1", "defaultFields": {"phoneNumbers": [
-                {"value": "+15551111111"},
-                {"value": "+15552222222"},
-            ]}},
+            {
+                "id": "CT1",
+                "defaultFields": {
+                    "phoneNumbers": [
+                        {"value": "+15551111111"},
+                        {"value": "+15552222222"},
+                    ]
+                },
+            },
         ]
         assert len(find_contact_by_phone("+15552222222", contacts)) == 1
 
@@ -663,13 +698,23 @@ class TestGetKnownPhones:
 
     def test_collects_all_phones(self):
         contacts = [
-            {"id": "CT1", "defaultFields": {"phoneNumbers": [
-                {"value": "+15551111111"},
-                {"value": "+15552222222"},
-            ]}},
-            {"id": "CT2", "defaultFields": {"phoneNumbers": [
-                {"value": "+15553333333"},
-            ]}},
+            {
+                "id": "CT1",
+                "defaultFields": {
+                    "phoneNumbers": [
+                        {"value": "+15551111111"},
+                        {"value": "+15552222222"},
+                    ]
+                },
+            },
+            {
+                "id": "CT2",
+                "defaultFields": {
+                    "phoneNumbers": [
+                        {"value": "+15553333333"},
+                    ]
+                },
+            },
         ]
         known = get_known_phones(contacts)
         assert known == {"+15551111111", "+15552222222", "+15553333333"}
@@ -679,8 +724,14 @@ class TestGetKnownPhones:
 
     def test_deduplicates(self):
         contacts = [
-            {"id": "CT1", "defaultFields": {"phoneNumbers": [{"value": "+15551111111"}]}},
-            {"id": "CT2", "defaultFields": {"phoneNumbers": [{"value": "+15551111111"}]}},
+            {
+                "id": "CT1",
+                "defaultFields": {"phoneNumbers": [{"value": "+15551111111"}]},
+            },
+            {
+                "id": "CT2",
+                "defaultFields": {"phoneNumbers": [{"value": "+15551111111"}]},
+            },
         ]
         assert len(get_known_phones(contacts)) == 1
 
@@ -707,7 +758,9 @@ class TestSearchPhoneValidation:
         assert "phone" in result.stderr.lower()
 
     def test_validates_e164(self):
-        result = run_skill("search-phone", "5551234567", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "search-phone", "5551234567", env={"QUO_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
         assert "e.164" in result.stderr.lower() or "format" in result.stderr.lower()
 
@@ -726,11 +779,15 @@ class TestGatherValidation:
         assert "e.164" in result.stderr.lower() or "format" in result.stderr.lower()
 
     def test_limit_must_be_positive(self):
-        result = run_skill("gather", "+15551234567", "--limit", "0", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "gather", "+15551234567", "--limit", "0", env={"QUO_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
 
     def test_limit_must_be_numeric(self):
-        result = run_skill("gather", "+15551234567", "--limit", "abc", env={"QUO_API_KEY": "fake-key"})
+        result = run_skill(
+            "gather", "+15551234567", "--limit", "abc", env={"QUO_API_KEY": "fake-key"}
+        )
         assert result.returncode != 0
 
 
@@ -819,7 +876,9 @@ class TestConversationsIntegration:
         result = run_skill("conversations")
 
         assert result.returncode == 0
-        assert "**Participants:**" in result.stdout or "No conversations" in result.stdout
+        assert (
+            "**Participants:**" in result.stdout or "No conversations" in result.stdout
+        )
         if "**Participants:**" in result.stdout:
             assert "**Last Activity:**" in result.stdout
             assert "**Phone Number ID:**" in result.stdout
