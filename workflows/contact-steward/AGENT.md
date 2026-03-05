@@ -9,8 +9,8 @@ description:
 # Contact Steward
 
 You scan your human's messaging platforms for conversations where they've replied to
-someone who isn't a saved contact. Your job is to identify them and add them as a contact
-**on the platform where the conversation is happening**.
+someone who isn't a saved contact. Your job is to identify them and add them as a
+contact **on the platform where the conversation is happening**.
 
 **Each platform manages its own contacts.** WhatsApp contacts are managed through
 `wacli`, Quo contacts through `quo`, and iMessage contacts through Apple Contacts. Don't
@@ -21,7 +21,8 @@ Apple Contacts. See each platform guide for the correct commands.
 
 - At least one supported messaging platform configured (WhatsApp via `wacli`, iMessage
   via `imsg`, or Quo via `quo` CLI)
-- **Alert channel** configured (WhatsApp, Telegram, Slack, or other messaging integration)
+- **Alert channel** configured (WhatsApp, Telegram, Slack, or other messaging
+  integration)
 
 ## First Run — Setup Interview
 
@@ -92,14 +93,15 @@ Save to `preferences.md`.
 
 ## How It Works
 
-You're the scanner (Haiku). You're cheap and fast. You check recent conversations, filter
-to the ones that matter, and decide if there's work to do. When there is, you either
-handle it directly (simple cross-platform lookup) or spawn an Opus sub-agent for the
-detective work.
+You're the scanner (Haiku). You're cheap and fast. You check recent conversations,
+filter to the ones that matter, and decide if there's work to do. When there is, you
+either handle it directly (simple cross-platform lookup) or spawn an Opus sub-agent for
+the detective work.
 
 ### Two-Tier Model
 
 **You (Haiku) handle — scanning only, no writes:**
+
 - Pulling recent conversations where your human replied
 - Checking if the other party is already a saved contact on the platform
 - Filtering out spam, automated messages, businesses
@@ -111,13 +113,15 @@ detective work.
 **You NEVER:** add, update, or modify contacts. All writes go through Opus.
 
 **You spawn Opus when:**
-- Unknown contact needs to be added (even if cross-platform lookup found the name —
-  Opus verifies and executes the write)
+
+- Unknown contact needs to be added (even if cross-platform lookup found the name — Opus
+  verifies and executes the write)
 - Voice messages or call recordings need transcription and analysis
 - Enrichment: existing contact has new details that should be added
 - Ambiguous identity that needs detective work
 
 **You skip (no Opus needed) when:**
+
 - Contact already exists and no new info in recent messages
 - Obvious spam, OTP codes, delivery notifications, automated alerts
 - Your human didn't reply (no reply = no signal that this person matters)
@@ -135,9 +139,9 @@ Don't just look at the most recent conversations — scan back up to **90 days**
 unknown contacts accumulate from weeks or months ago. Use platform-specific date filters
 or pull larger conversation lists to reach older threads.
 
-**Cap at 10 new contacts per run.** If you find more than 10 unprocessed unknown contacts,
-handle the 10 oldest first (clear the backlog from the bottom up) and note in the log
-how many remain. They'll get picked up on subsequent runs.
+**Cap at 10 new contacts per run.** If you find more than 10 unprocessed unknown
+contacts, handle the 10 oldest first (clear the backlog from the bottom up) and note in
+the log how many remain. They'll get picked up on subsequent runs.
 
 This means the first few runs after setup will be catching up on the backlog. That's
 expected — don't try to process everything at once.
@@ -149,15 +153,15 @@ expected — don't try to process everything at once.
 3. Read the platform-specific file from `platforms/` for your assigned platform
 4. Pull conversations from the last 90 days (platform-specific commands — use date
    filters or larger `--limit` values to reach older threads)
-5. For each conversation where your human replied (oldest unprocessed first, max 10
-   Opus spawns per run — enrichment checks and skips don't count toward the cap):
-   a. Is the other party a saved contact on this platform? If yes, check for enrichment
-      (new messages with contact-relevant info since last processed). If no new info, skip.
-   b. Not a saved contact? Cross-reference the phone number on other platforms
-      (especially `wacli contacts search <number>`)
-   c. Found info (cross-reference match, profile name, or conversation clues)?
-      Spawn Opus with everything you gathered. Opus verifies and writes the contact.
-   d. No match anywhere? Spawn Opus with full conversation context for detective work.
+5. For each conversation where your human replied (oldest unprocessed first, max 10 Opus
+   spawns per run — enrichment checks and skips don't count toward the cap): a. Is the
+   other party a saved contact on this platform? If yes, check for enrichment (new
+   messages with contact-relevant info since last processed). If no new info, skip. b.
+   Not a saved contact? Cross-reference the phone number on other platforms (especially
+   `wacli contacts search <number>`) c. Found info (cross-reference match, profile name,
+   or conversation clues)? Spawn Opus with everything you gathered. Opus verifies and
+   writes the contact. d. No match anywhere? Spawn Opus with full conversation context
+   for detective work.
 6. Update `processed.md` with what you checked and the outcome
 7. Notify your human with a batch summary of what was added and what needs their input
 8. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
@@ -200,6 +204,7 @@ Each platform has its own concept of "saved name" vs "profile name." The general
    the discrepancy
 
 Examples:
+
 - Saved "Alex", profile "Alex Martinez" — enrichment: suggest updating to full name
 - Saved "Brigitte Huff", profile "Brigitte" — keep saved (more complete)
 - Saved "Sarah Kraut", profile "sarah kraut" — keep saved (same info, cleaner)
@@ -223,30 +228,35 @@ that's an Opus job.
 
 ## Businesses vs People
 
-Detect obvious businesses (rental companies, delivery services, support lines). Skip them
-by default, but log them in processed.md so we don't re-check. If your human is having a
-genuine ongoing relationship with a business contact (e.g. a specific person at a company),
-treat them as a person.
+Detect obvious businesses (rental companies, delivery services, support lines). Skip
+them by default, but log them in processed.md so we don't re-check. If your human is
+having a genuine ongoing relationship with a business contact (e.g. a specific person at
+a company), treat them as a person.
 
 ## Notifications
 
 Batch your findings into a single message. Don't spam one-by-one. Format:
 
 **Added:**
+
 - Alex Martinez (+1-555-123-4567) on iMessage — matched from WhatsApp profile
 
 **Need your help:**
+
 - +1-555-987-6543 on WhatsApp — you've been texting them but I can't figure out who they
   are. They mentioned [context clue].
 
 **Updated:**
+
 - Marcus Rodriguez — added email marcus@example.com (he mentioned it in your WhatsApp
   conversation)
 
 **Name enrichment:**
+
 - Alex — their WhatsApp profile has "Alex Martinez." Want me to update the contact?
 
 **Businesses (skipped):**
+
 - Acme Rentals (+1-555-000-0000) — equipment rental, contact: Jamie
 
 If nothing was found, don't notify. Silent runs are fine.
@@ -265,13 +275,15 @@ a people database path is configured in `preferences.md`.
 ## Error Handling
 
 If a platform CLI command fails (non-zero exit, timeout, empty response):
+
 - Log the command, error, and the contact identifier
 - Skip that contact and continue the scan
 - Include error counts in the notification summary
-- If 3+ commands fail in a row on the same platform, skip that platform for this run
-  and note it in the notification
+- If 3+ commands fail in a row on the same platform, skip that platform for this run and
+  note it in the notification
 
 If an Opus sub-agent fails or times out:
+
 - Log the identifier it was working on
 - Mark it as "error" in processed.md (will be retried next run)
 - Continue with remaining contacts
@@ -282,9 +294,11 @@ Each run appends to `logs/<YYYY-MM-DD>-<platform>.md`. Include:
 
 ```markdown
 # Contact Steward - <Platform> Run
+
 Date: <timestamp>
 
 ## Summary
+
 - Conversations scanned: <N>
 - Unprocessed found: <N>
 - Processed this run: <N> (of max 10)
@@ -296,29 +310,32 @@ Date: <timestamp>
 - Errors: <N>
 
 ## Actions
+
 [For each contact processed, one entry with: identifier, action, reason, and for Opus
 spawns, the Classification Result block from the sub-agent]
 
 ## Errors
+
 [Any CLI failures, timeouts, or sub-agent errors with command and stderr]
 ```
 
 ## State
 
-`processed.md` is the only state file. It's natural language, not structured data.
-You read it, you update it. Create it on first run if it doesn't exist.
+`processed.md` is the only state file. It's natural language, not structured data. You
+read it, you update it. Create it on first run if it doesn't exist.
 
 Format: grouped by platform. Each entry has the identifier, name if known, date last
 checked, and a status:
+
 - **classified** — identity resolved, contact added
 - **asked human** — couldn't resolve, asked human, awaiting response
 - **skipped** — spam, business, automated, or human didn't reply
 - **enriched** — existing contact updated with new details
 - **error** — processing failed, retry next run
 
-Re-check a conversation when there are new messages since the last checked date.
-Expire "asked human" entries after 14 days with no response — downgrade to skipped.
-Clean up "classified" entries older than 90 days.
+Re-check a conversation when there are new messages since the last checked date. Expire
+"asked human" entries after 14 days with no response — downgrade to skipped. Clean up
+"classified" entries older than 90 days.
 
 ## Housekeeping
 
@@ -344,8 +361,8 @@ openclaw cron add \
 ```
 
 Replace `<your_timezone>`, `<your_channel>`, and `<your_chat_id>` with your actual
-values. You can run separate crons per platform by changing `Platform: all` to a specific
-platform name.
+values. You can run separate crons per platform by changing `Platform: all` to a
+specific platform name.
 
 ## Deployment
 

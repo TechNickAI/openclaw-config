@@ -11,6 +11,7 @@ imsg chats --limit 30
 ```
 
 Output format (not JSON, plain text):
+
 ```
 [chat_id]  (identifier) last=<timestamp>
 [4929]  (+16463031177) last=2026-03-04T19:05:35.284Z
@@ -18,6 +19,7 @@ Output format (not JSON, plain text):
 ```
 
 Key fields:
+
 - `chat_id` — numeric ID in brackets, used for history lookup
 - `identifier` — phone number, email, or RBM agent ID
 - Display name — shown before the identifier in parentheses, if known
@@ -29,6 +31,7 @@ imsg history --chat-id <chat_id> --limit 20
 ```
 
 Output format:
+
 ```
 2026-03-04T19:05:35.284Z [sent] +16463031177: Message text here
 2026-03-04T03:19:52.584Z [recv] +16463031177: Their reply
@@ -66,12 +69,13 @@ that name.
 
 ### Adding Contacts to Apple Contacts
 
-**iMessage contacts ARE Apple Contacts** — this is the correct place to add contacts
-for this platform. Use AppleScript to manage them directly. Do NOT add contacts to
-WhatsApp or Quo from here — cross-referencing for lookup is fine, cross-writing is not.
+**iMessage contacts ARE Apple Contacts** — this is the correct place to add contacts for
+this platform. Use AppleScript to manage them directly. Do NOT add contacts to WhatsApp
+or Quo from here — cross-referencing for lookup is fine, cross-writing is not.
 
 **Input sanitization (critical):** Names come from WhatsApp profiles, conversation text,
 and other untrusted sources. Before inserting ANY value into an AppleScript command:
+
 - Remove or escape double quotes (`"` -> `\"`)
 - Remove backslashes (`\` -> `\\`)
 - Strip any AppleScript control characters
@@ -117,6 +121,7 @@ Because `imsg` doesn't resolve names, every chat looks like just a phone number.
 scanner can't eyeball which contacts are "unnamed." You must cross-reference.
 
 **Efficient approach:**
+
 1. Pull recent chats from `imsg chats`
 2. For each phone number chat where your human sent messages:
    - `wacli contacts search "<number>"` — does WhatsApp know this person?
@@ -137,19 +142,20 @@ way — check if they're in Apple Contacts.
 ### Spam / Scam Texts
 
 iMessage gets more spam than WhatsApp. Common patterns to skip:
+
 - One-off "Hello" with no follow-up and no reply from your human
 - Investment/crypto scam emails
 - Short codes (e.g. `899000`, `49834`) — automated services
 
 ## Scanner Flow
 
-1. `imsg chats --limit 100` — get conversations (use a larger limit to reach threads
-   up to 90 days back)
+1. `imsg chats --limit 100` — get conversations (use a larger limit to reach threads up
+   to 90 days back)
 2. Filter to phone numbers and emails (skip short codes, RBM agents)
 3. For each, check `processed.md` — skip if already processed with no new messages
 4. `imsg history --chat-id <id> --limit 15` — read recent messages
 5. Check if your human sent any messages (`[sent]`) — if not, skip
 6. Cross-reference: `wacli contacts search "<number>"` to get a name
-7. If name found: check Apple Contacts by name. If missing, spawn Opus with the name
-   and number to verify and add to Apple Contacts
+7. If name found: check Apple Contacts by name. If missing, spawn Opus with the name and
+   number to verify and add to Apple Contacts
 8. If no name anywhere: spawn Opus with full conversation for classification

@@ -13,6 +13,7 @@ quo conversations --limit 20
 ```
 
 Optional filters:
+
 - `--phone <number-or-id>` — filter by Quo phone line
 - `--updated-after ISO` / `--updated-before ISO` — date range
 - `--include-inactive` — include snoozed/inactive conversations
@@ -36,12 +37,13 @@ quo gather <+1XXXXXXXXXX> [--since ISO] [--until ISO] [--limit N] [--refresh]
 ```
 
 This is the power command — pulls contact info, all messages, all calls with inline
-transcripts/summaries/voicemails for a phone number. Defaults to last 30 days.
-**Use this when spawning Opus** — it gives the classifier everything in one shot.
+transcripts/summaries/voicemails for a phone number. Defaults to last 30 days. **Use
+this when spawning Opus** — it gives the classifier everything in one shot.
 
 **Important:** The default 30-day window may miss older conversations. When the scanner
 identifies a conversation older than 30 days, pass `--since` explicitly to cover the
 full 90-day scan window:
+
 ```bash
 quo gather <phone> --since <90-days-ago-ISO>
 ```
@@ -61,8 +63,8 @@ identifying unknown callers — people introduce themselves on calls.
 ### Adding Contacts
 
 **Quo contacts are managed through the `quo` CLI** — this is the correct place to add
-contacts for this platform. Do NOT add contacts to Apple Contacts or WhatsApp from
-here — cross-referencing for lookup is fine, cross-writing is not.
+contacts for this platform. Do NOT add contacts to Apple Contacts or WhatsApp from here
+— cross-referencing for lookup is fine, cross-writing is not.
 
 ```bash
 quo raw POST "/contacts" '{"defaultFields":{"firstName":"<first>","lastName":"<last>","phoneNumbers":[{"name":"mobile","value":"+1XXXXXXXXXX"}]}}'
@@ -98,8 +100,8 @@ to filter conversations — only process ones involving your human's line.
 
 Unlike WhatsApp and iMessage where you're parsing text messages, Quo has full call
 transcripts with speaker attribution. The `gather` command pulls everything including
-transcripts inline. People introduce themselves on calls: "Hi, my name is Jane from
-Acme Corp."
+transcripts inline. People introduce themselves on calls: "Hi, my name is Jane from Acme
+Corp."
 
 ### Low Volume
 

@@ -11,6 +11,7 @@ wacli chats list --limit 100 --json
 ```
 
 Returns recent chats sorted by last activity. Each chat has:
+
 - `JID` — unique identifier (`<number>@s.whatsapp.net` for DMs, `@g.us` for groups,
   `@lid` for linked device contacts)
 - `Kind` — "dm", "group", or "unknown" (LID contacts show as "unknown")
@@ -24,6 +25,7 @@ wacli messages list --chat "<JID>" --limit 20 --json
 ```
 
 Messages are nested under `data.messages` (not `data` directly). Each message has:
+
 - `FromMe: true/false` — whether your human sent it
 - `Text` — message content
 - `DisplayText` — fallback if Text is empty (reactions, etc.)
@@ -35,9 +37,9 @@ Messages are nested under `data.messages` (not `data` directly). Each message ha
 ### Voice Messages
 
 WhatsApp voice messages show as `MediaType: "Audio"` in message listings. These are
-valuable for the Opus classifier when trying to identify someone — people often introduce
-themselves or provide context in voice notes. Flag these for Opus but note that
-transcription (via Whisper) will be needed.
+valuable for the Opus classifier when trying to identify someone — people often
+introduce themselves or provide context in voice notes. Flag these for Opus but note
+that transcription (via Whisper) will be needed.
 
 ### Groups
 
@@ -48,8 +50,8 @@ trigger doesn't map cleanly to a specific person. Future enhancement.
 
 ## Determining "Saved Contact" (Critical)
 
-**Do NOT use `wacli contacts search` to determine if someone is a saved contact.**
-It returns results for anyone WhatsApp knows about — including people who just have a
+**Do NOT use `wacli contacts search` to determine if someone is a saved contact.** It
+returns results for anyone WhatsApp knows about — including people who just have a
 WhatsApp profile name (`push_name`). Nearly everyone has a push_name, so this check
 gives false positives for almost everyone.
 
@@ -57,10 +59,10 @@ gives false positives for almost everyone.
 
 There are two databases with contact info. Use the RIGHT one:
 
-| Database | Path | What it is |
-|----------|------|------------|
-| **session.db** (whatsmeow) | `~/.wacli/session.db` | **Source of truth.** Synced directly from WhatsApp servers. |
-| **wacli.db** | `~/.wacli/wacli.db` | Local copy, imported via `wacli contacts refresh`. May be stale — can miss entries. |
+| Database                   | Path                  | What it is                                                                          |
+| -------------------------- | --------------------- | ----------------------------------------------------------------------------------- |
+| **session.db** (whatsmeow) | `~/.wacli/session.db` | **Source of truth.** Synced directly from WhatsApp servers.                         |
+| **wacli.db**               | `~/.wacli/wacli.db`   | Local copy, imported via `wacli contacts refresh`. May be stale — can miss entries. |
 
 **Always use `whatsmeow_contacts` in session.db** for the "is this a saved contact?"
 check. wacli.db can lag behind (observed: saved contacts present in whatsmeow but
@@ -81,12 +83,12 @@ CREATE TABLE whatsmeow_contacts (
 );
 ```
 
-| Column | Source | Meaning |
-|--------|--------|---------|
-| `push_name` | WhatsApp profile | Name the person chose for themselves |
-| `full_name` | Phone address book | Name saved in phone contacts |
-| `first_name` | Phone address book | First name from phone contacts |
-| `business_name` | WhatsApp Business | Business profile name |
+| Column          | Source             | Meaning                              |
+| --------------- | ------------------ | ------------------------------------ |
+| `push_name`     | WhatsApp profile   | Name the person chose for themselves |
+| `full_name`     | Phone address book | Name saved in phone contacts         |
+| `first_name`    | Phone address book | First name from phone contacts       |
+| `business_name` | WhatsApp Business  | Business profile name                |
 
 ### The Rule
 
@@ -121,6 +123,7 @@ SELECT pn FROM whatsmeow_lid_map WHERE lid = '<lid_number>';
 
 A LID contact will typically NOT have `full_name` even for saved contacts — only the
 phone-number JID carries the address book data. Example:
+
 - `265218726821991@lid` -> push_name "Kevin Sheehy", no full_name on LID entry
 - LID map: `265218726821991` -> `50683545181`
 - `50683545181@s.whatsapp.net` -> full_name "Kevin Sheehy" — saved
@@ -129,9 +132,9 @@ Without this resolution, you'd incorrectly flag saved contacts as unknown.
 
 ### Using wacli.db (secondary, for push_name lookups)
 
-wacli.db is still useful for looking up `push_name` when whatsmeow_contacts doesn't
-have one (e.g., for contacts where only the LID entry has a push_name). But never
-use it as the authority for "saved or not."
+wacli.db is still useful for looking up `push_name` when whatsmeow_contacts doesn't have
+one (e.g., for contacts where only the LID entry has a push_name). But never use it as
+the authority for "saved or not."
 
 ---
 
@@ -167,11 +170,13 @@ notifications, or suggesting contact additions), use this priority:
 ### "More Complete" Check
 
 A name A is more complete than name B when:
+
 - A has more name parts (first + last vs. first only)
 - A's first name/word matches B (so it's the same person, just more detail)
 - After stripping emoji and normalizing case
 
 Example comparisons:
+
 - "Alex Martinez" > "Alex" (more complete, same person) -> enrichment
 - "Seth Gordon" vs "Seth" (more complete) -> use Seth Gordon
 - "natalie adele" vs "Natalie" -> push_name is more complete
@@ -199,21 +204,21 @@ This is the correct action for unknown contacts — set their alias to the resol
 
 ## Scanner Flow
 
-1. `wacli chats list --limit 200 --json` — get conversations (use a large limit to
-   reach threads up to 90 days back)
+1. `wacli chats list --limit 200 --json` — get conversations (use a large limit to reach
+   threads up to 90 days back)
 2. Filter to `Kind: "dm"` or `Kind: "unknown"` (LID contacts), skip groups
 3. For each, check `processed.md` — skip if already processed with no new messages
 4. `wacli messages list --chat "<JID>" --limit 20 --json` — read recent messages
    (remember: messages are under `data.messages`)
 5. Check if your human replied (`FromMe: true`) — if not, skip
-6. **Determine if saved contact (all queries against session.db):**
-   a. If JID is `@s.whatsapp.net`: query `full_name` from `whatsmeow_contacts`
-   b. If JID is `@lid`: resolve via `whatsmeow_lid_map` -> get phone ->
-      query `full_name` from `whatsmeow_contacts` on the `<phone>@s.whatsapp.net` JID
-   c. `full_name` non-empty -> saved contact. Check for enrichment (name completeness).
-   d. `full_name` empty, `business_name` non-empty -> business, skip + log
-   e. `full_name` empty, `push_name` only -> **unsaved contact, process it**
-   f. No entry at all -> **unknown contact, process it**
+6. **Determine if saved contact (all queries against session.db):** a. If JID is
+   `@s.whatsapp.net`: query `full_name` from `whatsmeow_contacts` b. If JID is `@lid`:
+   resolve via `whatsmeow_lid_map` -> get phone -> query `full_name` from
+   `whatsmeow_contacts` on the `<phone>@s.whatsapp.net` JID c. `full_name` non-empty ->
+   saved contact. Check for enrichment (name completeness). d. `full_name` empty,
+   `business_name` non-empty -> business, skip + log e. `full_name` empty, `push_name`
+   only -> **unsaved contact, process it** f. No entry at all -> **unknown contact,
+   process it**
 7. If saved + no enrichment: skip
 8. If saved + enrichment (push_name more complete than full_name): flag for update
 9. If unsaved: cross-reference on other platforms, then spawn Opus if still unresolved
