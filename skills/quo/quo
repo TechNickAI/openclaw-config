@@ -133,7 +133,7 @@ def load_contact_cache(refresh: bool = False) -> list[dict[str, Any]]:
     page_token = None
     max_pages = 100  # Circuit breaker: 10,000 contacts max
     for _ in range(max_pages):
-        params: dict[str, Any] = {"maxResults": 100}
+        params: dict[str, Any] = {"pageSize": 100}
         if page_token:
             params["pageToken"] = page_token
         result = call_api("GET", "/contacts", params=params)
@@ -584,7 +584,7 @@ def cmd_conversations(args: list[str]) -> None:
 def cmd_contacts(args: list[str]) -> None:
     """List contacts."""
     limit, _ = parse_limit(args, default=20)
-    params = {"maxResults": limit}
+    params = {"pageSize": limit}
     result = call_api("GET", "/contacts", params=params)
     print(format_contacts(result))
 
