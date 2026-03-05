@@ -76,8 +76,9 @@ or Quo from here — cross-referencing for lookup is fine, cross-writing is not.
 **Input sanitization (critical):** Names come from WhatsApp profiles, conversation text,
 and other untrusted sources. Before inserting ANY value into an AppleScript command:
 
-- Remove or escape double quotes (`"` -> `\"`)
-- Remove backslashes (`\` -> `\\`)
+- **Escape backslashes first** (`\` -> `\\`) — must happen before quote escaping
+- **Then escape double quotes** (`"` -> `\"`) — if done before backslashes, `\"` becomes
+  `\\\"` which breaks the string
 - Strip any AppleScript control characters
 - Reject values containing `do shell script`, `run script`, or `&` operators
 
@@ -124,10 +125,10 @@ scanner can't eyeball which contacts are "unnamed." You must cross-reference.
 
 1. Pull recent chats from `imsg chats`
 2. For each phone number chat where your human sent messages:
-   - `wacli contacts search "<number>"` — does WhatsApp know this person?
-   - If yes, check Apple Contacts by that name
-   - If Apple Contacts doesn't have them -> spawn Opus with the name and number
-   - If WhatsApp doesn't know them either -> spawn Opus with full conversation
+   - If WhatsApp is configured: `wacli contacts search "<number>"` to get a name
+     - If found: check Apple Contacts by name. If missing, spawn Opus with name + number
+     - If not found: spawn Opus with full conversation
+   - If WhatsApp is not configured: spawn Opus with full conversation directly
 
 ### RBM / Business Messages
 
@@ -155,7 +156,10 @@ iMessage gets more spam than WhatsApp. Common patterns to skip:
 3. For each, check `processed.md` — skip if already processed with no new messages
 4. `imsg history --chat-id <id> --limit 15` — read recent messages
 5. Check if your human sent any messages (`[sent]`) — if not, skip
-6. Cross-reference: `wacli contacts search "<number>"` to get a name
-7. If name found: check Apple Contacts by name. If missing, spawn Opus with the name and
-   number to verify and add to Apple Contacts
-8. If no name anywhere: spawn Opus with full conversation for classification
+6. Cross-reference (if WhatsApp is configured): `wacli contacts search "<number>"` to
+   get a name. If WhatsApp is not available, skip to step 7b.
+7. a. If name found via WhatsApp: check Apple Contacts by name. If missing, spawn Opus
+   with the name and number to verify and add to Apple Contacts. b. If no name from
+   cross-reference (or WhatsApp not configured): spawn Opus with the full conversation —
+   Opus will look for self-introductions, context clues, and check other available
+   platforms.
