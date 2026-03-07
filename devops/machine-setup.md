@@ -165,8 +165,9 @@ cron jobs, not just interactive terminals.
 
 The following paths must be in PATH for all shell contexts:
 
-- `/opt/homebrew/bin` (Homebrew packages and npm global installs)
-- nvm's Node.js bin directory
+- `/opt/homebrew/bin` (Homebrew packages: uv, restic, gh, etc.)
+- nvm's Node.js bin directory (also contains npm global installs: openclaw, pnpm,
+  claude)
 
 **How this is configured depends on the shell.** The important thing is that
 `ssh <host> "node --version && uv --version && claude --version"` all work — not just in
@@ -480,7 +481,7 @@ echo "permissions: $(stat -f '%Lp' ~/.openclaw)" && \
 echo "=== network ===" && \
 echo "tailscale: $(tailscale status --self 2>/dev/null | head -1 || echo 'NOT RUNNING')" && \
 echo "=== software ===" && \
-echo "brewfile: $(brew bundle check --file ~/.openclaw-config/Brewfile 2>/dev/null && echo 'ok' || echo 'DRIFT')" && \
+echo "brewfile: $(brew bundle check --quiet --file ~/.openclaw-config/Brewfile 2>/dev/null && echo 'ok' || echo 'DRIFT')" && \
 echo "node: $(node --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "openclaw: $(openclaw --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "pnpm: $(pnpm --version 2>/dev/null || echo 'NOT FOUND')" && \
