@@ -107,9 +107,21 @@ world-readable.
 Install everything via Homebrew where possible. No version pins — always use latest
 stable. The goal is consistency across machines, not a specific version.
 
+### Brewfile
+
+System tools are declared in `Brewfile` at the repo root. This is the single source of
+truth for Homebrew packages across the fleet.
+
+- All Brewfile packages installed and up to date
+
+**Verify:** `brew bundle check --file ~/.openclaw-config/Brewfile`
+
+**Fix:** `brew bundle --file ~/.openclaw-config/Brewfile`
+
 ### Node.js
 
-The gateway runs on Node.js. Install via nvm for version management.
+The gateway runs on Node.js. Install via nvm for version management. Do not install nvm
+via Homebrew — use the official install script.
 
 - nvm installed
 - Current LTS or latest stable Node.js installed
@@ -124,73 +136,36 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 nvm install node
 ```
 
-### OpenClaw
+### npm Global Packages
 
-The gateway binary. Install globally via npm.
+These are installed via npm, not Homebrew:
 
-- `openclaw` available in PATH
-- Running the latest stable release
+- `openclaw` — the gateway binary (latest stable)
+- `pnpm` — required for skill installation
+- `@anthropic-ai/claude-code` — Claude CLI for health checks and fleet ops
 
-**Verify:** `which openclaw && openclaw --version`
+**Verify:**
 
-**Fix:** `npm install -g openclaw@latest`
+```bash
+openclaw --version && pnpm --version && claude --version
+```
 
-### pnpm
+**Fix:**
 
-Required for OpenClaw skill installation. Install globally via npm.
-
-- `pnpm` available in PATH
-
-**Verify:** `pnpm --version`
-
-**Fix:** `npm install -g pnpm`
-
-### uv
-
-Python package runner for standalone skills (Python-based CLIs with inline
-dependencies). Install via Homebrew.
-
-- `uv` available in PATH via Homebrew (not the standalone installer)
-
-**Verify:** `which uv && uv --version` — path should be under Homebrew, not
-`~/.local/bin`
-
-**Fix:** `brew install uv`
-
-### restic
-
-Backup tool for workspace protection. Install via Homebrew.
-
-- `restic` available in PATH via Homebrew
-
-**Verify:** `which restic && restic version`
-
-**Fix:** `brew install restic`
-
-### Claude CLI
-
-Used by the health check agent and for fleet operations. Installed via Anthropic's
-official installer (lands in `~/.local/bin/`).
-
-- `claude` available in PATH
-- Must work over non-interactive SSH, not just local terminal
-
-**Verify:** `claude --version` — must also work via `ssh <host> "claude --version"`
-
-**Fix:** `npm install -g @anthropic-ai/claude-code`
+```bash
+npm install -g openclaw@latest pnpm @anthropic-ai/claude-code
+```
 
 ---
 
 ## Shell Environment
 
-Software installed to `~/.local/bin` (Claude CLI) and `/opt/homebrew/bin` (Homebrew
-packages) must be available to **non-interactive** shells — SSH commands and cron jobs,
-not just interactive terminals.
+All installed tools must be available to **non-interactive** shells — SSH commands and
+cron jobs, not just interactive terminals.
 
 The following paths must be in PATH for all shell contexts:
 
-- `~/.local/bin` (Claude CLI, any pip/uv installed tools)
-- `/opt/homebrew/bin` (Homebrew packages: restic, uv, etc.)
+- `/opt/homebrew/bin` (Homebrew packages and npm global installs)
 - nvm's Node.js bin directory
 
 **How this is configured depends on the shell.** The important thing is that
@@ -505,11 +480,10 @@ echo "permissions: $(stat -f '%Lp' ~/.openclaw)" && \
 echo "=== network ===" && \
 echo "tailscale: $(tailscale status --self 2>/dev/null | head -1 || echo 'NOT RUNNING')" && \
 echo "=== software ===" && \
+echo "brewfile: $(brew bundle check --file ~/.openclaw-config/Brewfile 2>/dev/null && echo 'ok' || echo 'DRIFT')" && \
 echo "node: $(node --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "openclaw: $(openclaw --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "pnpm: $(pnpm --version 2>/dev/null || echo 'NOT FOUND')" && \
-echo "uv: $(uv --version 2>/dev/null || echo 'NOT FOUND')" && \
-echo "restic: $(restic version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "claude: $(claude --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "=== services ===" && \
 GW_PID=$(launchctl list 2>/dev/null | grep ai.openclaw.gateway | awk '{print $1}') && \
@@ -538,11 +512,10 @@ permissions: 700
 === network ===
 tailscale: <ip>  <hostname>  <user>@  macOS  -
 === software ===
+brewfile: ok
 node: v<version>
 openclaw: <version>
 pnpm: <version>
-uv: uv <version>
-restic: restic <version>
 claude: <version> (Claude Code)
 === services ===
 gateway: running (PID <number>)
