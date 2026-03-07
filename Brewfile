@@ -1,5 +1,6 @@
 # CLI tools
 brew "gh"
+brew "nvm"
 brew "gogcli"
 brew "imessage-exporter"
 brew "jq"
@@ -12,6 +13,8 @@ brew "wget"
 
 # Shell
 brew "powerlevel10k"
+brew "zsh-autosuggestions"
+brew "zsh-syntax-highlighting"
 
 # Casks
 cask "font-source-code-pro"

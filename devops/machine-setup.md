@@ -120,10 +120,9 @@ truth for Homebrew packages across the fleet.
 
 ### Node.js
 
-The gateway runs on Node.js. Install via nvm for version management. Do not install nvm
-via Homebrew — use the official install script.
+The gateway runs on Node.js. Install nvm via Homebrew for version management.
 
-- nvm installed
+- nvm installed (via Brewfile)
 - Current LTS or latest stable Node.js installed
 - `node` and `npm` available in PATH
 
@@ -132,7 +131,7 @@ via Homebrew — use the official install script.
 **Fix:**
 
 ```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+brew bundle --file ~/.openclaw-config/Brewfile   # installs nvm
 nvm install node
 ```
 
