@@ -527,7 +527,7 @@ ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topi
 echo "config-repo: $(test -f ~/.openclaw-config/VERSION && echo 'present' || echo 'MISSING')" && \
 echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')" && \
 echo "=== diagnostics ===" && \
-perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive 2>&1 | tail -10 || echo "doctor timed out or failed"
+DOCTOR_OUT=$(perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive 2>&1); DOCTOR_EXIT=$?; echo "$DOCTOR_OUT" | tail -10; [ $DOCTOR_EXIT -eq 0 ] || echo "doctor exited with code $DOCTOR_EXIT (timed out or failed)"
 ```
 
 ### Expected Results
