@@ -461,6 +461,32 @@ should be present and enabled.
 
 ---
 
+## Platform Diagnostics
+
+After setup or any significant change, run OpenClaw's built-in diagnostic tool:
+
+```bash
+openclaw doctor --non-interactive
+```
+
+This checks config validity, state integrity, credential health, supervisor config,
+security posture, skill eligibility, and memory search readiness. It also detects legacy
+state needing migration and stale OAuth tokens.
+
+For automated repair (only when intentionally fixing drift, not routine checks):
+
+```bash
+openclaw doctor --repair --non-interactive
+```
+
+This writes a backup to `~/.openclaw/openclaw.json.bak` before making changes. Use
+`--repair --force` for aggressive fixes (legacy service migration, state cleanup).
+
+The health check agent runs `openclaw doctor --non-interactive` daily as a preventive
+scan and escalates fixable issues to the debugger agent.
+
+---
+
 ## Verification
 
 Run these checks to confirm a machine meets this spec. Every check should pass. Any
@@ -495,7 +521,9 @@ echo "=== workspace ===" && \
 ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS,BOOT}.md >/dev/null 2>&1 && echo "core files: all present" || echo "core files: MISSING" && \
 ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topics} >/dev/null 2>&1 && echo "memory dirs: all present" || echo "memory dirs: MISSING" && \
 echo "config-repo: $(test -f ~/.openclaw-config/VERSION && echo 'present' || echo 'MISSING')" && \
-echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')"
+echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')" && \
+echo "=== diagnostics ===" && \
+openclaw doctor --non-interactive 2>&1 | tail -10
 ```
 
 ### Expected Results
@@ -527,7 +555,10 @@ core files: all present
 memory dirs: all present
 config-repo: present
 health-check-admin: present
+=== diagnostics ===
+<last 10 lines of openclaw doctor output — should show no errors>
 ```
 
 Any line showing `NOT FOUND`, `NOT RUNNING`, `NOT LOADED`, or `MISSING` indicates drift
-that needs to be resolved.
+that needs to be resolved. Doctor errors or warnings indicate config issues that need
+attention — run `openclaw doctor` interactively for details.
