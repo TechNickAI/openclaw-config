@@ -110,14 +110,10 @@ signal something is wrong.
 
 **Config and state diagnostics.** Once per day as a preventive scan — or when
 `openclaw health` shows a problem and doctor hasn't run in the last 4 hours — run
-`openclaw doctor --non-interactive`. This is OpenClaw's built-in repair and migration
-tool. It checks config validity, state integrity, credential health (OAuth expiry,
-gateway tokens), supervisor config (launchd), service runtime, security posture (open DM
-policies), skill eligibility, and memory search readiness. It also detects legacy state
-that needs migration. Limit the run to 60 seconds — use `gtimeout 60` if coreutils is
-installed, otherwise
-`perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive`. If doctor exceeds
-the limit, treat it as an inconclusive run and skip escalation.
+`openclaw doctor --non-interactive`. This checks config validity, state integrity,
+credential health, supervisor config, security posture, skill eligibility, and memory
+search readiness. Cap the run at 60 seconds to avoid consuming the health check budget.
+If doctor hangs or times out, treat it as inconclusive and skip escalation.
 
 Record the last doctor run timestamp in `CLAUDE.local.md`. Skip if checked within the
 last 20 hours for routine scans, or within the last 4 hours for problem-triggered scans.

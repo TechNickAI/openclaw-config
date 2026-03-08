@@ -463,31 +463,18 @@ should be present and enabled.
 
 ## Platform Diagnostics
 
-After setup or any significant change, run OpenClaw's built-in diagnostic tool:
+`openclaw doctor` is OpenClaw's built-in diagnostic and repair tool. It checks config
+validity, state integrity, credential health, supervisor config, security posture, skill
+eligibility, and memory search readiness. It also detects legacy state needing
+migration.
 
-```bash
-openclaw doctor --non-interactive
-```
+- `openclaw doctor --non-interactive` reports clean — no errors, no actionable warnings
+- `openclaw doctor --repair --non-interactive` can fix drift (backs up config first)
 
-This checks config validity, state integrity, credential health, supervisor config,
-security posture, skill eligibility, and memory search readiness. It also detects legacy
-state needing migration and stale OAuth tokens.
+**Verify:** `openclaw doctor --non-interactive` exits 0 with no error output.
 
-For automated repair (only when intentionally fixing drift, not routine checks):
-
-```bash
-openclaw doctor --repair --non-interactive
-```
-
-This writes a backup to `~/.openclaw/openclaw.json.bak` before making changes. Use
-`--repair --force` for aggressive fixes (legacy service migration, state cleanup).
-
-The health check agent runs `openclaw doctor --non-interactive` daily as a preventive
-scan and escalates fixable issues to the debugger agent.
-
-**Note:** `timeout` is not available by default on macOS (it's GNU coreutils). Use
-`perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive` for a 60-second
-timeout, or install coreutils via Homebrew for `gtimeout`.
+**Fix:** `openclaw doctor --repair --non-interactive` for safe repairs, add `--force`
+for aggressive fixes (legacy service migration, state cleanup).
 
 ---
 
@@ -527,7 +514,7 @@ ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topi
 echo "config-repo: $(test -f ~/.openclaw-config/VERSION && echo 'present' || echo 'MISSING')" && \
 echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')" && \
 echo "=== diagnostics ===" && \
-DOCTOR_OUT=$(perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive 2>&1); DOCTOR_EXIT=$?; echo "$DOCTOR_OUT" | tail -10; [ $DOCTOR_EXIT -eq 0 ] || echo "doctor exited with code $DOCTOR_EXIT (timed out or failed)"
+echo "doctor: $(openclaw doctor --non-interactive 2>&1 | tail -1)"
 ```
 
 ### Expected Results
@@ -560,9 +547,8 @@ memory dirs: all present
 config-repo: present
 health-check-admin: present
 === diagnostics ===
-<last 10 lines of openclaw doctor output — should show no errors>
+doctor: <summary line from openclaw doctor — should show no errors>
 ```
 
 Any line showing `NOT FOUND`, `NOT RUNNING`, `NOT LOADED`, or `MISSING` indicates drift
-that needs to be resolved. Doctor errors or warnings indicate config issues that need
-attention — run `openclaw doctor` interactively for details.
+that needs to be resolved.
