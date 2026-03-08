@@ -114,8 +114,10 @@ signal something is wrong.
 tool. It checks config validity, state integrity, credential health (OAuth expiry,
 gateway tokens), supervisor config (launchd), service runtime, security posture (open DM
 policies), skill eligibility, and memory search readiness. It also detects legacy state
-that needs migration. Use `timeout 60` to prevent a hung doctor from consuming the
-health check budget.
+that needs migration. Limit the run to 60 seconds — use `gtimeout 60` if coreutils is
+installed, otherwise
+`perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive`. If doctor exceeds
+the limit, treat it as an inconclusive run and skip escalation.
 
 Record the last doctor run timestamp in `CLAUDE.local.md`. Skip if checked within the
 last 20 hours for routine scans, or within the last 4 hours for problem-triggered scans.

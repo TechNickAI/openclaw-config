@@ -485,6 +485,10 @@ This writes a backup to `~/.openclaw/openclaw.json.bak` before making changes. U
 The health check agent runs `openclaw doctor --non-interactive` daily as a preventive
 scan and escalates fixable issues to the debugger agent.
 
+**Note:** `timeout` is not available by default on macOS (it's GNU coreutils). Use
+`perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive` for a 60-second
+timeout, or install coreutils via Homebrew for `gtimeout`.
+
 ---
 
 ## Verification
@@ -523,7 +527,7 @@ ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topi
 echo "config-repo: $(test -f ~/.openclaw-config/VERSION && echo 'present' || echo 'MISSING')" && \
 echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')" && \
 echo "=== diagnostics ===" && \
-openclaw doctor --non-interactive 2>&1 | tail -10
+perl -e 'alarm 60; exec @ARGV' -- openclaw doctor --non-interactive 2>&1 | tail -10 || echo "doctor timed out or failed"
 ```
 
 ### Expected Results
