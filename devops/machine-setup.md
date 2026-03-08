@@ -461,6 +461,23 @@ should be present and enabled.
 
 ---
 
+## Platform Diagnostics
+
+`openclaw doctor` is OpenClaw's built-in diagnostic and repair tool. It checks config
+validity, state integrity, credential health, supervisor config, security posture, skill
+eligibility, and memory search readiness. It also detects legacy state needing
+migration.
+
+- `openclaw doctor --non-interactive` reports clean — no errors, no actionable warnings
+- `openclaw doctor --repair --non-interactive` can fix drift (backs up config first)
+
+**Verify:** `openclaw doctor --non-interactive` exits 0 with no error output.
+
+**Fix:** `openclaw doctor --repair --non-interactive` for safe repairs, add `--force`
+for aggressive fixes (legacy service migration, state cleanup).
+
+---
+
 ## Verification
 
 Run these checks to confirm a machine meets this spec. Every check should pass. Any
@@ -495,7 +512,9 @@ echo "=== workspace ===" && \
 ls ~/.openclaw/workspace/{AGENTS,SOUL,USER,MEMORY,IDENTITY,HEARTBEAT,TOOLS,BOOT}.md >/dev/null 2>&1 && echo "core files: all present" || echo "core files: MISSING" && \
 ls -d ~/.openclaw/workspace/memory/{daily,decisions,imports,people,projects,topics} >/dev/null 2>&1 && echo "memory dirs: all present" || echo "memory dirs: MISSING" && \
 echo "config-repo: $(test -f ~/.openclaw-config/VERSION && echo 'present' || echo 'MISSING')" && \
-echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')"
+echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'present' || echo 'MISSING')" && \
+echo "=== diagnostics ===" && \
+echo "doctor: $(openclaw doctor --non-interactive 2>&1 | tail -1)"
 ```
 
 ### Expected Results
@@ -527,6 +546,8 @@ core files: all present
 memory dirs: all present
 config-repo: present
 health-check-admin: present
+=== diagnostics ===
+doctor: <summary line from openclaw doctor — should show no errors>
 ```
 
 Any line showing `NOT FOUND`, `NOT RUNNING`, `NOT LOADED`, or `MISSING` indicates drift

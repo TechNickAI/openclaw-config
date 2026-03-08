@@ -108,6 +108,24 @@ channel connectivity (WhatsApp linked, Telegram ok, etc.), agent identity, and h
 interval in one call. If this command fails or shows a channel down, that's your first
 signal something is wrong.
 
+**Config and state diagnostics.** Once per day as a preventive scan — or when
+`openclaw health` shows a problem and doctor hasn't run in the last 4 hours — run
+`openclaw doctor --non-interactive`. This checks config validity, state integrity,
+credential health, supervisor config, security posture, skill eligibility, and memory
+search readiness. Cap the run at 60 seconds to avoid consuming the health check budget.
+If doctor hangs or times out, treat it as inconclusive and skip escalation.
+
+Record the last doctor run timestamp in `CLAUDE.local.md`. Skip if checked within the
+last 20 hours for routine scans, or within the last 4 hours for problem-triggered scans.
+If an escalation is already active (`~/.openclaw/debug-request.md` exists and is <2h
+old), skip doctor entirely — the debugger is already working on it.
+
+If doctor reports fixable issues, escalate to the debugger agent with the doctor output
+(the health check agent should not run `--repair` itself — that's debugger territory).
+If doctor reports warnings only (security advisories, missing optional features), log
+them to `CLAUDE.local.md` under a "Doctor Warnings" section and report to the admin on
+first occurrence. Don't re-report warnings that are already logged unless they change.
+
 **Gateway liveness (deeper check).** If `openclaw health` shows the gateway up but you
 suspect it's hung, check the log file. The gateway is healthy if the log has entries
 from the last 30 minutes. ANY log entry counts — including `web-heartbeat` entries,
@@ -196,13 +214,13 @@ failed. Notify the admin directly that an unresolved escalation exists alongside
 issue, then delete the stale file before writing the new one.
 
 **How to escalate.** Write your findings to `~/.openclaw/debug-request.md` — what you
-found, what you tried, your hypothesis about the root cause, and the output of
-`openclaw health`. Then start the debugger: `claude --agent openclaw-debugger`. Check
-the exit code — if non-zero, the debugger failed to launch. Delete
-`~/.openclaw/debug-request.md`, fall back to notifying the admin directly with your
-findings, and note "DEBUGGER LAUNCH FAILED" so the admin knows the escalation path
-itself is broken. If the debugger started successfully, log the escalation to
-`~/.openclaw/health-check.log` and stop.
+found, what you tried, your hypothesis about the root cause, the output of
+`openclaw health`, and the output of `openclaw doctor --non-interactive` (if you ran
+it). Then start the debugger: `claude --agent openclaw-debugger`. Check the exit code —
+if non-zero, the debugger failed to launch. Delete `~/.openclaw/debug-request.md`, fall
+back to notifying the admin directly with your findings, and note "DEBUGGER LAUNCH
+FAILED" so the admin knows the escalation path itself is broken. If the debugger started
+successfully, log the escalation to `~/.openclaw/health-check.log` and stop.
 
 **When to escalate vs notify the admin directly.** Escalate when: you attempted a fix
 and the issue persists, OR the problem is config drift, cron failure, backup issue,

@@ -92,7 +92,13 @@ Do these steps in order:
 
 10. **Track version** in `.openclaw/installed-version`
 
-11. **Summary** — Tell them what's configured
+11. **Run diagnostics** — Run `openclaw doctor --non-interactive` and review the output.
+    This validates config integrity, credential health, security posture, skill
+    eligibility, and memory search readiness. If doctor reports errors, fix them before
+    proceeding. If it reports warnings (e.g., open DM policy), note them in the summary
+    so the user can decide whether to address them.
+
+12. **Summary** — Tell them what's configured, include any doctor warnings
 
 ---
 
