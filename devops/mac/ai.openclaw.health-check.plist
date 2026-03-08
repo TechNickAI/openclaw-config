@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.openclaw.health-check</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] &amp;&amp; . "$NVM_DIR/nvm.sh"
+export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+
+CONFIG_REPO="$HOME/src/openclaw-config"
+LOG="$HOME/.openclaw/health-check-cron.log"
+PROMPT_FILE="$CONFIG_REPO/devops/health-check.md"
+
+mkdir -p /tmp/openclaw
+
+if [ ! -f "$PROMPT_FILE" ]; then
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$(hostname -s)] ERROR: health-check.md not found at $PROMPT_FILE" >> "$LOG"
+  exit 1
+fi
+
+cd "$CONFIG_REPO" || exit 1
+
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$(hostname -s)] health check starting" >> "$LOG"
+
+"$HOME/.local/bin/claude" --print --dangerously-skip-permissions --max-turns 25 \
+  -p "$(cat "$PROMPT_FILE")" >> "$LOG" 2&gt;&amp;1
+
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [$(hostname -s)] health check done (exit $?)" >> "$LOG"
+        </string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/openclaw/health-check-launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/openclaw/health-check-launchd.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

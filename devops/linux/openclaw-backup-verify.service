@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenClaw Backup Integrity Verify
+After=network-online.target
+
+# Activated by openclaw-backup-verify.timer — no [Install] section needed.
+# To run manually: systemctl --user start openclaw-backup-verify.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\
+  export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"; \
+  export RESTIC_PASSWORD_FILE="$HOME/.openclaw/restic-password"; \
+  REPO="$HOME/openclaw-backups"; \
+  LOG="$HOME/.openclaw/logs/backup-verify.log"; \
+  mkdir -p "$(dirname "$LOG")"; \
+  echo "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ) starting integrity check" >> "$LOG"; \
+  restic -r "$REPO" check --read-data-subset=10%% 2>&1 | tee -a "$LOG"; \
+  echo "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ) integrity check done" >> "$LOG"'
+StandardError=append:%h/.openclaw/logs/backup-verify-errors.log

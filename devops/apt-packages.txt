@@ -1,0 +1,18 @@
+# OpenClaw Linux dependencies (Ubuntu/Debian)
+# Equivalent of Brewfile for Linux machines.
+# Install with: sudo apt install -y $(grep -v '^#' apt-packages.txt | tr '\n' ' ')
+#
+# Note: Node.js is installed via the NodeSource PPA, not apt directly.
+# See machine-setup-linux.md for Node installation instructions.
+
+# Core utilities
+jq
+restic
+tmux
+wget
+curl
+git
+bat          # Ubuntu 23.04+: package is 'bat'. Older Ubuntu: use 'batcat' (sudo apt install bat || sudo apt install batcat)
+
+# Process management
+htop

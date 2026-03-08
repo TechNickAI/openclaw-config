@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenClaw Workspace Backup Timer
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=4h
+AccuracySec=5min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,36 @@
+[Unit]
+Description=OpenClaw Workspace Backup
+After=network-online.target
+
+# Activated by openclaw-workspace-backup.timer — no [Install] section needed.
+# To run manually: systemctl --user start openclaw-workspace-backup.service
+#
+# Backs up ~/.openclaw (config + state) and, if the configured workspace lives
+# outside ~/.openclaw/, that directory too. The workspace path is read from
+# openclaw.json at backup time so this works regardless of where it was configured.
+# Note: for simplicity, ensure agents.defaults.workspace is inside ~/.openclaw/
+# on all machines (see machine-setup-linux.md).
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\
+  export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"; \
+  export RESTIC_PASSWORD_FILE="$HOME/.openclaw/restic-password"; \
+  REPO="$HOME/openclaw-backups"; \
+  LOG="$HOME/.openclaw/logs/workspace-backup.log"; \
+  mkdir -p "$(dirname "$LOG")"; \
+  restic -r "$REPO" backup "$HOME/.openclaw" \
+    --exclude browser --exclude skill-venv --exclude logs \
+    --tag automated --quiet 2>&1 | tee -a "$LOG"; \
+  WORKSPACE=$(python3 -c "import json,os; d=json.load(open(os.path.expanduser(\"~/.openclaw/openclaw.json\"))); print(d.get(\"agents\",{}).get(\"defaults\",{}).get(\"workspace\",\"\"))" 2>/dev/null); \
+  if [ -n "$WORKSPACE" ] && [ -d "$WORKSPACE" ]; then \
+    case "$WORKSPACE" in \
+      "$HOME/.openclaw/"*) ;; \
+      *) echo "also backing up workspace: $WORKSPACE" | tee -a "$LOG"; \
+         restic -r "$REPO" backup "$WORKSPACE" --tag automated --quiet 2>&1 | tee -a "$LOG" ;; \
+    esac; \
+  fi; \
+  restic -r "$REPO" forget \
+    --keep-daily 7 --keep-weekly 4 --keep-monthly 6 \
+    --prune --quiet 2>&1 | tee -a "$LOG"'
+StandardError=append:%h/.openclaw/logs/workspace-backup-errors.log
