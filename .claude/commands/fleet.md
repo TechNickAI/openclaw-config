@@ -47,6 +47,34 @@ you're missing info is not. If something critical is unknown, ask — don't try 
 things hoping one works.
 </boundaries>
 
+<graceful-restarts>
+When restarting a gateway (local or remote), **always use the gateway-restart skill**
+instead of raw `openclaw gateway restart` or `launchctl kickstart`. This prevents
+interrupting active conversations or cron jobs mid-execution.
+
+```bash
+# Local graceful restart
+skills/gateway-restart/gateway-restart restart
+
+# Remote graceful restart
+skills/gateway-restart/gateway-restart restart --remote <ssh-host>
+
+# Check if gateway is busy without restarting
+skills/gateway-restart/gateway-restart status --remote <ssh-host>
+
+# Force restart when waiting isn't appropriate
+skills/gateway-restart/gateway-restart restart --force --remote <ssh-host>
+```
+
+The skill waits up to 5 minutes (configurable via `--timeout`) for active queries and
+cron jobs to complete before restarting. If the timeout expires, it exits with an error —
+use `--force` to override.
+
+**When to use --force:** Only when the gateway is unhealthy and needs immediate restart
+regardless of active work (e.g., memory leak, hung process, unresponsive to status
+queries).
+</graceful-restarts>
+
 <post-update-verification>
 After EVERY `openclaw update` on any machine, you MUST verify models before moving on:
 
