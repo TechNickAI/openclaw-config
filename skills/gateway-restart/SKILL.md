@@ -1,7 +1,8 @@
 ---
 name: gateway-restart
 version: 0.1.0
-description: Graceful gateway restart — waits for active queries and cron jobs to complete
+description:
+  Graceful gateway restart — waits for active queries and cron jobs to complete
 triggers:
   - gateway restart
   - restart gateway
@@ -29,7 +30,8 @@ complete before restarting. Prevents mid-conversation interruptions.
 - `gateway-restart restart` — Wait for active work to finish, then restart
 - `gateway-restart status` — Check if anything is actively running (no restart)
 - `gateway-restart restart --force` — Skip waiting, restart immediately
-- `gateway-restart restart --timeout 300` — Custom wait timeout in seconds (default: 300)
+- `gateway-restart restart --timeout 300` — Custom wait timeout in seconds
+  (default: 300)
 - `gateway-restart restart --remote <host>` — Restart a remote fleet machine via SSH
 
 ## Detection Strategy

@@ -61,7 +61,12 @@ def parse_log_timestamp(ts: str) -> datetime | None:
 
 
 def get_today_log_path() -> str:
-    """Get the path to today's gateway log (local time, matching gateway convention)."""
+    """Get the path to today's gateway log.
+
+    Uses local time — the gateway writes log filenames using the machine's local date.
+    For remote hosts in different timezones, this could check the wrong log near midnight.
+    All current fleet machines share a timezone so this is acceptable.
+    """
     today = datetime.now().strftime("%Y-%m-%d")
     return str(LOG_DIR / f"openclaw-{today}.log")
 
@@ -132,26 +137,19 @@ def check_running_cron_jobs(remote: str | None = None) -> list[dict] | None:
     now_ms = int(time.time() * 1000)
 
     for job in jobs if isinstance(jobs, list) else jobs.get("jobs", []):
-        last_run = job.get("lastRunAt")
-        if not last_run:
+        # Cron job metadata lives under state.* (state.lastRunAtMs, state.lastRunStatus)
+        state = job.get("state", {})
+        last_run_ms = state.get("lastRunAtMs")
+        if not last_run_ms:
             continue
-
-        if isinstance(last_run, str):
-            try:
-                dt = datetime.fromisoformat(last_run.replace("Z", "+00:00"))
-                last_run_ms = int(dt.timestamp() * 1000)
-            except ValueError:
-                continue
-        else:
-            last_run_ms = last_run
 
         age_ms = now_ms - last_run_ms
         name = job.get("name", job.get("id", "unknown"))
-        status = job.get("status", "")
+        last_status = state.get("lastRunStatus", "")
 
-        # Only explicitly running jobs count as active
-        if status in ("running", "executing") and age_ms < 600_000:
-            running.append({"name": name, "age_s": age_ms // 1000, "status": status})
+        # A job is considered running if it started recently and status indicates active
+        if last_status in ("running", "executing") and age_ms < 600_000:
+            running.append({"name": name, "age_s": age_ms // 1000, "status": last_status})
 
     return running
 
