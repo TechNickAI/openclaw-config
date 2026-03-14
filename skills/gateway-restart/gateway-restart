@@ -1,0 +1,328 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+"""
+Graceful OpenClaw gateway restart — waits for active queries and cron jobs to complete.
+"""
+
+import argparse
+import json
+import shlex
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+ACTIVE_SESSION_THRESHOLD_MS = 60_000  # Sessions updated within 60s considered active
+POLL_INTERVAL_S = 5
+DEFAULT_TIMEOUT_S = 300
+LOG_DIR = Path("/tmp/openclaw")
+
+
+def run_cmd(args: list[str], remote: str | None = None, timeout: int = 15) -> subprocess.CompletedProcess:
+    """Run a command locally or via SSH on a remote host."""
+    if remote:
+        cmd_str = " ".join(shlex.quote(a) for a in args)
+        args = ["ssh", "-o", "ConnectTimeout=10", remote, cmd_str]
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+
+
+def get_gateway_status(remote: str | None = None) -> dict | None:
+    """Fetch gateway status JSON."""
+    try:
+        result = run_cmd(["openclaw", "gateway", "call", "status", "--json"], remote=remote)
+        if result.returncode != 0:
+            return None
+        return json.loads(result.stdout)
+    except (json.JSONDecodeError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def check_active_sessions(status: dict) -> list[dict]:
+    """Find sessions updated within the active threshold."""
+    active = []
+    sessions = status.get("sessions", {})
+    for session in sessions.get("recent", []):
+        age_ms = session.get("age", float("inf"))
+        if age_ms < ACTIVE_SESSION_THRESHOLD_MS:
+            active.append(session)
+    return active
+
+
+def parse_log_timestamp(ts: str) -> datetime | None:
+    """Parse an ISO timestamp from the gateway log into a datetime."""
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
+def get_today_log_path() -> str:
+    """Get the path to today's gateway log.
+
+    Uses local time — the gateway writes log filenames using the machine's local date.
+    For remote hosts in different timezones, this could check the wrong log near midnight.
+    All current fleet machines share a timezone so this is acceptable.
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+    return str(LOG_DIR / f"openclaw-{today}.log")
+
+
+def check_unmatched_inbound(remote: str | None = None) -> bool | None:
+    """Check if there's an inbound web message without a matching auto-reply sent.
+
+    Scans the last 200 lines of today's log for the lifecycle markers.
+    Returns True if active, False if idle, None if unable to determine.
+    """
+    log_path = get_today_log_path()
+    try:
+        result = run_cmd(["tail", "-200", log_path], remote=remote, timeout=10)
+        if result.returncode != 0:
+            print(f"WARNING: Could not read gateway log (exit {result.returncode}), cannot confirm query state")
+            return None
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        print("WARNING: Gateway log not accessible, cannot confirm query state")
+        return None
+
+    # Parse log lines for the auto-reply lifecycle
+    # Gateway logs use pino/tslog format where field "2" is the human-readable message
+    last_inbound_time: datetime | None = None
+    last_reply_time: datetime | None = None
+
+    for line in result.stdout.strip().split("\n"):
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+            msg = entry.get("2", "")
+            timestamp = entry.get("time", "")
+
+            if msg == "inbound web message":
+                last_inbound_time = parse_log_timestamp(timestamp)
+            elif isinstance(msg, str) and msg.startswith("auto-reply sent"):
+                last_reply_time = parse_log_timestamp(timestamp)
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+    if last_inbound_time is None:
+        # No web-inbound entries found — log markers may not cover all channels
+        # (e.g., Telegram messages don't produce web-inbound/web-auto-reply markers)
+        # Return None (inconclusive) so the caller can fall back to session age
+        return None
+
+    # If there's an inbound but no reply after it, query is active
+    if last_reply_time is None:
+        return True
+
+    return last_inbound_time > last_reply_time
+
+
+def check_running_cron_jobs(remote: str | None = None) -> list[dict] | None:
+    """Check for cron jobs that are currently running.
+
+    Returns a list of running jobs, empty list if none, or None if unable to check.
+    Only jobs with an explicit 'running' status are considered active.
+    """
+    try:
+        result = run_cmd(["openclaw", "cron", "list", "--json"], remote=remote, timeout=15)
+        if result.returncode != 0:
+            print(f"WARNING: Could not check cron jobs (exit {result.returncode}), cannot confirm cron state")
+            return None
+        jobs = json.loads(result.stdout)
+    except (json.JSONDecodeError, subprocess.TimeoutExpired, FileNotFoundError):
+        print("WARNING: Cron job check failed, cannot confirm cron state")
+        return None
+
+    running = []
+    now_ms = int(time.time() * 1000)
+
+    for job in jobs if isinstance(jobs, list) else jobs.get("jobs", []):
+        # Cron job metadata lives under state.* (state.lastRunAtMs, state.lastRunStatus)
+        state = job.get("state", {})
+        last_run_ms = state.get("lastRunAtMs")
+        if not last_run_ms:
+            continue
+
+        age_ms = now_ms - last_run_ms
+        name = job.get("name", job.get("id", "unknown"))
+        last_status = state.get("lastRunStatus", "")
+
+        # A job is considered running if it started recently and status indicates active
+        if last_status in ("running", "executing") and age_ms < 600_000:
+            running.append({"name": name, "age_s": age_ms // 1000, "status": last_status})
+
+    return running
+
+
+def check_all_activity(remote: str | None = None) -> dict:
+    """Run all activity checks and return a summary."""
+    status = get_gateway_status(remote)
+    if status is None:
+        return {"gateway_reachable": False, "active": False, "details": "Gateway not reachable"}
+
+    active_sessions = check_active_sessions(status)
+
+    # Always check logs — don't gate on session age (avoids race between log write and session update)
+    unmatched_inbound = check_unmatched_inbound(remote)
+    running_cron = check_running_cron_jobs(remote)
+
+    # If cron check failed entirely, assume active (fail-safe)
+    if running_cron is None:
+        return {
+            "gateway_reachable": True,
+            "active": True,
+            "active_sessions": len(active_sessions),
+            "unmatched_inbound": unmatched_inbound,
+            "running_cron": [],
+            "details": "Unable to confirm idle state (cron check failed)",
+        }
+
+    # Determine activity from all signals
+    # - unmatched_inbound True = confirmed active query in logs
+    # - unmatched_inbound None = logs inconclusive (channel doesn't log markers)
+    #   → fall back to session age as the only signal
+    # - unmatched_inbound False = logs confirm idle
+    log_confirms_active = unmatched_inbound is True
+    log_inconclusive = unmatched_inbound is None
+    sessions_look_active = bool(active_sessions)
+
+    is_active = bool(
+        log_confirms_active
+        or running_cron
+        or (log_inconclusive and sessions_look_active)
+    )
+
+    details = []
+    if log_confirms_active:
+        details.append("Active query in progress (unmatched inbound message in logs)")
+    if running_cron:
+        for job in running_cron:
+            details.append(f"Cron job '{job['name']}' running ({job['age_s']}s ago)")
+    if log_inconclusive and sessions_look_active:
+        details.append(f"{len(active_sessions)} session(s) updated recently (log markers unavailable for this channel)")
+    elif sessions_look_active and not log_confirms_active:
+        details.append(f"{len(active_sessions)} session(s) updated recently but logs confirm idle")
+
+    return {
+        "gateway_reachable": True,
+        "active": is_active,
+        "active_sessions": len(active_sessions),
+        "unmatched_inbound": unmatched_inbound,
+        "running_cron": running_cron,
+        "details": "; ".join(details) if details else "No active work detected",
+    }
+
+
+def do_restart(remote: str | None = None) -> bool:
+    """Execute the gateway restart."""
+    try:
+        result = run_cmd(["openclaw", "gateway", "restart"], remote=remote, timeout=30)
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Check if the gateway has active work."""
+    activity = check_all_activity(args.remote)
+
+    if not activity["gateway_reachable"]:
+        print("ERROR: Gateway not reachable")
+        return 1
+
+    if activity["active"]:
+        print(f"BUSY: {activity['details']}")
+        return 2
+    else:
+        print(f"IDLE: {activity['details']}")
+        return 0
+
+
+def cmd_restart(args: argparse.Namespace) -> int:
+    """Graceful restart with wait-for-idle."""
+    target = args.remote or "local"
+
+    if args.force:
+        print(f"Force restarting gateway ({target})...")
+        if do_restart(args.remote):
+            print("Gateway restarted successfully")
+            return 0
+        else:
+            print("ERROR: Gateway restart failed")
+            return 1
+
+    # Graceful restart: wait for idle
+    timeout = args.timeout
+    started = time.time()
+    poll_count = 0
+
+    try:
+        while True:
+            elapsed = time.time() - started
+            if elapsed >= timeout:
+                print(f"TIMEOUT: Waited {timeout}s but gateway is still busy")
+                print("Use --force to restart anyway, or increase --timeout")
+                return 3
+
+            activity = check_all_activity(args.remote)
+
+            if not activity["gateway_reachable"]:
+                print("ERROR: Gateway not reachable")
+                return 1
+
+            if not activity["active"]:
+                if poll_count > 0:
+                    print(f"Gateway is now idle (waited {int(elapsed)}s)")
+                else:
+                    print(f"Gateway is idle ({target})")
+                break
+
+            # Report what we're waiting for
+            if poll_count == 0:
+                print(f"Waiting for active work to complete ({target})...")
+            print(f"  [{int(elapsed)}s] {activity['details']}")
+
+            poll_count += 1
+            time.sleep(POLL_INTERVAL_S)
+    except KeyboardInterrupt:
+        print("\nInterrupted. Gateway was NOT restarted.")
+        return 130
+
+    # TOCTOU: brief race window between idle check and restart; acceptable for graceful restart
+    print("Restarting gateway...")
+    if do_restart(args.remote):
+        print("Gateway restarted successfully")
+        return 0
+    else:
+        print("ERROR: Gateway restart failed")
+        return 1
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Graceful OpenClaw gateway restart",
+        prog="gateway-restart",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # restart command
+    restart_parser = subparsers.add_parser("restart", help="Graceful restart (waits for idle)")
+    restart_parser.add_argument("--force", action="store_true", help="Skip waiting, restart immediately")
+    restart_parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S, help=f"Max seconds to wait (default: {DEFAULT_TIMEOUT_S})")
+    restart_parser.add_argument("--remote", type=str, default=None, help="SSH host for remote restart")
+    restart_parser.set_defaults(func=cmd_restart)
+
+    # status command
+    status_parser = subparsers.add_parser("status", help="Check if gateway has active work")
+    status_parser.add_argument("--remote", type=str, default=None, help="SSH host for remote check")
+    status_parser.set_defaults(func=cmd_status)
+
+    args = parser.parse_args()
+    sys.exit(args.func(args))
+
+
+if __name__ == "__main__":
+    main()
