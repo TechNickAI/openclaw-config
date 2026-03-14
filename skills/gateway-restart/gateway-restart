@@ -108,7 +108,10 @@ def check_unmatched_inbound(remote: str | None = None) -> bool | None:
             continue
 
     if last_inbound_time is None:
-        return False
+        # No web-inbound entries found — log markers may not cover all channels
+        # (e.g., Telegram messages don't produce web-inbound/web-auto-reply markers)
+        # Return None (inconclusive) so the caller can fall back to session age
+        return None
 
     # If there's an inbound but no reply after it, query is active
     if last_reply_time is None:
@@ -166,27 +169,42 @@ def check_all_activity(remote: str | None = None) -> dict:
     unmatched_inbound = check_unmatched_inbound(remote)
     running_cron = check_running_cron_jobs(remote)
 
-    # If we couldn't check, assume active (fail-safe)
-    if unmatched_inbound is None or running_cron is None:
+    # If cron check failed entirely, assume active (fail-safe)
+    if running_cron is None:
         return {
             "gateway_reachable": True,
             "active": True,
             "active_sessions": len(active_sessions),
             "unmatched_inbound": unmatched_inbound,
-            "running_cron": running_cron or [],
-            "details": "Unable to confirm idle state (check warnings above)",
+            "running_cron": [],
+            "details": "Unable to confirm idle state (cron check failed)",
         }
 
-    is_active = bool(unmatched_inbound or running_cron)
+    # Determine activity from all signals
+    # - unmatched_inbound True = confirmed active query in logs
+    # - unmatched_inbound None = logs inconclusive (channel doesn't log markers)
+    #   → fall back to session age as the only signal
+    # - unmatched_inbound False = logs confirm idle
+    log_confirms_active = unmatched_inbound is True
+    log_inconclusive = unmatched_inbound is None
+    sessions_look_active = bool(active_sessions)
+
+    is_active = bool(
+        log_confirms_active
+        or running_cron
+        or (log_inconclusive and sessions_look_active)
+    )
 
     details = []
-    if unmatched_inbound:
+    if log_confirms_active:
         details.append("Active query in progress (unmatched inbound message in logs)")
     if running_cron:
         for job in running_cron:
             details.append(f"Cron job '{job['name']}' running ({job['age_s']}s ago)")
-    if active_sessions and not unmatched_inbound:
-        details.append(f"{len(active_sessions)} session(s) updated recently but no active query confirmed")
+    if log_inconclusive and sessions_look_active:
+        details.append(f"{len(active_sessions)} session(s) updated recently (log markers unavailable for this channel)")
+    elif sessions_look_active and not log_confirms_active:
+        details.append(f"{len(active_sessions)} session(s) updated recently but logs confirm idle")
 
     return {
         "gateway_reachable": True,
