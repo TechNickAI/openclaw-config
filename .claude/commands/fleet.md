@@ -67,13 +67,12 @@ skills/gateway-restart/gateway-restart restart --force --remote <ssh-host>
 ```
 
 The skill waits up to 5 minutes (configurable via `--timeout`) for active queries and
-cron jobs to complete before restarting. If the timeout expires, it exits with an error —
-use `--force` to override.
+cron jobs to complete before restarting. If the timeout expires, it exits with an error
+— use `--force` to override.
 
 **When to use --force:** Only when the gateway is unhealthy and needs immediate restart
 regardless of active work (e.g., memory leak, hung process, unresponsive to status
-queries).
-</graceful-restarts>
+queries). </graceful-restarts>
 
 <post-update-verification>
 After EVERY `openclaw update` on any machine, you MUST verify models before moving on:
