@@ -98,7 +98,9 @@ class TestSearchIntegration:
 
     def test_search_json_output(self):
         """Search with --json returns structured output."""
-        result = run_skill("search", "python programming", "--max-results", "1", "--json")
+        result = run_skill(
+            "search", "python programming", "--max-results", "1", "--json"
+        )
         assert result.returncode == 0
         assert "{" in result.stdout
 

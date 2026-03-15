@@ -25,8 +25,8 @@ DO:
 - Skills are standalone UV scripts with `# /// script` inline dependencies
 - Each skill has `SKILL.md` (metadata) + executable script (same name as directory)
 - Bump `VERSION` file and skill's `SKILL.md` version on changes
-- Keep README.md in sync: update the version badge, skill count badge, and skill/workflow
-  tables when adding, removing, or versioning skills and workflows
+- Keep README.md in sync: update the version badge, skill count badge, and
+  skill/workflow tables when adding, removing, or versioning skills and workflows
 - Tests skip gracefully when API keys unavailable
 
 DON'T:

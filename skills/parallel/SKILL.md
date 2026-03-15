@@ -1,7 +1,9 @@
 ---
 name: parallel
 version: 0.3.0
-description: Web search, content extraction, deep research, data enrichment, entity discovery, and web monitoring via Parallel.ai CLI
+description:
+  Web search, content extraction, deep research, data enrichment, entity discovery, and
+  web monitoring via Parallel.ai CLI
 triggers:
   - web search
   - search the web
@@ -34,14 +36,14 @@ quick searches to deep multi-source research. Auto-installs on first use.
 
 Pick the right tool for the job:
 
-| Need | Command | Cost | Speed |
-|------|---------|------|-------|
-| Quick factual lookup, recent news | `search` | Low | Fast |
-| Read a specific URL (article, PDF, JS-heavy page) | `extract` | Low | Fast |
-| In-depth analysis of a topic with citations | `research` | Medium-High | Minutes |
-| Add data columns to a list (CEO names, revenue, etc.) | `enrich` | Medium | Minutes |
-| Build a list of entities matching criteria | `findall` | Medium | Minutes |
-| Get notified when something changes on the web | `monitor` | Low (recurring) | Ongoing |
+| Need                                                  | Command    | Cost            | Speed   |
+| ----------------------------------------------------- | ---------- | --------------- | ------- |
+| Quick factual lookup, recent news                     | `search`   | Low             | Fast    |
+| Read a specific URL (article, PDF, JS-heavy page)     | `extract`  | Low             | Fast    |
+| In-depth analysis of a topic with citations           | `research` | Medium-High     | Minutes |
+| Add data columns to a list (CEO names, revenue, etc.) | `enrich`   | Medium          | Minutes |
+| Build a list of entities matching criteria            | `findall`  | Medium          | Minutes |
+| Get notified when something changes on the web        | `monitor`  | Low (recurring) | Ongoing |
 
 ## Preference Over Built-in Tools
 
@@ -77,16 +79,16 @@ parallel search "SEC filings for Apple" --include-domains sec.gov --json
 parallel search "React 19 features" --max-results 10 --json
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-q, --query` | Keyword search query (repeatable) |
-| `--mode` | `agentic` (default, AI-refined) or `one-shot` (literal) |
-| `--max-results` | Max results (default: 10) |
-| `--include-domains` | Only search these domains |
-| `--exclude-domains` | Skip these domains |
-| `--after-date` | Only results after this date (YYYY-MM-DD) |
-| `-o, --output` | Save results to file |
-| `--json` | Structured JSON output |
+| Option              | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| `-q, --query`       | Keyword search query (repeatable)                       |
+| `--mode`            | `agentic` (default, AI-refined) or `one-shot` (literal) |
+| `--max-results`     | Max results (default: 10)                               |
+| `--include-domains` | Only search these domains                               |
+| `--exclude-domains` | Skip these domains                                      |
+| `--after-date`      | Only results after this date (YYYY-MM-DD)               |
+| `-o, --output`      | Save results to file                                    |
+| `--json`            | Structured JSON output                                  |
 
 ### Extract
 
@@ -99,15 +101,15 @@ parallel extract https://example.com/report.pdf --full
 parallel extract https://spa-app.com/dashboard --json
 ```
 
-| Option | Description |
-|--------|-------------|
+| Option   | Description                                |
+| -------- | ------------------------------------------ |
 | `--full` | Full page content (default: smart excerpt) |
-| `--json` | Structured JSON output |
+| `--json` | Structured JSON output                     |
 
 ### Research
 
-Deep multi-source research with synthesis. Returns a comprehensive report with citations.
-Use for questions that need analysis, not just facts.
+Deep multi-source research with synthesis. Returns a comprehensive report with
+citations. Use for questions that need analysis, not just facts.
 
 ```bash
 parallel research run "Compare EV battery technologies in 2025"
@@ -117,24 +119,24 @@ parallel research run -f question.txt -o report --json
 
 **Processor tiers** (cost/quality tradeoff):
 
-| Tier | Best for |
-|------|----------|
-| `lite` | Simple questions, quick summaries |
-| `base` | Standard research questions |
-| `core` | Detailed analysis (default) |
-| `pro` | Complex multi-faceted topics |
+| Tier    | Best for                                 |
+| ------- | ---------------------------------------- |
+| `lite`  | Simple questions, quick summaries        |
+| `base`  | Standard research questions              |
+| `core`  | Detailed analysis (default)              |
+| `pro`   | Complex multi-faceted topics             |
 | `ultra` | Exhaustive research with maximum sources |
 
 All tiers have `-fast` variants (e.g. `core-fast`) for speed over thoroughness.
 
-| Option | Description |
-|--------|-------------|
+| Option            | Description                                                                 |
+| ----------------- | --------------------------------------------------------------------------- |
 | `-p, --processor` | Tier: `lite`, `base`, `core` (default), `pro`, `ultra` (+ `-fast` variants) |
-| `--no-wait` | Return immediately, poll later with `research status <run_id>` |
-| `--timeout` | Max wait seconds (default: 3600) |
-| `-o, --output` | Save to file (creates `.json` and `.md`) |
-| `-f` | Read query from file |
-| `--json` | Structured JSON output |
+| `--no-wait`       | Return immediately, poll later with `research status <run_id>`              |
+| `--timeout`       | Max wait seconds (default: 3600)                                            |
+| `-o, --output`    | Save to file (creates `.json` and `.md`)                                    |
+| `-f`              | Read query from file                                                        |
+| `--json`          | Structured JSON output                                                      |
 
 **Async pattern** (for long-running research):
 
@@ -179,14 +181,14 @@ parallel findall run "AI startups focused on healthcare" -n 50 --json
 parallel findall run "Open source LLM projects with >10k GitHub stars" --dry-run --json
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-g, --generator` | Tier: `preview`, `base`, `core` (default), `pro` |
-| `-n, --match-limit` | Max results, 5-1000 (default: 10) |
-| `--exclude` | Entities to exclude (JSON array) |
-| `--dry-run` | Preview schema without running |
-| `--no-wait` | Return immediately, poll later |
-| `--json` | Structured JSON output |
+| Option              | Description                                      |
+| ------------------- | ------------------------------------------------ |
+| `-g, --generator`   | Tier: `preview`, `base`, `core` (default), `pro` |
+| `-n, --match-limit` | Max results, 5-1000 (default: 10)                |
+| `--exclude`         | Entities to exclude (JSON array)                 |
+| `--dry-run`         | Preview schema without running                   |
+| `--no-wait`         | Return immediately, poll later                   |
+| `--json`            | Structured JSON output                           |
 
 **Async pattern:**
 
@@ -215,11 +217,11 @@ parallel monitor delete mon_xxx
 parallel monitor events mon_xxx --json
 ```
 
-| Option | Description |
-|--------|-------------|
+| Option      | Description                                  |
+| ----------- | -------------------------------------------- |
 | `--cadence` | Check frequency: `hourly`, `daily`, `weekly` |
-| `--webhook` | URL for change notifications |
-| `--json` | Structured JSON output |
+| `--webhook` | URL for change notifications                 |
+| `--json`    | Structured JSON output                       |
 
 ## Authentication
 
