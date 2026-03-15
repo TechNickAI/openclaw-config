@@ -1,7 +1,8 @@
-"""Tests for Parallel.ai skill.
+"""Tests for Parallel.ai skill wrapper.
 
-Integration tests require PARALLEL_API_KEY environment variable.
-Tests auto-skip if the key is not available.
+The parallel skill is a thin bash wrapper around the official parallel-cli.
+These tests verify the wrapper behavior (auto-install logic, passthrough).
+Integration tests require both parallel-cli installed and PARALLEL_API_KEY set.
 """
 
 import os
@@ -10,11 +11,27 @@ from pathlib import Path
 
 import pytest
 
-# Path to the skill script
 SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "parallel" / "parallel")
 
-# Skip integration tests if no API key
+try:
+    HAS_CLI = (
+        subprocess.run(
+            ["parallel-cli", "--version"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+except FileNotFoundError:
+    HAS_CLI = False
+
 HAS_API_KEY = bool(os.getenv("PARALLEL_API_KEY"))
+
+requires_cli = pytest.mark.skipif(
+    not HAS_CLI,
+    reason="parallel-cli not installed",
+)
+
 requires_api_key = pytest.mark.skipif(
     not HAS_API_KEY,
     reason="PARALLEL_API_KEY not set - skipping integration tests",
@@ -22,8 +39,8 @@ requires_api_key = pytest.mark.skipif(
 
 
 def run_skill(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
-    """Run the parallel skill with given arguments."""
-    cmd = ["uv", "run", SKILL_PATH, *args]
+    """Run the parallel skill wrapper with given arguments."""
+    cmd = ["bash", SKILL_PATH, *args]
     run_env = os.environ.copy()
     if env:
         run_env.update(env)
@@ -36,160 +53,63 @@ def run_skill(*args: str, env: dict | None = None) -> subprocess.CompletedProces
     )
 
 
-class TestHelp:
-    """Tests for help command - no API key required."""
+class TestWrapper:
+    """Tests for the bash wrapper itself."""
 
-    def test_help_shows_usage(self):
-        """Help command shows usage information."""
-        # Run without API key to test help works standalone
-        result = run_skill("help", env={"PARALLEL_API_KEY": ""})
+    def test_skill_is_executable(self):
+        """Skill script exists and is executable."""
+        path = Path(SKILL_PATH)
+        assert path.exists()
+        assert os.access(path, os.X_OK)
 
-        # Help should work even without API key
+    def test_skill_is_bash(self):
+        """Skill script is a bash script, not Python."""
+        with open(SKILL_PATH) as f:
+            first_line = f.readline()
+        assert "bash" in first_line
+
+
+@requires_cli
+class TestPassthrough:
+    """Tests that verify the wrapper passes through to parallel-cli."""
+
+    def test_help_passthrough(self):
+        """Wrapper passes help/version commands through."""
+        result = run_skill("--version")
         assert result.returncode == 0
-        assert "Parallel.ai" in result.stdout
-        assert "search" in result.stdout
-        assert "extract" in result.stdout
 
-    def test_no_args_shows_help(self):
-        """Running with no arguments shows help."""
-        result = run_skill(env={"PARALLEL_API_KEY": ""})
-
-        assert result.returncode == 0
-        assert "Commands:" in result.stdout
-
-
-class TestValidation:
-    """Tests for input validation - no API key required."""
-
-    def test_search_requires_query(self):
-        """Search without query shows error."""
-        result = run_skill("search", env={"PARALLEL_API_KEY": "fake-key"})
-
-        assert result.returncode != 0
-        assert (
-            "query required" in result.stderr.lower()
-            or "query required" in result.stdout.lower()
-        )
-
-    def test_extract_requires_url(self):
-        """Extract without URL shows error."""
-        result = run_skill("extract", env={"PARALLEL_API_KEY": "fake-key"})
-
-        assert result.returncode != 0
-        assert (
-            "url required" in result.stderr.lower()
-            or "url required" in result.stdout.lower()
-        )
-
-    def test_extract_validates_url_format(self):
-        """Extract rejects invalid URLs."""
-        result = run_skill("extract", "not-a-url", env={"PARALLEL_API_KEY": "fake-key"})
-
-        assert result.returncode != 0
-        assert "http" in result.stderr.lower() or "url" in result.stderr.lower()
-
-    def test_limit_must_be_numeric(self):
-        """--limit flag requires a number."""
-        result = run_skill(
-            "search", "test", "--limit", "abc", env={"PARALLEL_API_KEY": "fake-key"}
-        )
-
-        assert result.returncode != 0
-        assert "limit" in result.stderr.lower() or "number" in result.stderr.lower()
-
-    def test_missing_api_key_shows_error(self):
-        """Missing API key shows helpful error."""
-        result = run_skill("search", "test", env={"PARALLEL_API_KEY": ""})
-
+    def test_search_without_key_fails_fast(self):
+        """Wrapper catches missing API key before hitting CLI (prevents interactive hang)."""
+        result = run_skill("search", "test query", env={"PARALLEL_API_KEY": ""})
         assert result.returncode != 0
         assert "PARALLEL_API_KEY" in result.stderr
 
-    def test_limit_must_be_positive(self):
-        """--limit rejects zero and negative values."""
-        result = run_skill(
-            "search", "test", "--limit", "0", env={"PARALLEL_API_KEY": "fake-key"}
-        )
-        assert result.returncode != 0
-        assert "positive" in result.stderr.lower()
 
-        result = run_skill(
-            "search", "test", "--limit", "-5", env={"PARALLEL_API_KEY": "fake-key"}
-        )
-        assert result.returncode != 0
-
-    def test_limit_requires_value(self):
-        """--limit at end of args without value shows error."""
-        result = run_skill(
-            "search", "test", "--limit", env={"PARALLEL_API_KEY": "fake-key"}
-        )
-        assert result.returncode != 0
-        assert "limit" in result.stderr.lower()
-
-    def test_unknown_command_shows_error(self):
-        """Unknown command shows error, not help."""
-        result = run_skill("typo", env={"PARALLEL_API_KEY": "fake-key"})
-        assert result.returncode != 0
-        assert "unknown command" in result.stderr.lower()
-
-    def test_raw_invalid_json(self):
-        """Raw command rejects invalid JSON."""
-        result = run_skill(
-            "raw", "/search", "not-json", env={"PARALLEL_API_KEY": "fake-key"}
-        )
-        assert result.returncode != 0
-        assert "json" in result.stderr.lower()
-
-
+@requires_cli
 @requires_api_key
 class TestSearchIntegration:
-    """Integration tests for search - require API key."""
+    """Integration tests for search via the wrapper."""
 
     def test_search_returns_results(self):
-        """Basic search returns formatted results."""
-        result = run_skill("search", "python programming", "--limit", "2")
-
+        """Basic search returns output."""
+        result = run_skill("search", "python programming", "--max-results", "2")
         assert result.returncode == 0
-        # Should have markdown formatted output
-        assert "##" in result.stdout or "URL:" in result.stdout
-
-    def test_search_with_limit(self):
-        """Search respects --limit flag."""
-        result = run_skill("search", "artificial intelligence", "--limit", "1")
-
-        assert result.returncode == 0
-        # Should return at least one result
         assert result.stdout.strip()
 
+    def test_search_json_output(self):
+        """Search with --json returns structured output."""
+        result = run_skill("search", "python programming", "--max-results", "1", "--json")
+        assert result.returncode == 0
+        assert "{" in result.stdout
 
+
+@requires_cli
 @requires_api_key
 class TestExtractIntegration:
-    """Integration tests for extract - require API key."""
+    """Integration tests for extract via the wrapper."""
 
     def test_extract_basic_url(self):
         """Extract content from a simple URL."""
         result = run_skill("extract", "https://example.com")
-
-        assert result.returncode == 0
-        # Should have some content
-        assert result.stdout.strip()
-
-    def test_extract_with_full_flag(self):
-        """Extract with --full returns more content."""
-        result = run_skill("extract", "https://example.com", "--full")
-
         assert result.returncode == 0
         assert result.stdout.strip()
-
-
-@requires_api_key
-class TestRawIntegration:
-    """Integration tests for raw API calls - require API key."""
-
-    def test_raw_search_endpoint(self):
-        """Raw API call to search endpoint."""
-        payload = '{"search_queries": ["test"], "max_results": 1}'
-        result = run_skill("raw", "/search", payload)
-
-        assert result.returncode == 0
-        # Should return JSON
-        assert "{" in result.stdout

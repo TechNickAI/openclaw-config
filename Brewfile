@@ -1,5 +1,6 @@
 # CLI tools
 brew "gh"
+brew "parallel-web/tap/parallel-cli"
 brew "nvm"
 brew "gogcli"
 brew "imessage-exporter"

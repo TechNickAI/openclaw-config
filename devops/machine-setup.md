@@ -138,6 +138,31 @@ brew bundle --file ~/src/openclaw-config/Brewfile   # installs nvm
 nvm install node
 ```
 
+### Parallel CLI
+
+The Parallel.ai CLI provides web search, content extraction, deep research, and data
+enrichment. Used by the `parallel` skill. Available via Brewfile on macOS, but the
+cross-platform installer works everywhere.
+
+- `parallel-cli` binary in PATH
+
+**Verify:** `parallel-cli --version`
+
+**Fix (via Brewfile — preferred on macOS):**
+
+```bash
+brew bundle --file ~/src/openclaw-config/Brewfile
+```
+
+**Fix (cross-platform fallback):**
+
+```bash
+curl -fsSL https://parallel.ai/install.sh | bash
+```
+
+Installs to `~/.local/bin`. The `parallel` skill auto-installs this on first use if
+missing.
+
 ### npm Global Packages
 
 These are installed via npm, not Homebrew:
@@ -506,6 +531,7 @@ echo "node: $(node --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "openclaw: $(openclaw --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "pnpm: $(pnpm --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "claude: $(claude --version 2>/dev/null || echo 'NOT FOUND')" && \
+echo "parallel-cli: $(parallel-cli --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "=== services ===" && \
 GW_PID=$(launchctl list 2>/dev/null | grep ai.openclaw.gateway | awk '{print $1}') && \
 { [[ "$GW_PID" =~ ^[0-9]+$ ]] && echo "gateway: running (PID $GW_PID)" || echo "gateway: NOT RUNNING"; } && \
@@ -540,6 +566,7 @@ node: v<version>
 openclaw: <version>
 pnpm: <version>
 claude: <version> (Claude Code)
+parallel-cli: <version>
 === services ===
 gateway: running (PID <number>)
 backup: loaded

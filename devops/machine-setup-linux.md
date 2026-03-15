@@ -75,6 +75,25 @@ sudo apt update
 sudo apt install -y $(grep -v '^#' ~/src/openclaw-config/devops/apt-packages.txt | tr '\n' ' ')
 ```
 
+### Parallel CLI
+
+The Parallel.ai CLI provides web search, content extraction, deep research, and data
+enrichment. Used by the `parallel` skill. Not available via apt — use the official
+installer.
+
+- `parallel-cli` binary in PATH (installed to `~/.local/bin`)
+
+**Verify:** `parallel-cli --version`
+
+**Fix:**
+
+```bash
+curl -fsSL https://parallel.ai/install.sh | bash
+```
+
+Installs to `~/.local/bin` (already in PATH on fleet machines). The `parallel` skill
+auto-installs this on first use if missing.
+
 ### Node.js
 
 Ubuntu ships with a recent Node.js via apt. No nvm needed on server machines.
@@ -328,6 +347,7 @@ echo "node: $(node --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "openclaw: $(openclaw --version 2>/dev/null || ~/.npm-global/bin/openclaw --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "pnpm: $(pnpm --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "claude: $(claude --version 2>/dev/null || ~/.npm-global/bin/claude --version 2>/dev/null || echo 'NOT FOUND')" && \
+echo "parallel-cli: $(parallel-cli --version 2>/dev/null || ~/.local/bin/parallel-cli --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "=== services ===" && \
 echo "gateway: $(systemctl --user is-active openclaw-gateway 2>/dev/null || echo 'unknown')" && \
 echo "backup-timer: $(systemctl --user is-active openclaw-workspace-backup.timer 2>/dev/null || echo 'NOT ACTIVE')" && \
@@ -353,6 +373,7 @@ node: v<version>
 openclaw: <version>
 pnpm: <version>
 claude: <version> (Claude Code)
+parallel-cli: <version>
 === services ===
 gateway: active
 backup-timer: active

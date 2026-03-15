@@ -17,3 +17,7 @@ bat
 
 # Process management
 htop
+
+# Parallel.ai CLI — installed via shell script, not apt
+# curl -fsSL https://parallel.ai/install.sh | bash
+# Installs to ~/.local/bin (must be in PATH)
