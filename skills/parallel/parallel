@@ -25,19 +25,10 @@ install_parallel_cli() {
     fi
 }
 
-# Ensure parallel-cli is available
-if ! command -v parallel-cli &>/dev/null; then
-    # Check ~/.local/bin explicitly (may not be in PATH for non-interactive shells)
-    if [[ -x "$HOME/.local/bin/parallel-cli" ]]; then
-        export PATH="$HOME/.local/bin:$PATH"
-    else
-        install_parallel_cli
-    fi
-fi
-
-# Allow --version and --help without API key; require it for everything else
+# Allow --version, --help, and no-arg invocation without API key
+# Check key first so auth failures are immediate and clear before any network activity
 case "${1:-}" in
-    --version|--help|-h|help) ;;
+    "" | --version | --help | -h | help) ;;
     *)
         if [[ -z "${PARALLEL_API_KEY:-}" ]]; then
             echo "Error: PARALLEL_API_KEY not set" >&2
@@ -47,6 +38,16 @@ case "${1:-}" in
         fi
         ;;
 esac
+
+# Ensure parallel-cli is available (after auth check — no install on missing key)
+if ! command -v parallel-cli &>/dev/null; then
+    # Check ~/.local/bin explicitly (may not be in PATH for non-interactive shells)
+    if [[ -x "$HOME/.local/bin/parallel-cli" ]]; then
+        export PATH="$HOME/.local/bin:$PATH"
+    else
+        install_parallel_cli
+    fi
+fi
 
 # Pass through all arguments to parallel-cli
 exec parallel-cli "$@"
