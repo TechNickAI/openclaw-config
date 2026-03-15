@@ -64,7 +64,7 @@ class TestWrapper:
 
     def test_skill_is_bash(self):
         """Skill script is a bash script, not Python."""
-        with open(SKILL_PATH) as f:
+        with Path(SKILL_PATH).open() as f:
             first_line = f.readline()
         assert "bash" in first_line
 
