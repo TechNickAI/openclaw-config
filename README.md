@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/OpenClaw-Config-D97757?style=for-the-badge&labelColor=1a1a2e" alt="OpenClaw Config">
   <br><br>
-  <a href="https://github.com/TechNickAI/openclaw-config/releases"><img src="https://img.shields.io/badge/version-0.16.0-D97757?style=flat-square" alt="Version"></a>
+  <a href="https://github.com/TechNickAI/openclaw-config/releases"><img src="https://img.shields.io/badge/version-0.17.0-D97757?style=flat-square" alt="Version"></a>
   <img src="https://img.shields.io/badge/python-3.11+-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <a href="https://github.com/TechNickAI/openclaw-config/stargazers"><img src="https://img.shields.io/github/stars/TechNickAI/openclaw-config?style=flat-square&color=D97757" alt="Stars"></a>
@@ -32,9 +32,9 @@ Everything is markdown and Python scripts. No frameworks, no databases, no lock-
   context files, and deep knowledge with semantic search
 - **11 skills** — Web research, meeting transcripts, CRM, phone system, task management,
   and more — each a standalone Python script with zero setup
-- **5 autonomous workflows** — Agents that triage your inbox, manage tasks, prep your
-  calendar, organize contacts, and monitor security threats — learning your preferences
-  over time
+- **6 autonomous workflows** — Agents that triage your inbox, manage tasks, prep your
+  calendar, organize contacts, monitor security threats, and keep cron jobs healthy —
+  learning your preferences over time
 - **Templates for identity** — Define your AI's personality, your profile, and how it
   should operate
 - **DevOps included** — Hourly health checks, fleet management across machines,
@@ -92,7 +92,8 @@ openclaw-config/
 │   ├── task-steward/   # Classify, create, execute, and QA tasks
 │   ├── calendar-steward/    # Daily briefing with travel & meeting prep
 │   ├── contact-steward/    # Detect and organize unknown contacts
-│   └── security-sentinel/  # Threat intelligence & exposure mapping
+│   ├── security-sentinel/  # Threat intelligence & exposure mapping
+│   └── cron-healthcheck/   # Broken cron detection & auto-remediation
 │
 ├── memory/             # Example memory directory structure
 │   ├── people/         # One file per person
@@ -136,6 +137,7 @@ invoke), workflows maintain state, learn your preferences, and manage themselves
 | **calendar-steward**  | Daily briefing — travel time, meeting prep, conflict detection | 0.1.0   |
 | **contact-steward**   | Detect unknown contacts across platforms, classify & organize  | 0.1.0   |
 | **security-sentinel** | Threat intelligence research & fleet exposure mapping          | 0.1.0   |
+| **cron-healthcheck**  | Detect broken cron jobs, auto-remediate, escalate failures     | 0.1.0   |
 
 Each workflow maintains its own state:
 
