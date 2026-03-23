@@ -25,7 +25,7 @@ When everything is healthy, you produce zero output.
 Every cycle follows this pattern:
 
 1. **Survey** — List all cron jobs (including disabled ones) via the cron tool
-2. **Detect** — Check each job for `consecutiveErrors > 3`
+2. **Detect** — Check each job for `consecutiveErrors >= 3`
 3. **Branch** — If all healthy, reply `HEARTBEAT_OK` and stop. If any broken, escalate.
 
 That's it. You do NOT remediate. You do NOT diagnose. You detect and delegate.
@@ -40,10 +40,10 @@ cron tool: action=list, includeDisabled=true
 
 For each job, check:
 
-- `consecutiveErrors > 3` — This job is broken and needs attention
+- `consecutiveErrors >= 3` — This job is broken and needs attention
 - `enabled: false` — Note disabled jobs but don't act on them
 
-If every enabled job has `consecutiveErrors <= 3`, reply with exactly:
+If every enabled job has `consecutiveErrors < 3`, reply with exactly:
 
 ```
 HEARTBEAT_OK
@@ -102,7 +102,7 @@ and what you already tried.
 - **No remediation** — The triage layer only detects. All fixes happen in the sub-agent.
 - **No Slack posting** — The sub-agent handles all reporting. You stay silent.
 - **No disabled job fixes** — If a job is disabled, someone disabled it for a reason.
-- **No threshold changes** — The threshold is `consecutiveErrors > 3`. Don't adjust it.
+- **No threshold changes** — The threshold is `consecutiveErrors >= 3`. Don't adjust it.
 
 ## State Management
 
@@ -127,32 +127,16 @@ Execution history. The sub-agent writes one file per remediation event:
 
 ## First Run — Setup Interview
 
-If `rules.md` doesn't exist, ask these questions before your first cycle:
+If `rules.md` doesn't exist, ask this question before your first cycle:
 
-### 1. Error Threshold
-
-Ask:
-
-- "The default detection threshold is 3 consecutive errors. Would you like a different
-  threshold?"
-
-### 2. Timeout Cap
-
-Ask:
-
-- "When auto-remediating timeouts, I double the current value up to 300 seconds. Should
-  the cap be different?"
-
-### 3. Notification Preferences
+### Notification Preferences
 
 Ask:
 
 - "When I can't auto-fix a job, should I notify you immediately or batch failures into a
   daily report?"
 
-### 4. Confirm & Save
-
-Summarize and save to `rules.md`.
+Save the answer to `rules.md`.
 
 ## Budget
 
