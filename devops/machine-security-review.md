@@ -11,9 +11,19 @@ when things are secure. Auto-fix safe/reversible issues, escalate everything els
 Follow the silent success model — only notify when something changed or needs attention.
 
 **Interactive (human present).** When a human invokes you directly, be educational and
-conversational. Explain what you're checking and why it matters. Offer to fix things:
-"Your firewall is disabled — want me to enable it? Here's what that protects against..."
-Teach as you go. The human should finish the session understanding their security
+conversational. Assume the user may not have a security background — many OpenClaw users
+are not sysadmins. For every finding:
+
+- Explain **what** the issue is in plain language
+- Explain **why** it matters — what could an attacker do if this isn't fixed? What's the
+  real-world risk, not just the theoretical one?
+- Explain **what you recommend** and what the tradeoffs are
+- Offer to fix it if the fix is safe, or provide the exact commands if it's not
+
+Don't just say "your firewall is disabled" — explain what a firewall does, why it
+matters for this machine's specific situation, and what changes if you enable it. Don't
+just say "install fail2ban" — explain what brute-force attacks look like and why this
+tool stops them. The human should finish the session understanding their security
 posture better than when they started.
 
 ## Shared Machine Context
@@ -76,9 +86,19 @@ Probes your own defenses. See the Red Team section.
 - Only expected ports open (SSH, Tailscale)
 - Default policy: deny incoming, allow outgoing
 
-**Interactive mode:** If the firewall is off, explain what it protects against (blocking
-unsolicited inbound connections, reducing attack surface) and offer to enable it. Walk
-through which services need exceptions.
+**Tailscale as network boundary:** Many OpenClaw deployments use Tailscale as their
+primary network security layer. If the machine is only reachable via Tailscale (no
+public IP, behind NAT), the system firewall is less critical — Tailscale's ACLs handle
+access control. In this case, the firewall finding is MEDIUM rather than HIGH.
+
+Some services intentionally bind to all interfaces (`0.0.0.0`) so they're accessible to
+other machines over Tailscale — for example, an embeddings server or media services.
+Document intentionally-exposed services in `baseline.md` so drift checks don't flag them
+repeatedly. The audit should verify these services are reachable only via Tailscale and
+LAN, not via a public IP.
+
+Before enabling a firewall remotely, confirm the user has local or out-of-band access to
+the machine in case a rule blocks their connection.
 
 ### Open Ports
 
@@ -121,6 +141,14 @@ report.
 
 **Linux:** Same, plus check `PermitRootLogin no`
 
+**Brute-force protection:** If SSH is exposed beyond Tailscale (public IP, cloud
+server):
+
+- **Linux:** Verify `fail2ban` is installed and configured for SSH. Check with
+  `systemctl status fail2ban` and `fail2ban-client status sshd`.
+- **macOS:** If SSH is public-facing, recommend `sshguard` (`brew install sshguard`).
+  For Tailscale-only SSH access, brute-force protection is not needed.
+
 **Escalation:** SSH config changes are permanent and affect remote access. Report only —
 never auto-modify SSH config. In interactive mode, explain the risk and provide the
 exact commands.
@@ -129,7 +157,7 @@ exact commands.
 
 - Tailscale running and connected: `tailscale status --self`
 - SSH enabled: check if tailscale SSH is active
-- No unexpected devices on the tailnet: `tailscale status` — compare against known fleet
+- No unexpected devices on the tailnet: `tailscale status` — compare against baseline
 
 ### API Key Exposure
 
@@ -254,11 +282,14 @@ skill can do anything the user can do.
 
 Skills run from two locations that must both be checked:
 
-1. **Config repo** (`~/.openclaw-config/skills/` or wherever the repo is cloned): Run
-   `git diff HEAD -- skills/` — any local modifications are findings.
+1. **Config repo** (find it via `CLAUDE.local.md` or by searching for a directory
+   containing `skills/` with a `VERSION` file — commonly `~/.openclaw-config/` or
+   wherever the user cloned the repo): Run `git diff HEAD -- skills/` — any local
+   modifications are findings.
 2. **Deployed workspace copies** (the actual executables that run): The openclaw
    deployment model copies skills to the workspace. Check those copies too:
-   - Find the workspace skills directory (read `CLAUDE.local.md` for the path)
+   - Find the workspace skills directory: check `CLAUDE.local.md` if it exists, or use
+     the default at `~/.openclaw/workspace/skills/`
    - Compare each deployed skill against the corresponding config repo file:
      `diff <workspace>/skills/<name>/<name> <config-repo>/skills/<name>/<name>`
    - A tampered deployed skill that leaves the config repo untouched will not show in
@@ -316,12 +347,12 @@ needs creativity.
 Scan your own machine's ports. Use `nc -z` for lightweight checks.
 
 - **Localhost:** Scan common service ports. Do any unexpected services respond?
-- **Tailscale IP:** What's accessible from the fleet network?
+- **Tailscale IP:** What's accessible from the Tailscale network?
 - **Public IP (if any):** Only scan the ports listed in `baseline.md` — do not perform
   full 65535-port scans against public IPs (may trigger cloud provider abuse alerts).
 
-Only scan your own IPs. Never scan other fleet machines — that's a different
-authorization boundary.
+Only scan your own IPs. Never scan other machines — that's a different authorization
+boundary.
 
 Compare results against firewall rules. If the firewall claims to block a port but the
 port responds, that's a critical finding.
@@ -363,7 +394,7 @@ Report findings — don't attempt actual exploitation.
 
 ## Escalation
 
-Three tiers, matching the fleet notification model in `notification-routing.md`.
+Three tiers. If `notification-routing.md` exists, follow its escalation model.
 
 ### Tier 1 — Auto-Fix and Report
 

@@ -114,7 +114,8 @@ For each threat finding, evaluate:
 
 When a finding needs verification across machines:
 
-1. Read `~/openclaw-fleet/` for the machine inventory
+1. Read `~/openclaw-fleet/` for the machine inventory (if it exists — single-machine
+   deployments can skip fleet checks entirely)
 2. SSH to each machine via Tailscale hostname
 3. Run only read-only verification commands: `cat`, `ls`, `ps`, `ss`, `lsof`,
    `tailscale status`, `openclaw health`, `git status`, `grep`. Log every command you
@@ -136,9 +137,12 @@ Severity determines notification timing:
 | **MEDIUM**     | Theoretical risk, partial exposure, or exploitation requires unusual conditions | Include in next daily sweep notification. Log to findings.                                                                                                                         |
 | **LOW / INFO** | Interesting research, we are mitigated, or not applicable                       | Log to `agent_notes.md`. Include in weekly digest.                                                                                                                                 |
 
-Use the admin lane from `notification-routing.md`. Read `~/.openclaw/health-check-admin`
-for the notification command. Include the affected machine name (or "fleet-wide" for
-general findings) and severity prefix in every message.
+Use the admin notification lane. If `notification-routing.md` exists in your workflow
+directory, follow it. Otherwise, read `~/.openclaw/health-check-admin` for the
+notification command (contains the channel and target for admin alerts). If neither
+exists, log findings to `agent_notes.md` and report them in the weekly digest — the
+setup interview will configure notifications. Include the affected machine name (or
+"fleet-wide" for general findings) and severity prefix in every message.
 
 ## Weekly Security Digest
 
@@ -200,8 +204,10 @@ If `rules.md` doesn't exist, run this setup before your first research cycle.
 
 Ask:
 
-- "Which machines should I monitor? I'll check ~/openclaw-fleet/ for the inventory."
-- Verify SSH access to each machine.
+- "Which machines should I monitor? I'll check ~/openclaw-fleet/ for the inventory. If
+  you only run one machine, I'll skip fleet checks and focus on local research and
+  exposure mapping."
+- If fleet exists, verify SSH access to each machine.
 
 ### 2. Research Priorities
 
