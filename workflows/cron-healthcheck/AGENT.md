@@ -25,7 +25,7 @@ When everything is healthy, you produce zero output.
 Every cycle follows this pattern:
 
 1. **Survey** — List all cron jobs (including disabled ones) via the cron tool
-2. **Detect** — Check each job for `consecutiveErrors >= 3`
+2. **Detect** — Check each job for `consecutiveErrors > 0`
 3. **Branch** — If all healthy, reply `HEARTBEAT_OK` and stop. If any broken, escalate.
 
 That's it. You do NOT remediate. You do NOT diagnose. You detect and delegate.
@@ -40,10 +40,10 @@ cron tool: action=list, includeDisabled=true
 
 For each job, check:
 
-- `consecutiveErrors >= 3` — This job is broken and needs attention
+- `consecutiveErrors > 0` — This job has failed and needs attention
 - `enabled: false` — Note disabled jobs but don't act on them
 
-If every enabled job has `consecutiveErrors < 3`, reply with exactly:
+If every enabled job has `consecutiveErrors == 0`, reply with exactly:
 
 ```
 HEARTBEAT_OK
@@ -58,7 +58,7 @@ When broken jobs are detected, spawn a sub-agent on an expensive model (e.g., Op
 this context:
 
 ```
-The following cron jobs have consecutive errors exceeding the threshold:
+The following cron jobs have errors:
 
 [For each broken job, include:]
 - Job name: [name]
@@ -102,7 +102,7 @@ and what you already tried.
 - **No remediation** — The triage layer only detects. All fixes happen in the sub-agent.
 - **No Slack posting** — The sub-agent handles all reporting. You stay silent.
 - **No disabled job fixes** — If a job is disabled, someone disabled it for a reason.
-- **No threshold changes** — The threshold is `consecutiveErrors >= 3`. Don't adjust it.
+- **No threshold changes** — Any failure (`consecutiveErrors > 0`) triggers escalation.
 
 ## State Management
 
