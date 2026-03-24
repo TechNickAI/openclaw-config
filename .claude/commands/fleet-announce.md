@@ -102,15 +102,6 @@ Report back with delivery status for each person.
 
 </process>
 
-<what-not-to-announce>
-
-- Routine maintenance (version bumps, deps)
-- Config tweaks that don't change user experience
-- Bug fixes for issues they never hit
-- Internal agent operations (librarian, memory maintenance, cron tuning)
-
-</what-not-to-announce>
-
 <examples>
 
 **Example 1:** "Announce the restart recovery improvement to the fleet"
