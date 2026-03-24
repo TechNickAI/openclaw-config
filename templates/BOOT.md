@@ -41,7 +41,7 @@ Check if a restart interrupted an active conversation.
 
 **If NOT interrupted (> 1 min ago or no recent direct conversation):**
 
-- Skip to step 3 (silent start)
+- Skip to step 3 (check for unfinished work)
 
 ## 3. Check for Unfinished Work
 

@@ -86,11 +86,11 @@ Send all? Or edit?
 
 ## 4. Send
 
-Look up the notification channel and Telegram ID from each person's fleet file, then
+Look up the notification channel and recipient ID from each person's fleet file, then
 send via SSH:
 
 ```bash
-ssh <host> "openclaw message send --channel telegram -t <telegram_id> -m '<message>'"
+ssh <host> "openclaw message send --channel <channel> -t <recipient_id> -m '<message>'"
 ```
 
 **Important:** Single quotes in the message must be escaped. Messages come FROM their
