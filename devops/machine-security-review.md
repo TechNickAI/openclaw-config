@@ -227,10 +227,10 @@ Scan for leaked secrets. This runs during every audit and drift check.
 2. **Other config directories** — `~/.config/`, `~/.netrc`
 3. **Shell history** — `~/.bash_history`, `~/.zsh_history`
 4. **Git history** — In the OpenClaw workspace, scan commit content for leaked secrets:
-   `git log -p --all -S 'sk-ant-' -S 'AKIA' -S 'ghp_' -S 'sk-' 2>/dev/null | head -200`
-   This scans actual content across all commits — not just filenames — and catches
-   secrets added to any file (README, JSON config, etc.), not only newly-added
-   `.env`/`.key`/`.pem` files.
+   `git log -p --all -G 'sk-ant-|AKIA|ghp_|sk-' 2>/dev/null | head -200` This scans
+   actual content across all commits — not just filenames — and catches secrets added to
+   any file (README, JSON config, etc.), not only newly-added `.env`/`.key`/`.pem`
+   files.
 5. **Log files** — Check gateway logs and health check logs for accidentally logged
    credentials matching the patterns above
 6. **Process environment** — Check for secrets exposed in process env vars. Report the
