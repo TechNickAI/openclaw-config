@@ -253,7 +253,11 @@ Gmail access through gog CLI:
 
 - **Agent-Archived** — searchable history → `--add Agent-Archived --remove INBOX`
 - **Agent-Deleted** — 30-day quarantine → `--add Agent-Deleted --remove INBOX`
-- **Agent-Reviewed** — processed but kept → `--add Agent-Reviewed --remove INBOX`
+- **Agent-Reviewed** — processed and excluded from future scans:
+  - After `skip`: `--add Agent-Reviewed` only (NO `--remove INBOX` — stays visible in
+    inbox)
+  - After `archive`/`delete`/`alert`/`unsubscribe` when appropriate:
+    `--add Agent-Reviewed --remove INBOX`
 - **Agent-Starred** — needs attention → `--add Agent-Starred` (stays in inbox — no
   --remove INBOX)
 - **Agent-Unsubscribe** — unsubscribe candidates →
