@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/python-3.11+-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
   <a href="https://github.com/TechNickAI/openclaw-config/stargazers"><img src="https://img.shields.io/github/stars/TechNickAI/openclaw-config?style=flat-square&color=D97757" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/skills-13-blueviolet?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/skills-14-blueviolet?style=flat-square" alt="Skills">
   <a href="https://github.com/TechNickAI/openclaw-config/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs Welcome"></a>
 </p>
 
@@ -30,8 +30,8 @@ Everything is markdown and Python scripts. No frameworks, no databases, no lock-
 
 - **Memory that persists** — Three-tier architecture: always-loaded essentials, daily
   context files, and deep knowledge with semantic search
-- **11 skills** — Web research, meeting transcripts, CRM, phone system, task management,
-  and more — each a standalone Python script with zero setup
+- **14 skills** — Web research, meeting transcripts, CRM, phone system, voice calling,
+  task management, and more — each a standalone Python script with zero setup
 - **6 autonomous workflows** — Agents that triage your inbox, manage tasks, prep your
   calendar, organize contacts, monitor security threats, and keep cron jobs healthy —
   learning your preferences over time
@@ -85,6 +85,7 @@ openclaw-config/
 │   ├── librarian/      # Knowledge base maintenance
 │   ├── create-great-prompts/  # Prompt engineering guide
 │   ├── smart-delegation/     # Route work to the right model
+│   ├── vapi-calls/          # Voice calls via Vapi AI
 │   ├── workflow-builder/     # Design new autonomous workflows
 │   └── openclaw/       # Self-management & updates
 │
@@ -125,6 +126,7 @@ independently.
 | **smart-delegation**     | Route work to Opus, Grok, or handle directly                           | 0.1.0   |
 | **workflow-builder**     | Design new autonomous workflows                                        | 0.1.0   |
 | **gateway-restart**      | Graceful gateway restart — waits for active work                       | 0.1.0   |
+| **vapi-calls**           | Make outbound phone calls via Vapi voice AI                            | 0.1.0   |
 | **openclaw**             | Install, update, and health-check the config                           | 0.2.2   |
 
 ## Workflows
