@@ -1,5 +1,6 @@
 ---
 name: vapi-calls
+version: 0.1.0
 description:
   Make outbound phone calls via Vapi voice AI. Use when the agent needs to call someone
   on the phone for any reason (reminders, notifications, requests to businesses, or any
