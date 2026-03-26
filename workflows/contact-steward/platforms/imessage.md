@@ -99,7 +99,9 @@ and flag for human review. Do not attempt to escape or clean — reject outright
 - `tell application` (prevents interaction with arbitrary apps like Terminal, System
   Events)
 - `using terms from`
-- `on error` / `try` (AppleScript flow control that can redirect execution)
+- `on error` (AppleScript error handler that can redirect execution — bare `try` is NOT
+  blocked because it's a common substring in real names like Dmitry, Patrycja, Trystan;
+  `on error` already covers the dangerous error-redirect pattern)
 - Backtick characters
 - Pipe `|` or semicolon `;`
 - `$(` (shell command substitution)
