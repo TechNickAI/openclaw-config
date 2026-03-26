@@ -6,6 +6,16 @@ description:
   on the phone — reminders, notifications, requests to businesses, or any task that
   benefits from a real voice conversation. Requires VAPI_API_KEY, a provisioned phone
   number, and an assistant configured in Vapi.
+triggers:
+  - make a phone call
+  - call someone
+  - voice call
+  - outbound call
+  - vapi
+  - phone call
+metadata:
+  openclaw:
+    emoji: "📞"
 ---
 
 # Vapi Voice Calls
