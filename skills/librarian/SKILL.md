@@ -216,7 +216,9 @@ As part of each maintenance loop:
 
 - All filenames: **kebab-case** (`alex-chen.md`, not `Alex Chen.md`)
 - People files: `firstname-lastname.md`; if last name unknown, use
-  `firstname-unknown.md` as a placeholder (never bare `firstname.md`)
+  `firstname-unknown.md` as a placeholder (never bare `firstname.md`); if multiple
+  people share a first name with unknown last names, add a brief descriptor:
+  `john-unknown-contractor.md`, `john-unknown-neighbor.md`
 - Date files: `YYYY-MM-DD.md`
 - Decision files: `YYYY-MM-DD-topic.md`
 - All files are markdown
