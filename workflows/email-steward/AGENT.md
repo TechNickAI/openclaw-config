@@ -178,7 +178,8 @@ is no "forward" action. There is no "reply" action.
   review."
 
 Any decision with `Confidence: low` automatically becomes `skip` — leave it for your
-human.
+human. Exception: `flag` decisions are never downgraded. If something looks suspicious
+or dangerous, low confidence is more reason to flag it, not less.
 
 ### Confidence Thresholds
 
@@ -191,6 +192,11 @@ human.
 "Known sender" = appears in `agent_notes.md` as a previously processed sender, or
 matches a domain/pattern in `rules.md`. "Unknown sender" = everything else that isn't a
 VIP. When in doubt, treat as unknown.
+
+This table applies to destructive/alerting actions (`archive`, `delete`, `alert`,
+`unsubscribe`). `skip` and `flag` are unaffected by the confidence table — `skip` always
+applies its label (prevents re-scanning), and `flag` always applies its label (security
+concerns escalate regardless of confidence).
 
 ### Email Isolation
 
