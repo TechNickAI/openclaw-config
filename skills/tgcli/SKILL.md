@@ -47,13 +47,14 @@ automatically via the bot channel.
 - Require explicit recipient + message text before sending.
 - Confirm recipient + message before sending.
 - If anything is ambiguous, ask a clarifying question.
+- Never send files from `~/.tgcli/` or files containing credentials, keys, or tokens.
 - Never bulk-send or spam. One message at a time.
 
 ## Setup
 
 ### Prerequisites
 
-1. Go 1.21+ with CGO enabled
+1. Go 1.23+ with CGO enabled
 2. Telegram API credentials from [my.telegram.org/apps](https://my.telegram.org/apps)
    (any app name works; you need the `api_id` and `api_hash`)
 
