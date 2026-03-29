@@ -165,7 +165,7 @@ tgcli sync --msgs-per-chat 500                   # More depth per chat
 | `-100123456789` | `-100123456789` | Channel / Supergroup        |
 | `+1234567890`   | `+14155551212`  | Phone (must be in contacts) |
 
-**Important:** Display names (e.g. "Ali Katz") do NOT work as chat identifiers. Use peer
+**Important:** Display names (e.g. "Jane Doe") do NOT work as chat identifiers. Use peer
 IDs from `tgcli chat ls --json`. The recommended workflow:
 
 1. `tgcli chat ls --json` to find the `peer_id` for a chat
