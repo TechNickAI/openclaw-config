@@ -334,37 +334,17 @@ days") and let the LLM write the appropriate queries.
 
 #### Schema Versioning & Migration
 
-Every workflow that uses SQLite must track schema versions so upgrades happen
-automatically:
+Every workflow that uses SQLite should track schema versions using SQLite's built-in
+`PRAGMA user_version` (an integer stored in the database header — no extra tables):
 
-1. **Use SQLite's built-in `PRAGMA user_version`** to track schema version (no extra
-   tables needed)
-2. **Declare the expected version in AGENT.md** (e.g., `Schema version: 1`)
+1. **Put the schema inline in AGENT.md** — the LLM needs it to write queries anyway
+2. **Declare the expected version** (e.g., `PRAGMA user_version: 1`)
 3. **Each run checks:** `PRAGMA user_version`
-   - Matches → proceed (99% of runs, no extra reads)
-   - Lower → read `db-setup.md` for migration steps
-   - Database missing → read `db-setup.md` for initialization
-4. **Keep the schema definition in `db-setup.md`** — the calling LLM creates tables from
-   the schema, no need to inline SQL in AGENT.md
-5. **Keep migration steps in `db-setup.md`** — only read on version mismatch, missing
-   database, or legacy conversion
+   - Matches → proceed
+   - Lower or missing → create tables / apply migrations / set user_version
+4. **If legacy state files exist** (e.g., `processed.md`), migrate entries and archive
 
-**Per-workflow `db-setup.md`** contains:
-
-- Target schema with column reference
-- Schema version history table
-- Legacy migration instructions (e.g., `processed.md` → `processed.db`)
-- Versioned migration blocks (e.g., "Version 1 → 2: ALTER TABLE ADD COLUMN ...")
-- Common queries for reference
-
-This pattern handles all scenarios automatically:
-
-- **New server:** No database → initialization SQL creates it
-- **Legacy server:** `processed.md` exists → db-setup.md migration
-- **Schema upgrade pushed:** Version mismatch detected → db-setup.md migration
-- **Normal run:** Version matches → zero overhead
-
-See `workflows/contact-steward/db-setup.md` for a reference implementation.
+See `workflows/contact-steward/AGENT.md` for a reference implementation.
 
 **Rule in AGENT.md:** "On every run, read contextual state first (agent_notes.md,
 rules.md). Query tracking state via SQLite — one version check, then targeted queries.
@@ -514,10 +494,11 @@ If `rules.md` doesn't exist or is empty:
 
 ## Database (only if this workflow tracks processed items)
 
-**Schema version: 1** — See `db-setup.md` for full schema.
+**PRAGMA user_version: 1**
 
-Before processing, check `PRAGMA user_version`. If it doesn't match the version above,
-or the database is missing → read `db-setup.md`.
+<Schema definition inline — CREATE TABLE, indexes, column descriptions.> <Setup &
+migration instructions — what to do if database is missing, version is lower, or legacy
+state files exist.>
 
 ## Regular Operation
 

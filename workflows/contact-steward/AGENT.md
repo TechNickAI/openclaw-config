@@ -213,16 +213,40 @@ expected — don't try to process everything at once.
 
 ## Database
 
-**Schema version: 1** — See `db-setup.md` for the full schema definition.
+Tracking state lives in `processed.db` (SQLite). **PRAGMA user_version: 1**
 
-Tracking state lives in `processed.db` (SQLite). Before first scan, check
-`PRAGMA user_version` on the database:
+### Schema
 
-- If `processed.db` doesn't exist → read `db-setup.md` to create it
-- If `processed.md` exists (legacy) → read `db-setup.md` for migration instructions
-- If `user_version` is lower than the schema version above → read `db-setup.md` for
-  upgrade steps
-- If `user_version` matches → proceed normally
+```sql
+CREATE TABLE IF NOT EXISTS processed (
+  platform TEXT NOT NULL,
+  contact_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  last_checked INTEGER NOT NULL,
+  metadata TEXT,
+  PRIMARY KEY (platform, contact_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_status ON processed(status);
+CREATE INDEX IF NOT EXISTS idx_last_checked ON processed(last_checked);
+```
+
+**Columns:** `platform` (whatsapp/imessage/quo), `contact_id` (phone/JID), `status`
+(classified/asked_human/skipped/enriched/error), `last_checked` (unix timestamp),
+`metadata` (brief notes).
+
+### Setup & Migration
+
+Before first scan, check `PRAGMA user_version`:
+
+- **Database missing** → create it with the schema above, set `PRAGMA user_version = 1`
+- **user_version = 0** → tables may exist without version tracking. Run the CREATE IF
+  NOT EXISTS statements (idempotent), set `PRAGMA user_version = 1`
+- **user_version matches** → proceed
+- **user_version lower than current** → apply any needed ALTER TABLE changes for the new
+  version, then update user_version
+- **`processed.md` exists (legacy)** → create the database, migrate entries from the
+  markdown file into the processed table, archive as `processed.md.migrated`
 
 ## Each Run
 
@@ -408,8 +432,7 @@ spawns, the Classification Result block from the sub-agent]
 ## State
 
 `processed.db` is the tracking state (SQLite). It stores which contacts have been seen
-and their status. The database schema and setup instructions are in the Database section
-above. For migration and upgrade details, see `db-setup.md`.
+and their status. Schema and setup instructions are in the Database section above.
 
 Status values: `classified`, `asked_human`, `skipped`, `enriched`, `error`.
 
