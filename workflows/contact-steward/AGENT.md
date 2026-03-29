@@ -215,14 +215,14 @@ expected — don't try to process everything at once.
 
 **Schema version: 1** — See `db-setup.md` for the full schema definition.
 
-Tracking state lives in `processed.db` (SQLite). Before first scan, check:
+Tracking state lives in `processed.db` (SQLite). Before first scan, check
+`PRAGMA user_version` on the database:
 
-- If `processed.db` doesn't exist or `schema_meta` table is missing → create the
-  database using the schema in `db-setup.md`
+- If `processed.db` doesn't exist → read `db-setup.md` to create it
 - If `processed.md` exists (legacy) → read `db-setup.md` for migration instructions
-- If `schema_meta.version` is lower than the version above → read `db-setup.md` for
+- If `user_version` is lower than the schema version above → read `db-setup.md` for
   upgrade steps
-- If version matches → proceed normally
+- If `user_version` matches → proceed normally
 
 ## Each Run
 

@@ -25,11 +25,6 @@ If not found:
 ## Target Schema (Current: Version 1)
 
 ```sql
-CREATE TABLE IF NOT EXISTS schema_meta (
-  id INTEGER PRIMARY KEY CHECK(id = 1),
-  version INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS processed (
   platform TEXT NOT NULL,
   contact_id TEXT NOT NULL,
@@ -63,8 +58,11 @@ CREATE INDEX IF NOT EXISTS idx_last_checked ON processed(last_checked);
 
 ## Scenario: New Installation (No Database)
 
-Run the initialization SQL from AGENT.md. It's inline there and fully idempotent. You
-don't need this file for new installations — AGENT.md has everything.
+Create the database using the target schema above, then set the version:
+
+```sql
+PRAGMA user_version = 1;
+```
 
 ## Scenario: Legacy Migration (processed.md exists)
 
@@ -104,23 +102,11 @@ Keep `.migrated` for a few weeks as a safety net, then delete it.
 When AGENT.md's `schema_version` is higher than the database's version, apply migrations
 in order. Each migration block is idempotent — safe to re-run.
 
-### Migrating from Version 0 → 1 (No schema_meta table)
+### Migrating from Version 0 → 1 (user_version is 0)
 
-If `SELECT version FROM schema_meta` errors (table doesn't exist), the database was
-created before version tracking. The processed table likely already exists with the
-correct columns. Run:
-
-```bash
-sqlite3 workflows/contact-steward/processed.db <<'SQL'
-CREATE TABLE IF NOT EXISTS schema_meta (
-  id INTEGER PRIMARY KEY CHECK(id = 1),
-  version INTEGER NOT NULL
-);
-INSERT OR REPLACE INTO schema_meta (id, version) VALUES (1, 1);
-CREATE INDEX IF NOT EXISTS idx_status ON processed(status);
-CREATE INDEX IF NOT EXISTS idx_last_checked ON processed(last_checked);
-SQL
-```
+If `PRAGMA user_version` returns 0, the database was created before version tracking or
+is brand new. Ensure the processed table and indexes exist (the CREATE IF NOT EXISTS
+statements are idempotent), then set `PRAGMA user_version = 1`.
 
 <!-- Future migrations go here, labeled clearly:
 ### Migrating from Version 1 → 2

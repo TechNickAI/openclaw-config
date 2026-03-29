@@ -337,12 +337,13 @@ days") and let the LLM write the appropriate queries.
 Every workflow that uses SQLite must track schema versions so upgrades happen
 automatically:
 
-1. **Store version in the database** via a `schema_meta` table
+1. **Use SQLite's built-in `PRAGMA user_version`** to track schema version (no extra
+   tables needed)
 2. **Declare the expected version in AGENT.md** (e.g., `Schema version: 1`)
-3. **Each run checks with one query:** `SELECT version FROM schema_meta`
+3. **Each run checks:** `PRAGMA user_version`
    - Matches → proceed (99% of runs, no extra reads)
    - Lower → read `db-setup.md` for migration steps
-   - Missing or error → read `db-setup.md` for initialization
+   - Database missing → read `db-setup.md` for initialization
 4. **Keep the schema definition in `db-setup.md`** — the calling LLM creates tables from
    the schema, no need to inline SQL in AGENT.md
 5. **Keep migration steps in `db-setup.md`** — only read on version mismatch, missing
@@ -515,8 +516,8 @@ If `rules.md` doesn't exist or is empty:
 
 **Schema version: 1** — See `db-setup.md` for full schema.
 
-Before processing, verify schema_meta.version matches the version above. If missing,
-mismatched, or legacy state files exist → read `db-setup.md`.
+Before processing, check `PRAGMA user_version`. If it doesn't match the version above,
+or the database is missing → read `db-setup.md`.
 
 ## Regular Operation
 
