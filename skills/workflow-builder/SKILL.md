@@ -339,13 +339,14 @@ automatically:
 
 1. **Store version in the database** via a `schema_meta` table
 2. **Declare the expected version in AGENT.md** (e.g., `Schema version: 1`)
-3. **Each run checks with one query:** `SELECT version FROM schema_meta LIMIT 1`
+3. **Each run checks with one query:** `SELECT version FROM schema_meta`
    - Matches → proceed (99% of runs, no extra reads)
    - Lower → read `db-setup.md` for migration steps
-   - Missing → run inline initialization SQL
-4. **Keep initialization SQL inline in AGENT.md** (idempotent `CREATE IF NOT EXISTS`)
-5. **Keep migration steps in a separate `db-setup.md`** — only read on version mismatch
-   or legacy conversion
+   - Missing or error → read `db-setup.md` for initialization
+4. **Keep the schema definition in `db-setup.md`** — the calling LLM creates tables from
+   the schema, no need to inline SQL in AGENT.md
+5. **Keep migration steps in `db-setup.md`** — only read on version mismatch, missing
+   database, or legacy conversion
 
 **Per-workflow `db-setup.md`** contains:
 

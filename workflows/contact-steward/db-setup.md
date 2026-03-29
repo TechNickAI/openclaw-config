@@ -25,7 +25,10 @@ If not found:
 ## Target Schema (Current: Version 1)
 
 ```sql
-CREATE TABLE IF NOT EXISTS schema_meta (version INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS schema_meta (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  version INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS processed (
   platform TEXT NOT NULL,
@@ -109,8 +112,11 @@ correct columns. Run:
 
 ```bash
 sqlite3 workflows/contact-steward/processed.db <<'SQL'
-CREATE TABLE IF NOT EXISTS schema_meta (version INTEGER NOT NULL);
-INSERT INTO schema_meta VALUES (1);
+CREATE TABLE IF NOT EXISTS schema_meta (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  version INTEGER NOT NULL
+);
+INSERT OR REPLACE INTO schema_meta (id, version) VALUES (1, 1);
 CREATE INDEX IF NOT EXISTS idx_status ON processed(status);
 CREATE INDEX IF NOT EXISTS idx_last_checked ON processed(last_checked);
 SQL

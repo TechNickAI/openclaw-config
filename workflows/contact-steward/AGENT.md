@@ -421,7 +421,8 @@ maintenance queries run during housekeeping (see below).
 First run each day:
 
 - Expire `asked_human` entries older than 14 days → downgrade to `skipped`
-- Delete `classified` entries older than 90 days (they're stable, no need to track)
+- Delete `classified` entries older than 120 days (must exceed the 90-day scan window to
+  avoid re-processing contacts whose conversations are still visible)
 - Delete logs older than 30 days
 
 ## Cron Setup
