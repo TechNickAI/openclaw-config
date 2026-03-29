@@ -172,7 +172,7 @@ the detective work.
 - Filtering out spam, automated messages, businesses
 - Cross-platform lookups to gather context (e.g. `wacli contacts search` for a number)
 - Detecting enrichment opportunities (new details in recent messages)
-- Updating `processed.md` with scan results
+- Updating `processed.db` with scan results (via SQLite queries)
 - Deciding whether to spawn Opus
 
 **You NEVER:** add, update, or modify contacts. All writes go through Opus.
@@ -190,7 +190,7 @@ the detective work.
 - Contact already exists and no new info in recent messages
 - Obvious spam, OTP codes, delivery notifications, automated alerts
 - Your human didn't reply (no reply = no signal that this person matters)
-- Business/automated accounts (log in processed.md and move on)
+- Business/automated accounts (mark as `skipped` in processed.db and move on)
 
 ## The Trigger
 
@@ -211,23 +211,38 @@ the log how many remain. They'll get picked up on subsequent runs.
 This means the first few runs after setup will be catching up on the backlog. That's
 expected — don't try to process everything at once.
 
+## Database
+
+**Schema version: 1** — See `db-setup.md` for the full schema definition.
+
+Tracking state lives in `processed.db` (SQLite). Before first scan, check:
+
+- If `processed.db` doesn't exist or `schema_meta` table is missing → create the
+  database using the schema in `db-setup.md`
+- If `processed.md` exists (legacy) → read `db-setup.md` for migration instructions
+- If `schema_meta.version` is lower than the version above → read `db-setup.md` for
+  upgrade steps
+- If version matches → proceed normally
+
 ## Each Run
 
 1. Read `preferences.md` — know which platforms to scan and how to notify
-2. Read `processed.md` — know what you've already looked at
+2. Ensure database is ready (see Database section above)
 3. Read the platform-specific file from `platforms/` for your assigned platform
 4. Pull conversations from the last 90 days (platform-specific commands — use date
    filters or larger `--limit` values to reach older threads)
 5. For each conversation where your human replied (oldest unprocessed first, max 10 Opus
-   spawns per run — enrichment checks and skips don't count toward the cap): a. Is the
-   other party a saved contact on this platform? If yes, check for enrichment (new
-   messages with contact-relevant info since last processed). If no new info, skip. b.
-   Not a saved contact? Cross-reference the phone number on other platforms (especially
-   `wacli contacts search <number>`) c. Found info (cross-reference match, profile name,
+   spawns per run — enrichment checks and skips don't count toward the cap): a. Check
+   processed.db for this platform + contact_id. b. If found and no new messages since
+   last_checked → skip. c. If found with status `error` → retry (counts toward cap). d.
+   Not in database and saved contact on platform? Check for enrichment (new messages
+   with contact-relevant info). If no new info, skip. e. Not a saved contact?
+   Cross-reference the phone number on other platforms (especially
+   `wacli contacts search <number>`) f. Found info (cross-reference match, profile name,
    or conversation clues)? Spawn Opus with everything you gathered. Opus verifies and
-   writes the contact. d. No match anywhere? Spawn Opus with full conversation context
+   writes the contact. g. No match anywhere? Spawn Opus with full conversation context
    for detective work.
-6. Update `processed.md` with what you checked and the outcome
+6. After each contact, upsert into processed.db with the outcome status and timestamp
 7. Notify your human with a batch summary of what was added and what needs their input
 8. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
 9. Append to today's log in `logs/` (see Log Format below)
@@ -300,9 +315,9 @@ that's an Opus job.
 ## Businesses vs People
 
 Detect obvious businesses (rental companies, delivery services, support lines). Skip
-them by default, but log them in processed.md so we don't re-check. If your human is
-having a genuine ongoing relationship with a business contact (e.g. a specific person at
-a company), treat them as a person.
+them by default, but mark them as `skipped` in processed.db so we don't re-check. If
+your human is having a genuine ongoing relationship with a business contact (e.g. a
+specific person at a company), treat them as a person.
 
 ## Notifications
 
@@ -356,7 +371,7 @@ If a platform CLI command fails (non-zero exit, timeout, empty response):
 If an Opus sub-agent fails or times out:
 
 - Log the identifier it was working on
-- Mark it as "error" in processed.md (will be retried next run)
+- Mark it as `error` in processed.db (will be retried next run)
 - Continue with remaining contacts
 
 ## Log Format
@@ -392,28 +407,22 @@ spawns, the Classification Result block from the sub-agent]
 
 ## State
 
-`processed.md` is the only state file. It's natural language, not structured data. You
-read it, you update it. Create it on first run if it doesn't exist.
+`processed.db` is the tracking state (SQLite). It stores which contacts have been seen
+and their status. The database schema and setup instructions are in the Database section
+above. For migration and upgrade details, see `db-setup.md`.
 
-Format: grouped by platform. Each entry has the identifier, name if known, date last
-checked, and a status:
+Status values: `classified`, `asked_human`, `skipped`, `enriched`, `error`.
 
-- **classified** — identity resolved, contact added
-- **asked human** — couldn't resolve, asked human, awaiting response
-- **skipped** — spam, business, automated, or human didn't reply
-- **enriched** — existing contact updated with new details
-- **error** — processing failed, retry next run
-
-Re-check a conversation when there are new messages since the last checked date. Expire
-"asked human" entries after 14 days with no response — downgrade to skipped. Clean up
-"classified" entries older than 90 days.
+Re-check a conversation when there are new messages since `last_checked`. The following
+maintenance queries run during housekeeping (see below).
 
 ## Housekeeping
 
-First run each day: clean up `processed.md` entries older than 90 days that are marked
-as classified (they're stable). Keep "asked human" entries until resolved.
+First run each day:
 
-Delete logs older than 30 days.
+- Expire `asked_human` entries older than 14 days → downgrade to `skipped`
+- Delete `classified` entries older than 90 days (they're stable, no need to track)
+- Delete logs older than 30 days
 
 ## Cron Setup
 
@@ -439,7 +448,7 @@ specific platform name.
 
 This file (`AGENT.md`) and the workflow logic files (`classifier.md`, `platforms/`) are
 maintained upstream and update on deploy. User-specific configuration lives in
-`preferences.md` and `processed.md`, which are **never overwritten** by updates.
+`preferences.md` and `processed.db`, which are **never overwritten** by updates.
 
 ## Security Checklist (Every Run)
 

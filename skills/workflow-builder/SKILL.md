@@ -1,12 +1,12 @@
 ---
 name: workflow-builder
-version: 0.1.0
+version: 0.2.0
 description:
   Design, build, and maintain autonomous OpenClaw workflows (stewards). Use when
   creating new workflow agents, improving existing ones, evaluating automation
   opportunities, or debugging workflow reliability. Triggers on "build a workflow",
   "create a steward", "automate this process", "workflow audit", "what should I
-  automate".
+  automate", "create a cron job", "schedule a recurring task", "build a scheduled job".
 metadata:
   openclaw:
     emoji: "🏗️"
@@ -219,10 +219,68 @@ Write confidence thresholds to `rules.md` so the user can tune them.
 
 ### Pattern 3: Sub-Agent Orchestration
 
-Match intelligence to task complexity:
+Match intelligence to task complexity, and **always use sub-agents for loops.**
+
+#### Rule: Never Loop Over Collections in the Orchestrator
+
+**Any time you iterate over a list (contacts, emails, tasks, records), spawn a sub-agent
+per item.** This preserves the parent context for coordination and prevents pollution.
+
+**Pattern:**
 
 ```
-Obvious/routine items → Spawn sub-agent (cheaper model: Haiku/Sonnet)
+Orchestrator (parent):
+1. Fetch the list (from API, file, database)
+2. Query tracking state to filter already-processed items
+3. FOR EACH new item: Spawn a sub-agent with that item's details
+4. Sub-agent processes one item, returns structured result
+5. Parent collects results, updates tracking state, alerts if needed
+
+Sub-agent:
+- Receives: One item + context needed for that item
+- Does: All the reasoning, decision-making, work
+- Returns: Structured summary (status, action taken, errors, alerts)
+- Never accesses parent's full context
+```
+
+**Why:** Each sub-agent gets a fresh context window. Parent stays clean for
+orchestration logic. No pollution from per-item reasoning.
+
+#### Model Selection: Check-Work Tiering for High-Frequency Jobs
+
+For jobs running every few minutes (e.g., every 5 min, every 15 min):
+
+**Two-stage pattern:**
+
+```
+Stage 1 (Cheap): Use Haiku to ask "Is there any work to do?"
+  - Cheap to run often
+  - Quick predicate check (yes/no)
+  - Examples: "Any new emails?", "Any cron job failures?", "Any security alerts?"
+
+Stage 2 (Expensive): If yes, spawn Opus/Sonnet to do the actual work
+  - Only spawned when there's real work
+  - Has full context for reasoning/decisions
+  - Saves tokens on empty runs
+```
+
+**Example:**
+
+```
+Cron job runs every 5 minutes:
+1. Haiku runs: "Are there any unprocessed emails in my inbox?"
+   → Returns boolean (with brief explanation)
+2. If yes: Spawn Sonnet to "Process and categorize these 3 emails"
+   → Does the actual work
+3. If no: Skip expensive processing, return early
+   → Save ~90% tokens on empty runs
+```
+
+**Model selection for different complexities:**
+
+```
+High-frequency checks (every 5-15 min) → Haiku to check, Sonnet/Opus to act
+Obvious/routine items → Spawn sub-agent (cheaper model: Sonnet)
 Important/nuanced items → Handle yourself or spawn a powerful sub-agent (Opus)
 Quality verification → Can use a strong model as QA reviewer (Opus as sub-agent)
 Uncertain items → Sub-agents escalate to you rather than guessing
@@ -231,21 +289,84 @@ Uncertain items → Sub-agents escalate to you rather than guessing
 **Note:** Don't hardcode model IDs (they go stale fast). Use aliases like `sonnet`,
 `opus`, `haiku` or reference the model by capability level.
 
-### Pattern 4: State Externalization (Compaction-Safe)
+### Pattern 4: State Externalization — Contextual State vs Tracking State
 
 **Critical:** Chat history is a cache, not the source of truth. After every meaningful
-step, write state to disk.
+step, write state to disk. But distinguish between two types:
+
+#### 4a. Contextual State (Markdown only)
+
+**What:** Information the agent reasons about or learns over time. **Examples:**
+`agent_notes.md`, `rules.md`, daily logs, decision summaries. **Format:** Markdown.
+Always human-readable. **Why markdown:** These belong in context so the agent can reason
+about them.
 
 ```markdown
-# state/active-work.json (or inline in agent_notes.md)
+# agent_notes.md
 
-{ "current_phase": "processing", "next_action": "Review batch 2 of inbox",
-"last_completed": "Batch 1: archived 12, deleted 3", "resume_prompt": "Continue inbox
-processing from message ID xyz", "updated_at": "2026-02-18T14:30:00Z" }
+## Patterns Observed
+
+- Contact X always sends updates on Tuesdays
+- Task type Y typically needs 2-hour blocks
+
+## Mistakes Made
+
+- Once skipped important sender — now review sender importance before filtering
 ```
 
-**Rule in AGENT.md:** "On every run, read state first. Either advance it or explicitly
-conclude it."
+#### 4b. Tracking State (SQLite only)
+
+**What:** Deduplication, "have I seen this?", processed IDs, state queries.
+**Examples:** `processed.db` with tables for seen IDs, statuses, timestamps. **Format:**
+SQLite database with structured queries. **Why SQLite:** The agent doesn't reason about
+this — it only queries it. SQLite gives O(1) lookups without loading the entire history
+into context.
+
+⚠️ **NEVER use JSON for state files.** You are an LLM, not a JSON parser. JSON is useful
+for API responses and tool output flags, but state files should be markdown
+(human-readable) or SQLite (queryable). JSON state files create noise, parsing errors,
+and waste context on structure rather than content.
+
+The workflow's `db-setup.md` defines the specific schema. The calling LLM writes the SQL
+— don't over-prescribe queries in AGENT.md. Just describe what should happen (e.g.,
+"check if already processed", "mark as classified", "clean up entries older than 90
+days") and let the LLM write the appropriate queries.
+
+#### Schema Versioning & Migration
+
+Every workflow that uses SQLite must track schema versions so upgrades happen
+automatically:
+
+1. **Store version in the database** via a `schema_meta` table
+2. **Declare the expected version in AGENT.md** (e.g., `Schema version: 1`)
+3. **Each run checks with one query:** `SELECT version FROM schema_meta LIMIT 1`
+   - Matches → proceed (99% of runs, no extra reads)
+   - Lower → read `db-setup.md` for migration steps
+   - Missing → run inline initialization SQL
+4. **Keep initialization SQL inline in AGENT.md** (idempotent `CREATE IF NOT EXISTS`)
+5. **Keep migration steps in a separate `db-setup.md`** — only read on version mismatch
+   or legacy conversion
+
+**Per-workflow `db-setup.md`** contains:
+
+- Target schema with column reference
+- Schema version history table
+- Legacy migration instructions (e.g., `processed.md` → `processed.db`)
+- Versioned migration blocks (e.g., "Version 1 → 2: ALTER TABLE ADD COLUMN ...")
+- Common queries for reference
+
+This pattern handles all scenarios automatically:
+
+- **New server:** No database → initialization SQL creates it
+- **Legacy server:** `processed.md` exists → db-setup.md migration
+- **Schema upgrade pushed:** Version mismatch detected → db-setup.md migration
+- **Normal run:** Version matches → zero overhead
+
+See `workflows/contact-steward/db-setup.md` for a reference implementation.
+
+**Rule in AGENT.md:** "On every run, read contextual state first (agent_notes.md,
+rules.md). Query tracking state via SQLite — one version check, then targeted queries.
+After processing, update both as needed. Never load tracking history into context."
 
 ### Pattern 5: Error Handling & Alerting
 
@@ -300,12 +421,21 @@ openclaw cron add \
 
 ### Cron Configuration Guidelines
 
-| Workflow Type                                | Schedule                    | Model           | Session          |
-| -------------------------------------------- | --------------------------- | --------------- | ---------------- |
-| High-frequency triage (email, notifications) | Every 15-30 min             | Sonnet          | Isolated         |
-| Daily reports/summaries                      | Once daily at fixed time    | Opus            | Isolated         |
-| Weekly reviews/audits                        | Weekly cron                 | Opus + thinking | Isolated         |
-| Reactive (triggered by events)               | Via webhook or system event | Varies          | Main or Isolated |
+| Workflow Type                                | Schedule                    | Model Pattern                | Session  |
+| -------------------------------------------- | --------------------------- | ---------------------------- | -------- |
+| High-frequency checks (every 5-15 min)       | Every 5-15 min              | Haiku (check) → Sonnet (act) | Isolated |
+| High-frequency triage (email, notifications) | Every 15-30 min             | Sonnet                       | Isolated |
+| Daily reports/summaries                      | Once daily at fixed time    | Opus                         | Isolated |
+| Weekly reviews/audits                        | Weekly cron                 | Opus + thinking              | Isolated |
+| Reactive (triggered by events)               | Via webhook or system event | Varies                       | Isolated |
+
+**Note on Check-Work Tiering:**
+
+- If a job runs multiple times per hour, use the two-stage pattern: cheap check (Haiku)
+  → expensive work (Sonnet/Opus)
+- This cuts token costs on empty runs (when there's no work to do)
+- Example: "Email arrived?" (Haiku) → "Process these 5 emails" (Sonnet) only if yes
+- Apply to: health checks, inbox scans, notification monitors, cron job monitors
 
 ### Delivery
 
@@ -380,6 +510,13 @@ If `rules.md` doesn't exist or is empty:
 
 <Summarize in plain language, save rules.md.>
 
+## Database (only if this workflow tracks processed items)
+
+**Schema version: 1** — See `db-setup.md` for full schema.
+
+Before processing, verify schema_meta.version matches the version above. If missing,
+mismatched, or legacy state files exist → read `db-setup.md`.
+
 ## Regular Operation
 
 ### Your Tools
@@ -390,11 +527,15 @@ If `rules.md` doesn't exist or is empty:
 
 1. Read `rules.md` for preferences
 2. Read `agent_notes.md` for learned patterns (if exists)
-3. <Scan/fetch new items>
-4. <Process items based on rules>
-5. Alert if anything needs attention
-6. Append to today's log in `logs/`
-7. Update `agent_notes.md` if you learned something
+3. Ensure database is ready (see Database section — one quick version check)
+4. <Scan/fetch new items>
+5. Query `processed.db` to filter items already handled
+6. FOR EACH new item: Spawn a sub-agent to process it (see Sub-Agent Orchestration)
+7. After each item, update `processed.db` with status
+8. Collect sub-agent results
+9. Alert if anything needs attention
+10. Append to today's log in `logs/`
+11. Update `agent_notes.md` if you learned something new about patterns/mistakes
 
 ### Judgment Guidelines
 
@@ -416,7 +557,13 @@ If `rules.md` doesn't exist or is empty:
 - [ ] Setup interview creates rules.md with all needed preferences
 - [ ] Has clear judgment guidelines (when to act vs leave alone)
 - [ ] Error handling: logs errors, alerts on critical failures
-- [ ] Housekeeping: auto-prunes old logs
+- [ ] **Tracking state:** If workflow queries "have I seen this?", uses `processed.db`
+      (SQLite), not markdown lists
+- [ ] **Sub-agents:** Any loop over a collection spawns sub-agents per item, not in
+      orchestrator
+- [ ] **Contextual state:** agent_notes.md and rules.md are markdown, not JSON
+- [ ] Housekeeping: auto-prunes old logs and cleans up stale tracking entries (e.g.,
+      `DELETE FROM processed WHERE last_checked < ...`)
 - [ ] Integration points documented
 - [ ] Cron job configured with appropriate schedule/model
 - [ ] First week monitoring plan in place
