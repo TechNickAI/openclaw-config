@@ -257,15 +257,15 @@ Before first scan, check `PRAGMA user_version`:
    filters or larger `--limit` values to reach older threads)
 5. For each conversation where your human replied (oldest unprocessed first, max 10 Opus
    spawns per run — enrichment checks and skips don't count toward the cap): a. Check
-   processed.db for this platform + contact_id. b. If found and no new messages since
-   last_checked → skip. c. If found with status `error` → retry (counts toward cap). d.
-   Not in database and saved contact on platform? Check for enrichment (new messages
-   with contact-relevant info). If no new info, skip. e. Not a saved contact?
-   Cross-reference the phone number on other platforms (especially
-   `wacli contacts search <number>`) f. Found info (cross-reference match, profile name,
-   or conversation clues)? Spawn Opus with everything you gathered. Opus verifies and
-   writes the contact. g. No match anywhere? Spawn Opus with full conversation context
-   for detective work.
+   processed.db for this platform + contact_id. b. If found, not an `error`, and no new
+   messages since last_checked → skip. c. If found with status `error` → treat as new,
+   retry (counts toward cap). d. Is the other party a saved contact on this platform?
+   Check for enrichment (new messages with contact-relevant info). If no new info,
+   update last_checked and skip. e. Not a saved contact? Cross-reference the phone
+   number on other platforms (especially `wacli contacts search <number>`) f. Found info
+   (cross-reference match, profile name, or conversation clues)? Spawn Opus with
+   everything you gathered. Opus verifies and writes the contact. g. No match anywhere?
+   Spawn Opus with full conversation context for detective work.
 6. After each contact, upsert into processed.db with the outcome status and timestamp
 7. Notify your human with a batch summary of what was added and what needs their input
 8. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
