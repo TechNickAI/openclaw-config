@@ -117,7 +117,7 @@ does the "is this a known contact?" check for you.
 
 1. `quo conversations --unknown --limit 50` — get conversations with unknown numbers
    (larger limit to reach up to 90 days back)
-2. For each, check `processed.md` — skip if already processed with no new activity
+2. For each, check `processed.db` — skip if already processed with no new activity
 3. `quo gather <phone> --since <90-days-ago-ISO>` — pull all messages, calls,
    transcripts (explicit `--since` required — default is 30 days which misses older
    conversations)
