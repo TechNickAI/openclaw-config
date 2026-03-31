@@ -198,7 +198,7 @@ iMessage gets more spam than WhatsApp. Common patterns to skip:
 1. `imsg chats --limit 100` — get conversations (use a larger limit to reach threads up
    to 90 days back)
 2. Filter to phone numbers and emails (skip short codes, RBM agents)
-3. For each, check `processed.md` — skip if already processed with no new messages
+3. For each, check `processed.db` — skip if already processed with no new messages
 4. `imsg history --chat-id <id> --limit 15` — read recent messages
 5. Check if your human sent any messages (`[sent]`) — if not, skip
 6. Cross-reference (if WhatsApp is configured): `wacli contacts search "<number>"` to

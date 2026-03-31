@@ -165,7 +165,7 @@ notifications, or suggesting contact additions), use this priority:
 
 1. Use `business_name` as the display name
 2. Flag as business -> skip per workflow rules
-3. Log in `processed.md` with any human contact name found in conversation
+3. Log in `processed.db` with any human contact name found in conversation
 
 ### "More Complete" Check
 
@@ -207,7 +207,7 @@ This is the correct action for unknown contacts — set their alias to the resol
 1. `wacli chats list --limit 200 --json` — get conversations (use a large limit to reach
    threads up to 90 days back)
 2. Filter to `Kind: "dm"` or `Kind: "unknown"` (LID contacts), skip groups
-3. For each, check `processed.md` — skip if already processed with no new messages
+3. For each, check `processed.db` — skip if already processed with no new messages
 4. `wacli messages list --chat "<JID>" --limit 20 --json` — read recent messages
    (remember: messages are under `data.messages`)
 5. Check if your human replied (`FromMe: true`) — if not, skip
