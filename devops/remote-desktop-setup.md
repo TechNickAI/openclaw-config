@@ -1,7 +1,5 @@
 # Remote Desktop Setup — Linux
 
-**Date:** 2026-03-31 **Status:** Production
-
 VNC-based remote desktop for fleet Linux servers. Provides a lightweight graphical
 desktop (Xfce4) with Chromium browser, accessible via VNC client from macOS.
 
@@ -17,36 +15,83 @@ Two modes:
 Required apt packages for VNC + desktop:
 
 ```
-xfce4
+xfce4-session
 xfce4-terminal
+xfce4-panel
+thunar
 dbus-x11
 tigervnc-standalone-server
-tigervnc-common
-chromium-browser
 ```
 
 These are not in `apt-packages.txt` because not every fleet machine needs a desktop.
 Install manually on machines that need it.
 
-**Note:** On Ubuntu 24.04, `chromium-browser` is a transitional package that installs
-Chromium via snap. If snapd is disabled or restricted, use `firefox` instead.
+**Note:** Install individual xfce4 packages rather than the `xfce4` metapackage to avoid
+pulling in unnecessary dependencies. `thunar` is required for desktop icon launching
+(without it, double-clicking `.desktop` files fails with "requires a file manager
+service").
 
-**Install:**
+**Install desktop + VNC:**
 
 ```bash
 sudo DEBIAN_FRONTEND=noninteractive apt install -y \
-  xfce4 xfce4-terminal dbus-x11 \
-  tigervnc-standalone-server tigervnc-common \
-  chromium-browser
+  xfce4-session xfce4-terminal xfce4-panel thunar dbus-x11 \
+  tigervnc-standalone-server
 ```
 
 **Verify:**
 
 ```bash
-dpkg -s xfce4 tigervnc-standalone-server chromium-browser 2>&1 | grep -E '^Package:|^Status:'
+dpkg -s xfce4-session tigervnc-standalone-server thunar 2>&1 | grep -E '^Package:|^Status:'
 ```
 
 Each package should show `Status: install ok installed`.
+
+### Browser (Chromium via Playwright)
+
+On Ubuntu 24.04 ARM64, `chromium-browser` is a snap transitional package that is
+unreliable in VNC sessions. Use Playwright's Chromium instead — it bundles a real
+Chromium binary with no snap dependency.
+
+**Install system dependencies first (requires sudo), then browser binary as user:**
+
+```bash
+sudo npx playwright install --with-deps chromium
+npx playwright install chromium
+```
+
+The `sudo` run installs ~30 system libraries (libatk, libcups, libdrm, etc.). The second
+run (without sudo) places the Chromium binary in `~/.cache/ms-playwright/` where the
+user can access it.
+
+**Create symlink and desktop launcher:**
+
+```bash
+# Symlink to PATH
+CHROME_BIN=$(find ~/.cache/ms-playwright/chromium-*/chrome-linux -name chrome -type f | head -1)
+ln -sf "$CHROME_BIN" ~/.local/bin/chromium
+
+# Desktop launcher
+mkdir -p ~/Desktop
+cat > ~/Desktop/Chromium.desktop << 'LAUNCHER'
+[Desktop Entry]
+Type=Application
+Name=Chromium
+Exec=$CHROME_BIN --no-sandbox
+Icon=web-browser
+Terminal=false
+Categories=Network;WebBrowser;
+LAUNCHER
+chmod +x ~/Desktop/Chromium.desktop
+```
+
+The `--no-sandbox` flag is required when running as a non-root user on headless servers.
+
+**Verify:**
+
+```bash
+chromium --version
+```
 
 ---
 
@@ -70,10 +115,14 @@ cat > ~/.vnc/xstartup << 'XSTARTUP'
 #!/bin/sh
 unset SESSION_MANAGER
 unset DBUS_SESSION_BUS_ADDRESS
+thunar --daemon &
 exec startxfce4
 XSTARTUP
 chmod +x ~/.vnc/xstartup
 ```
+
+The `thunar --daemon` line starts the file manager service before XFCE launches. Without
+it, desktop icon double-clicks fail with "requires a file manager service."
 
 ---
 
@@ -149,7 +198,7 @@ aws ec2 describe-security-groups --group-ids "$SG_ID" \
 
 ## Always-On Mode
 
-For servers where VNC should survive reboots (e.g. hex), create a systemd user service.
+For servers where VNC should survive reboots, create a systemd user service.
 
 Enable lingering first so user services start at boot without an active login session:
 
@@ -162,15 +211,15 @@ Create the service unit:
 ```bash
 mkdir -p ~/.config/systemd/user
 
-cat > ~/.config/systemd/user/vnc-desktop.service << 'UNIT'
+cat > ~/.config/systemd/user/vncserver.service << 'UNIT'
 [Unit]
-Description=VNC Desktop (Xfce4 on :1)
+Description=TigerVNC Server
 After=network.target
 
 [Service]
 Type=forking
-PIDFile=%h/.vnc/%H:1.pid
-ExecStart=/usr/bin/vncserver :1 -geometry 1920x1080 -depth 24 -localhost no
+ExecStartPre=-/usr/bin/vncserver -kill :1
+ExecStart=/usr/bin/vncserver :1 -geometry 1280x800 -depth 24 -localhost no
 ExecStop=/usr/bin/vncserver -kill :1
 Restart=on-failure
 RestartSec=5
@@ -180,13 +229,17 @@ WantedBy=default.target
 UNIT
 
 systemctl --user daemon-reload
-systemctl --user enable --now vnc-desktop.service
+systemctl --user enable --now vncserver.service
 ```
+
+The `ExecStartPre=-` line kills any stale VNC session before starting. The `-` prefix
+tells systemd to ignore failures (important — `|| true` does NOT work in systemd unit
+files because they don't use a shell).
 
 **Verify:**
 
 ```bash
-systemctl --user status vnc-desktop.service
+systemctl --user status vncserver.service
 ss -tlnp | grep 5901
 ```
 
@@ -225,11 +278,11 @@ brew install --cask vnc-viewer  # RealVNC
 
 ## Fleet Reference
 
-| Server  | Mode      | SG Port 5901            |
-| ------- | --------- | ----------------------- |
-| hex     | always-on | closed (Tailscale-only) |
-| mycroft | on-demand | open                    |
-| dristhi | on-demand | open                    |
+| Server  | Mode      | SG Port 5901                |
+| ------- | --------- | --------------------------- |
+| hex     | always-on | closed (Tailscale-only)     |
+| mycroft | always-on | open (sg-0024bf3d80fd63ebb) |
+| dristhi | always-on | open (sg-0024bf3d80fd63ebb) |
 
 Connect via Tailscale IP (check `tailscale status`) or hostname.
 
@@ -244,13 +297,19 @@ is executable, and contains `exec startxfce4`.
 (`ss -tlnp | grep 5901` should show `0.0.0.0`). If it shows `127.0.0.1`, you forgot
 `-localhost no`.
 
-**Chromium won't launch (snap errors):** On Ubuntu 24.04, chromium-browser is a snap
-package. If it fails inside VNC, try: `snap run chromium` or install Firefox as
-fallback: `sudo apt install firefox`.
+**"Failed to run Chromium desktop... requires a file manager service":** Install
+`thunar` (`sudo apt install thunar`) and restart the VNC session. XFCE needs a file
+manager to handle desktop icon activation.
+
+**Chromium won't launch (snap errors):** Don't use the `chromium-browser` apt package on
+Ubuntu 24.04 — it's a snap transitional package that's unreliable in VNC. Use
+Playwright's Chromium instead (see Browser section above).
 
 **Display :1 already in use:** Kill the stale session: `vncserver -kill :1` then start
-again.
+again. The always-on systemd service handles this automatically via `ExecStartPre`.
+
+**systemd `|| true` doesn't work:** Systemd ExecStart/ExecStartPre lines don't run in a
+shell. `|| true` gets interpreted as arguments to the command (e.g., ssh tries to
+connect to host "true"). Use the `-` prefix on ExecStartPre instead.
 
 ---
-
-**Maintained by:** Hex **Last updated:** 2026-03-31
