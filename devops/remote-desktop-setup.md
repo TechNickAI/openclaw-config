@@ -130,12 +130,10 @@ INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
 SG_ID=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" \
   --query 'Reservations[0].Instances[0].SecurityGroups[0].GroupId' --output text)
 
-# Open port 5901 (IPv4 + IPv6)
+# Open port 5901 — replace with your actual IP (run: curl ifconfig.me)
+YOUR_IP="<your-ip>/32"
 aws ec2 authorize-security-group-ingress \
-  --group-id "$SG_ID" --protocol tcp --port 5901 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress \
-  --group-id "$SG_ID" \
-  --ip-permissions IpProtocol=tcp,FromPort=5901,ToPort=5901,Ipv6Ranges=[{CidrIpv6=::/0}]
+  --group-id "$SG_ID" --protocol tcp --port 5901 --cidr "$YOUR_IP"
 ```
 
 Duplicate-rule errors are safe to ignore.
