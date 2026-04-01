@@ -60,6 +60,36 @@ chmod 700 ~/.openclaw
 
 ---
 
+## Instance Sizing
+
+EC2 instances need enough RAM for the OpenClaw gateway, whisper.cpp transcription, and
+compilation of native packages. `t4g.small` (2GB) is insufficient — compilation OOMs and
+whisper can't run alongside the gateway.
+
+- **Minimum:** `t4g.medium` (2 vCPU, 4GB RAM)
+- **Storage:** 30GB gp3 root volume
+
+**Verify:** `free -h | head -2` — should show ~3.7Gi total
+
+### Swap
+
+All machines should have a 2GB swapfile as safety margin for memory spikes during
+compilation and transcription.
+
+**Verify:** `swapon --show`
+
+**Fix:**
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+---
+
 ## Software
 
 ### System Packages
@@ -94,6 +124,22 @@ curl -fsSL https://parallel.ai/install.sh | bash
 Installs to `~/.local/bin` (already in PATH on fleet machines). The `parallel` skill
 auto-installs this on first use if missing.
 
+### Homebrew (Linuxbrew)
+
+Homebrew on Linux for packages not available via apt.
+
+- Binary: `/home/linuxbrew/.linuxbrew/bin/brew`
+- Over SSH (non-login shell), use the full path
+
+**Verify:** `/home/linuxbrew/.linuxbrew/bin/brew --version`
+
+**Fix:**
+
+```bash
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> ~/.bashrc
+```
+
 ### Node.js
 
 Ubuntu ships with a recent Node.js via apt. No nvm needed on server machines.
@@ -119,19 +165,31 @@ source ~/.zshrc
 ### npm Global Packages
 
 - `openclaw` — the gateway binary (latest stable)
-- `pnpm` — required for skill installation
 - `@anthropic-ai/claude-code` — Claude CLI for health checks and fleet ops
 
 **Verify:**
 
 ```bash
-openclaw --version && pnpm --version && claude --version
+openclaw --version && claude --version
 ```
 
 **Fix:**
 
 ```bash
-npm install -g openclaw@latest pnpm @anthropic-ai/claude-code
+npm install -g openclaw@latest @anthropic-ai/claude-code
+```
+
+### pnpm
+
+Standalone pnpm install (preferred over `npm install -g pnpm` — avoids npm global prefix
+issues). Installs to `~/.local/share/pnpm`.
+
+**Verify:** `pnpm --version` (or `~/.local/share/pnpm/pnpm --version` over SSH)
+
+**Fix:**
+
+```bash
+curl -fsSL https://get.pnpm.io/install.sh | sh -
 ```
 
 ---
@@ -143,13 +201,16 @@ systemd services, not just interactive terminals.
 
 These paths must be in PATH for all shell contexts:
 
-- `~/.npm-global/bin` — openclaw, pnpm, claude
+- `~/.npm-global/bin` — openclaw, claude
 - `~/.local/bin` — uv and other user-installed tools
+- `~/.local/share/pnpm` — pnpm (standalone installer)
+- `/home/linuxbrew/.linuxbrew/bin` — Homebrew packages
 
 **Configure in `~/.zshrc` (or `~/.bashrc`):**
 
 ```bash
-export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.local/share/pnpm:$PATH"
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 ```
 
 **Verify (non-interactive):**
@@ -282,6 +343,53 @@ openclaw message send --channel telegram --target "<NICK_TELEGRAM_ID>" --message
 
 ---
 
+## Voice Transcription (whisper.cpp)
+
+Local speech-to-text using whisper.cpp — compiled from source for ARM64 (Graviton). Used
+by the Contact Steward workflow to transcribe voice messages.
+
+- Binary: `/usr/local/bin/whisper-cli`
+- Server: `/usr/local/bin/whisper-server`
+- Model: `/opt/whisper.cpp/models/ggml-small.bin` (~466MB)
+- Source: `/opt/whisper.cpp/`
+
+The `small` model is the sweet spot for t4g.medium — `base` is less accurate on accented
+speech, `medium` (~1.5GB) uses too much RAM alongside the gateway.
+
+**Verify:**
+`whisper-cli -m /opt/whisper.cpp/models/ggml-small.bin -f /opt/whisper.cpp/samples/jfk.wav -np -nt`
+
+**Fix:**
+
+```bash
+# Requires build-essential and cmake (see apt-packages.txt)
+sudo git clone https://github.com/ggerganov/whisper.cpp.git /opt/whisper.cpp
+cd /opt/whisper.cpp
+
+# Build with -j1 on 4GB machines to avoid OOM (-j2 is fine with 8GB+)
+sudo cmake -B build -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=ON
+sudo cmake --build build --config Release -j1
+
+# Download small model
+sudo bash models/download-ggml-model.sh small
+
+# Symlink to PATH
+sudo ln -sf /opt/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
+sudo ln -sf /opt/whisper.cpp/build/bin/whisper-server /usr/local/bin/whisper-server
+```
+
+**Usage:**
+
+```bash
+# Transcribe a file (supports flac, mp3, ogg, wav)
+whisper-cli -m /opt/whisper.cpp/models/ggml-small.bin -f audio.wav -np -nt
+
+# JSON output
+whisper-cli -m /opt/whisper.cpp/models/ggml-small.bin -f audio.wav -oj -of result
+```
+
+---
+
 ## Workspace
 
 ### Core Files
@@ -338,6 +446,8 @@ layout is inside `~/.openclaw/`.
 
 ```bash
 echo "=== system ===" && \
+echo "ram: $(free -h | awk '/Mem:/{print $2}')" && \
+echo "swap: $(swapon --show --noheadings | awk '{print $3}' || echo 'NONE')" && \
 echo "permissions: $(stat -c '%a' ~/.openclaw)" && \
 echo "=== network ===" && \
 echo "tailscale: $(tailscale status --self 2>/dev/null | head -1 || echo 'NOT RUNNING')" && \
@@ -348,6 +458,9 @@ echo "openclaw: $(openclaw --version 2>/dev/null || ~/.npm-global/bin/openclaw -
 echo "pnpm: $(pnpm --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "claude: $(claude --version 2>/dev/null || ~/.npm-global/bin/claude --version 2>/dev/null || echo 'NOT FOUND')" && \
 echo "parallel-cli: $(parallel-cli --version 2>/dev/null || ~/.local/bin/parallel-cli --version 2>/dev/null || echo 'NOT FOUND')" && \
+echo "brew: $(/home/linuxbrew/.linuxbrew/bin/brew --version 2>/dev/null | head -1 || echo 'NOT FOUND')" && \
+echo "whisper: $(whisper-cli -h 2>/dev/null | head -1 && echo 'installed' || echo 'NOT FOUND')" && \
+echo "whisper-model: $(test -f /opt/whisper.cpp/models/ggml-small.bin && echo 'small model present' || echo 'MISSING')" && \
 echo "=== services ===" && \
 echo "gateway: $(systemctl --user is-active openclaw-gateway 2>/dev/null || echo 'unknown')" && \
 echo "backup-timer: $(systemctl --user is-active openclaw-workspace-backup.timer 2>/dev/null || echo 'NOT ACTIVE')" && \
@@ -364,6 +477,8 @@ echo "health-check-admin: $(test -f ~/.openclaw/health-check-admin && echo 'pres
 
 ```
 === system ===
+ram: 3.7Gi (or more)
+swap: 2G
 permissions: 700
 === network ===
 tailscale: <ip>  <hostname>  <user>@  linux  -
@@ -374,6 +489,9 @@ openclaw: <version>
 pnpm: <version>
 claude: <version> (Claude Code)
 parallel-cli: <version>
+brew: Homebrew <version>
+whisper: installed
+whisper-model: small model present
 === services ===
 gateway: active
 backup-timer: active

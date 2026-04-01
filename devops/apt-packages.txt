@@ -5,6 +5,10 @@
 # Note: Node.js is installed via the NodeSource PPA, not apt directly.
 # See machine-setup-linux.md for Node installation instructions.
 
+# Build tools (needed for whisper.cpp and other compiled software)
+build-essential
+cmake
+
 # Core utilities
 jq
 restic
