@@ -71,9 +71,9 @@ user can access it.
 CHROME_BIN=$(find ~/.cache/ms-playwright/chromium-*/chrome-linux -name chrome -type f | head -1)
 ln -sf "$CHROME_BIN" ~/.local/bin/chromium
 
-# Desktop launcher
+# Desktop launcher (use unquoted heredoc so $CHROME_BIN expands)
 mkdir -p ~/Desktop
-cat > ~/Desktop/Chromium.desktop << 'LAUNCHER'
+cat > ~/Desktop/Chromium.desktop << LAUNCHER
 [Desktop Entry]
 Type=Application
 Name=Chromium
