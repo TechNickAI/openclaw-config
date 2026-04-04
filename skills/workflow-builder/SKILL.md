@@ -253,12 +253,12 @@ For jobs running every few minutes (e.g., every 5 min, every 15 min):
 **Two-stage pattern:**
 
 ```
-Stage 1 (Cheap): Use Haiku to ask "Is there any work to do?"
+Stage 1 (Cheap): Use simple to ask "Is there any work to do?"
   - Cheap to run often
   - Quick predicate check (yes/no)
   - Examples: "Any new emails?", "Any cron job failures?", "Any security alerts?"
 
-Stage 2 (Expensive): If yes, spawn Opus/Sonnet to do the actual work
+Stage 2 (Expensive): If yes, spawn work/think to do the actual work
   - Only spawned when there's real work
   - Has full context for reasoning/decisions
   - Saves tokens on empty runs
@@ -268,9 +268,9 @@ Stage 2 (Expensive): If yes, spawn Opus/Sonnet to do the actual work
 
 ```
 Cron job runs every 5 minutes:
-1. Haiku runs: "Are there any unprocessed emails in my inbox?"
+1. simple runs: "Are there any unprocessed emails in my inbox?"
    → Returns boolean (with brief explanation)
-2. If yes: Spawn Sonnet to "Process and categorize these 3 emails"
+2. If yes: Spawn work to "Process and categorize these 3 emails"
    → Does the actual work
 3. If no: Skip expensive processing, return early
    → Save ~90% tokens on empty runs
@@ -279,15 +279,15 @@ Cron job runs every 5 minutes:
 **Model selection for different complexities:**
 
 ```
-High-frequency checks (every 5-15 min) → Haiku to check, Sonnet/Opus to act
-Obvious/routine items → Spawn sub-agent (cheaper model: Sonnet)
-Important/nuanced items → Handle yourself or spawn a powerful sub-agent (Opus)
-Quality verification → Can use a strong model as QA reviewer (Opus as sub-agent)
+High-frequency checks (every 5-15 min) → simple to check, work/think to act
+Obvious/routine items → Spawn sub-agent (cheaper model: work)
+Important/nuanced items → Handle yourself or spawn a powerful sub-agent (think)
+Quality verification → Can use a strong model as QA reviewer (think as sub-agent)
 Uncertain items → Sub-agents escalate to you rather than guessing
 ```
 
-**Note:** Don't hardcode model IDs (they go stale fast). Use aliases like `sonnet`,
-`opus`, `haiku` or reference the model by capability level.
+**Note:** Don't hardcode model IDs (they go stale fast). Use role-based aliases:
+`cheap`, `simple`, `work`, `chat`, `think`, `verify`.
 
 ### Pattern 4: State Externalization — Contextual State vs Tracking State
 
@@ -397,26 +397,26 @@ openclaw cron add \
   --tz "YOUR_TIMEZONE" \
   --session isolated \
   --message "Run email steward workflow. Read workflows/email-steward/AGENT.md and follow it." \
-  --model sonnet \
+  --model work \
   --announce
 ```
 
 ### Cron Configuration Guidelines
 
-| Workflow Type                                | Schedule                    | Model Pattern                | Session  |
-| -------------------------------------------- | --------------------------- | ---------------------------- | -------- |
-| High-frequency checks (every 5-15 min)       | Every 5-15 min              | Haiku (check) → Sonnet (act) | Isolated |
-| High-frequency triage (email, notifications) | Every 15-30 min             | Sonnet                       | Isolated |
-| Daily reports/summaries                      | Once daily at fixed time    | Opus                         | Isolated |
-| Weekly reviews/audits                        | Weekly cron                 | Opus + thinking              | Isolated |
-| Reactive (triggered by events)               | Via webhook or system event | Varies                       | Isolated |
+| Workflow Type                                | Schedule                    | Model Pattern               | Session  |
+| -------------------------------------------- | --------------------------- | --------------------------- | -------- |
+| High-frequency checks (every 5-15 min)       | Every 5-15 min              | simple (check) → work (act) | Isolated |
+| High-frequency triage (email, notifications) | Every 15-30 min             | work                        | Isolated |
+| Daily reports/summaries                      | Once daily at fixed time    | think                       | Isolated |
+| Weekly reviews/audits                        | Weekly cron                 | think + thinking            | Isolated |
+| Reactive (triggered by events)               | Via webhook or system event | Varies                      | Isolated |
 
 **Note on Check-Work Tiering:**
 
-- If a job runs multiple times per hour, use the two-stage pattern: cheap check (Haiku)
-  → expensive work (Sonnet/Opus)
+- If a job runs multiple times per hour, use the two-stage pattern: cheap check (simple)
+  → expensive work (work/think)
 - This cuts token costs on empty runs (when there's no work to do)
-- Example: "Email arrived?" (Haiku) → "Process these 5 emails" (Sonnet) only if yes
+- Example: "Email arrived?" (simple) → "Process these 5 emails" (work) only if yes
 - Apply to: health checks, inbox scans, notification monitors, cron job monitors
 
 ### Delivery
@@ -618,7 +618,7 @@ To retire: disable the cron job, archive the workflow directory, note in
 - **Purpose:** Task board management with QA verification
 - **Schedule:** Can run via heartbeat or cron (see its AGENT.md for guidance)
 - **Tools:** Asana MCP
-- **Key pattern:** Task classification → work execution → quality gate (Opus QA) →
+- **Key pattern:** Task classification → work execution → quality gate (think QA) →
   delivery
-- **Notable:** Spawns Opus as QA sub-agent — demonstrates strong model as worker, not
+- **Notable:** Spawns think as QA sub-agent — demonstrates strong model as worker, not
   just orchestrator

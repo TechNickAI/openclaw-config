@@ -249,12 +249,12 @@ openclaw cron add \
   --tz "<timezone>" \
   --session isolated \
   --delivery-mode none \
-  --model opus \
+  --model work \
   --timeout-seconds 1800 \
   --message "Run the security sentinel workflow. Read workflows/security-sentinel/AGENT.md and follow it. Run a full research cycle."
 ```
 
-Monday 4am, Opus model, 30-minute timeout. Uses `delivery.mode: "none"` — the agent
+Monday 4am, work model, 30-minute timeout. Uses `delivery.mode: "none"` — the agent
 handles its own notifications via the admin lane.
 
 ## Deployment

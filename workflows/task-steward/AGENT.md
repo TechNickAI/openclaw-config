@@ -87,7 +87,7 @@ Task description should include:
 
 When working a task:
 
-1. **Spawn sub-agent** (Sonnet) for the actual work
+1. **Spawn sub-agent** (work) for the actual work
 2. **Post incremental comments** to the task as you work:
    - "Starting research on X..."
    - "Found 3 promising options, evaluating..."
@@ -100,7 +100,7 @@ When working a task:
 
 When a task reaches READY FOR REVIEW:
 
-1. **Spawn QA agent** (Opus) to review
+1. **Spawn QA agent** (think) to review
 2. QA agent checks:
    - Does the work match what was asked?
    - Is it complete or are things missing?
@@ -287,8 +287,8 @@ Local preferences for this installation:
 
 - alert_channel: whatsapp (or slack, telegram, etc.)
 - auto_offer_help: true (proactively offer to help with self-assigned tasks)
-- review_model: anthropic/claude-opus-4-5 (QA verification model)
-- work_model: anthropic/claude-sonnet-4-5 (execution model)
+- review_model: think (QA verification model)
+- work_model: work (execution model)
 
 ## Escalation
 

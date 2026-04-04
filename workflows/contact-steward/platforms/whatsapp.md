@@ -37,9 +37,9 @@ Messages are nested under `data.messages` (not `data` directly). Each message ha
 ### Voice Messages
 
 WhatsApp voice messages show as `MediaType: "Audio"` in message listings. These are
-valuable for the Opus classifier when trying to identify someone — people often
-introduce themselves or provide context in voice notes. Flag these for Opus but note
-that transcription (via Whisper) will be needed.
+valuable for the work-tier classifier when trying to identify someone — people often
+introduce themselves or provide context in voice notes. Flag these for the work tier but
+note that transcription (via Whisper) will be needed.
 
 ### Groups
 
@@ -221,7 +221,8 @@ This is the correct action for unknown contacts — set their alias to the resol
    process it**
 7. If saved + no enrichment: skip
 8. If saved + enrichment (push_name more complete than full_name): flag for update
-9. If unsaved: cross-reference on other platforms, then spawn Opus if still unresolved
+9. If unsaved: cross-reference on other platforms, then spawn the work tier if still
+   unresolved
 
 ### Batch SQL for Efficiency
 

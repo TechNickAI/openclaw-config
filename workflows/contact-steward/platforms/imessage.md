@@ -171,9 +171,10 @@ scanner can't eyeball which contacts are "unnamed." You must cross-reference.
 1. Pull recent chats from `imsg chats`
 2. For each phone number chat where your human sent messages:
    - If WhatsApp is configured: `wacli contacts search "<number>"` to get a name
-     - If found: check Apple Contacts by name. If missing, spawn Opus with name + number
-     - If not found: spawn Opus with full conversation
-   - If WhatsApp is not configured: spawn Opus with full conversation directly
+     - If found: check Apple Contacts by name. If missing, spawn work tier with name +
+       number
+     - If not found: spawn work tier with full conversation
+   - If WhatsApp is not configured: spawn work tier with full conversation directly
 
 ### RBM / Business Messages
 
@@ -203,8 +204,8 @@ iMessage gets more spam than WhatsApp. Common patterns to skip:
 5. Check if your human sent any messages (`[sent]`) — if not, skip
 6. Cross-reference (if WhatsApp is configured): `wacli contacts search "<number>"` to
    get a name. If WhatsApp is not available, skip to step 7b.
-7. a. If name found via WhatsApp: check Apple Contacts by name. If missing, spawn Opus
-   with the name and number to verify and add to Apple Contacts. b. If no name from
-   cross-reference (or WhatsApp not configured): spawn Opus with the full conversation —
-   Opus will look for self-introductions, context clues, and check other available
-   platforms.
+7. a. If name found via WhatsApp: check Apple Contacts by name. If missing, spawn the
+   work tier with the name and number to verify and add to Apple Contacts. b. If no name
+   from cross-reference (or WhatsApp not configured): spawn the work tier with the full
+   conversation — it will look for self-introductions, context clues, and check other
+   available platforms.

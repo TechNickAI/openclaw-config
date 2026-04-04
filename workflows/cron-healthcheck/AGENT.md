@@ -54,8 +54,8 @@ success.
 
 ## Escalation to Sub-Agent
 
-When broken jobs are detected, spawn a sub-agent on an expensive model (e.g., Opus) with
-this context:
+When broken jobs are detected, spawn a sub-agent on an expensive model (e.g., think)
+with this context:
 
 ```
 The following cron jobs have errors:

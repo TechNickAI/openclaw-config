@@ -38,7 +38,7 @@ quo gather <+1XXXXXXXXXX> [--since ISO] [--until ISO] [--limit N] [--refresh]
 
 This is the power command — pulls contact info, all messages, all calls with inline
 transcripts/summaries/voicemails for a phone number. Defaults to last 30 days. **Use
-this when spawning Opus** — it gives the classifier everything in one shot.
+this when spawning the work tier** — it gives the classifier everything in one shot.
 
 **Important:** The default 30-day window may miss older conversations. When the scanner
 identifies a conversation older than 30 days, pass `--since` explicitly to cover the
@@ -124,5 +124,6 @@ does the "is this a known contact?" check for you.
 4. Check if your human participated (sent messages or took calls)
 5. If your human didn't engage, skip
 6. Cross-reference: `wacli contacts search "<number>"` + Apple Contacts
-7. If known elsewhere -> spawn Opus to verify and add to Quo
-8. If unknown everywhere -> spawn Opus with the gathered data for classification
+7. If known elsewhere -> spawn the work tier to verify and add to Quo
+8. If unknown everywhere -> spawn the work tier with the gathered data for
+   classification

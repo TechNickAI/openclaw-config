@@ -399,7 +399,7 @@ openclaw cron add \
   --tz "<timezone>" \
   --session isolated \
   --delivery-mode none \
-  --model opus \
+  --model think \
   --timeout-seconds 600 \
   --message "Run the learning loop validation. Read workflows/learning-loop/AGENT.md Phase 3 and follow it."
 ```
