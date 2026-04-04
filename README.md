@@ -124,7 +124,7 @@ independently.
 | **followupboss**         | Real estate CRM — contacts, deals, pipeline                            | 0.1.0   |
 | **librarian**            | Curate and maintain the knowledge base                                 | 0.3.0   |
 | **create-great-prompts** | Prompt engineering for LLM agents                                      | 2.0.0   |
-| **smart-delegation**     | Route work to Opus, Grok, or handle directly                           | 0.1.0   |
+| **smart-delegation**     | Route work to Opus, Grok, or handle directly                           | 0.2.0   |
 | **workflow-builder**     | Design new autonomous workflows                                        | 0.1.0   |
 | **gateway-restart**      | Graceful gateway restart — waits for active work                       | 0.1.0   |
 | **vapi-calls**           | Make outbound phone calls via Vapi voice AI                            | 0.1.0   |
