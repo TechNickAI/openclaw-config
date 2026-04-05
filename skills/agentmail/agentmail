@@ -1,0 +1,599 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""
+AgentMail CLI - Email inboxes for AI agents
+
+Requires AGENTMAIL_API_KEY environment variable for API operations.
+"""
+
+import json
+import os
+import sys
+from typing import Any, NoReturn
+
+import httpx
+
+API_URL = "https://api.agentmail.to/v0"
+DEFAULT_LIMIT = 10
+MAX_LIMIT = 100
+
+
+# --- Helpers ---
+
+
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("AGENTMAIL_API_KEY", "").strip() or None
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def api(
+    method: str,
+    path: str,
+    *,
+    json_body: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Make an API call to AgentMail."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "AGENTMAIL_API_KEY not set",
+            "Get your key from: https://agentmail.to → Dashboard → API Keys",
+        )
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    url = f"{API_URL}{path}"
+
+    try:
+        response = httpx.request(
+            method, url, json=json_body, params=params, headers=headers, timeout=60.0,
+        )
+        response.raise_for_status()
+        if response.status_code == 204 or (method == "DELETE" and response.status_code == 200):
+            return None
+        try:
+            data = response.json()
+        except ValueError:
+            error("API returned invalid JSON", f"Status {response.status_code}, body: {response.text[:200]}")
+        if data is None:
+            error("API returned empty response", f"Expected data for {method} {path}. Check the resource ID and API key permissions.")
+        return data
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            error(
+                "Authentication failed",
+                "Check AGENTMAIL_API_KEY is valid: https://agentmail.to → Dashboard → API Keys",
+            )
+        if e.response.status_code == 403:
+            error(
+                "Permission denied",
+                "Your API key may lack access. Org-level keys are required for write operations and webhooks.",
+            )
+        if e.response.status_code == 429:
+            error("Rate limited", "Wait a moment and try again.")
+        try:
+            body = e.response.json()
+            msg = body.get("error") or body.get("message") or body.get("detail") or str(body)
+        except (ValueError, KeyError):
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach AgentMail API", str(e))
+
+
+def parse_limit(args: list[str], default: int = DEFAULT_LIMIT) -> tuple[int, list[str]]:
+    """Parse --limit flag from args. Returns (limit, remaining_args)."""
+    remaining = []
+    limit = default
+    i = 0
+    while i < len(args):
+        if args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a numeric value")
+            try:
+                limit = int(args[i + 1])
+            except ValueError:
+                error(f"--limit must be a number, got '{args[i + 1]}'")
+            if limit < 1 or limit > MAX_LIMIT:
+                error(f"Limit must be between 1-{MAX_LIMIT}, got {limit}")
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    return limit, remaining
+
+
+# --- Formatters ---
+
+
+def format_inbox(inbox: dict[str, Any]) -> str:
+    """Format a single inbox as markdown."""
+    inbox_id = inbox.get("id") or inbox.get("inbox_id") or "unknown"
+    email = inbox.get("email") or "no email"
+    display_name = inbox.get("display_name") or ""
+    created = inbox.get("created_at") or ""
+
+    lines = [f"**ID:** `{inbox_id}`"]
+    lines.append(f"**Email:** `{email}`")
+    if display_name:
+        lines.append(f"**Name:** {display_name}")
+    if created:
+        lines.append(f"**Created:** {created}")
+    return "\n".join(lines)
+
+
+def format_inbox_list(data: dict[str, Any]) -> str:
+    """Format inbox list as markdown."""
+    inboxes = data.get("inboxes") or data.get("data") or []
+    if not inboxes:
+        return "No inboxes found."
+
+    output = []
+    for inbox in inboxes:
+        output.append(format_inbox(inbox))
+        output.append("")
+        output.append("---")
+        output.append("")
+    return "\n".join(output)
+
+
+def format_message(msg: dict[str, Any]) -> str:
+    """Format a single message as markdown."""
+    msg_id = msg.get("id") or msg.get("message_id") or "unknown"
+    subject = msg.get("subject") or "(no subject)"
+    from_addr = msg.get("from") or msg.get("from_address") or "unknown"
+    to_addrs = msg.get("to") or msg.get("to_addresses") or []
+    body_text = msg.get("text") or msg.get("body_text") or msg.get("body") or ""
+    body_html = msg.get("html") or msg.get("body_html") or ""
+    created = msg.get("created_at") or ""
+    thread_id = msg.get("thread_id") or ""
+
+    # Handle from_addr being a dict with name/address
+    if isinstance(from_addr, dict):
+        name = from_addr.get("name") or ""
+        addr = from_addr.get("address") or ""
+        from_addr = f"{name} <{addr}>" if name else addr
+
+    # Handle to_addrs being a list of dicts
+    if to_addrs and isinstance(to_addrs[0], dict):
+        to_addrs = [
+            f"{t.get('name', '')} <{t.get('address', '')}>".strip()
+            if t.get("name") else t.get("address", "")
+            for t in to_addrs
+        ]
+    to_str = ", ".join(to_addrs) if isinstance(to_addrs, list) else str(to_addrs)
+
+    lines = [f"## {subject}"]
+    lines.append(f"**ID:** `{msg_id}`")
+    if thread_id:
+        lines.append(f"**Thread:** `{thread_id}`")
+    lines.append(f"**From:** {from_addr}")
+    lines.append(f"**To:** {to_str}")
+    if created:
+        lines.append(f"**Date:** {created}")
+    lines.append("")
+    if body_text:
+        lines.append(body_text)
+    elif body_html:
+        lines.append("*(HTML content — use raw command for full HTML)*")
+    return "\n".join(lines)
+
+
+def format_message_list(data: dict[str, Any]) -> str:
+    """Format message list as markdown."""
+    messages = data.get("messages") or data.get("data") or []
+    if not messages:
+        return "No messages found."
+
+    output = []
+    for msg in messages:
+        output.append(format_message(msg))
+        output.append("")
+        output.append("---")
+        output.append("")
+    return "\n".join(output)
+
+
+def format_thread(thread: dict[str, Any]) -> str:
+    """Format a thread as markdown."""
+    thread_id = thread.get("id") or thread.get("thread_id") or "unknown"
+    subject = thread.get("subject") or "(no subject)"
+    message_count = thread.get("message_count") or thread.get("num_messages") or 0
+    updated = thread.get("updated_at") or ""
+
+    lines = [f"## {subject}"]
+    lines.append(f"**Thread ID:** `{thread_id}`")
+    lines.append(f"**Messages:** {message_count}")
+    if updated:
+        lines.append(f"**Updated:** {updated}")
+
+    # If thread includes messages inline
+    messages = thread.get("messages") or []
+    if messages:
+        lines.append("")
+        for msg in messages:
+            lines.append(format_message(msg))
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def format_thread_list(data: dict[str, Any]) -> str:
+    """Format thread list as markdown."""
+    threads = data.get("threads") or data.get("data") or []
+    if not threads:
+        return "No threads found."
+
+    output = []
+    for t in threads:
+        output.append(format_thread(t))
+        output.append("")
+        output.append("---")
+        output.append("")
+    return "\n".join(output)
+
+
+WEBHOOK_EVENT_TYPES = [
+    "message.received",
+    "message.received.spam",
+    "message.received.blocked",
+    "message.sent",
+    "message.delivered",
+    "message.bounced",
+    "message.complained",
+    "message.rejected",
+    "domain.verified",
+]
+
+
+def format_webhook(wh: dict[str, Any]) -> str:
+    """Format a single webhook as markdown."""
+    wh_id = wh.get("webhook_id") or wh.get("id") or "unknown"
+    url = wh.get("url") or "no url"
+    events = wh.get("event_types") or []
+    enabled = wh.get("enabled", True)
+    secret = wh.get("secret") or ""
+    inbox_ids = wh.get("inbox_ids") or []
+    created = wh.get("created_at") or ""
+
+    lines = [f"**Webhook ID:** `{wh_id}`"]
+    lines.append(f"**URL:** {url}")
+    lines.append(f"**Events:** {', '.join(events) if events else 'all'}")
+    lines.append(f"**Enabled:** {enabled}")
+    if inbox_ids:
+        lines.append(f"**Inboxes:** {', '.join(inbox_ids)}")
+    if secret:
+        lines.append(f"**Secret:** `{secret[:8]}...` (use for Svix signature verification)")
+    if created:
+        lines.append(f"**Created:** {created}")
+    return "\n".join(lines)
+
+
+def format_webhook_list(data: dict[str, Any]) -> str:
+    """Format webhook list as markdown."""
+    webhooks = data.get("webhooks") or data.get("data") or []
+    if not webhooks:
+        return "No webhooks configured."
+
+    output = []
+    for wh in webhooks:
+        output.append(format_webhook(wh))
+        output.append("")
+        output.append("---")
+        output.append("")
+    return "\n".join(output)
+
+
+# --- Commands ---
+
+
+def cmd_inboxes(args: list[str]) -> None:
+    """List all inboxes."""
+    limit, _ = parse_limit(args)
+    result = api("GET", "/inboxes", params={"limit": limit})
+    print(format_inbox_list(result))
+
+
+def cmd_create(args: list[str]) -> None:
+    """Create a new inbox."""
+    # Optional: first arg is display name, second is username prefix
+    body: dict[str, Any] = {}
+    if args:
+        body["display_name"] = args[0]
+    if len(args) > 1:
+        body["username"] = args[1]
+
+    result = api("POST", "/inboxes", json_body=body if body else None)
+    print("Inbox created!\n")
+    print(format_inbox(result))
+
+
+def cmd_inbox(args: list[str]) -> None:
+    """Get inbox details."""
+    if not args:
+        error("Inbox ID required", "Usage: agentmail inbox <inbox-id>")
+
+    result = api("GET", f"/inboxes/{args[0]}")
+    print(format_inbox(result))
+
+
+def cmd_send(args: list[str]) -> None:
+    """Send an email from an inbox."""
+    if len(args) < 1:
+        error("Inbox ID required", "Usage: agentmail send <inbox-id> <to> <subject> <body>")
+    if len(args) < 2:
+        error("Recipient required", "Usage: agentmail send <inbox-id> <to> <subject> <body>")
+    if len(args) < 3:
+        error("Subject required", "Usage: agentmail send <inbox-id> <to> <subject> <body>")
+    if len(args) < 4:
+        error("Body required", "Usage: agentmail send <inbox-id> <to> <subject> <body>")
+
+    inbox_id = args[0]
+    to_addr = args[1]
+    subject = args[2]
+    body_text = " ".join(args[3:])
+
+    payload = {
+        "to": [to_addr],
+        "subject": subject,
+        "text": body_text,
+    }
+
+    result = api("POST", f"/inboxes/{inbox_id}/messages/send", json_body=payload)
+    msg_id = (result or {}).get("id") or (result or {}).get("message_id") or "sent"
+    print(f"Message sent! ID: `{msg_id}`")
+
+
+def cmd_reply(args: list[str]) -> None:
+    """Reply to a message in a thread."""
+    if len(args) < 1:
+        error("Inbox ID required", "Usage: agentmail reply <inbox-id> <message-id> <body>")
+    if len(args) < 2:
+        error("Message ID required", "Usage: agentmail reply <inbox-id> <message-id> <body>")
+    if len(args) < 3:
+        error("Reply body required", "Usage: agentmail reply <inbox-id> <message-id> <body>")
+
+    inbox_id = args[0]
+    message_id = args[1]
+    body_text = " ".join(args[2:])
+
+    payload = {"text": body_text}
+    result = api("POST", f"/inboxes/{inbox_id}/messages/{message_id}/reply", json_body=payload)
+    msg_id = (result or {}).get("id") or (result or {}).get("message_id") or "sent"
+    print(f"Reply sent! ID: `{msg_id}`")
+
+
+def cmd_messages(args: list[str]) -> None:
+    """List messages in an inbox."""
+    if not args:
+        error("Inbox ID required", "Usage: agentmail messages <inbox-id> [--limit N]")
+
+    limit, _ = parse_limit(args[1:])
+    inbox_id = args[0]
+
+    result = api("GET", f"/inboxes/{inbox_id}/messages", params={"limit": limit})
+    print(format_message_list(result))
+
+
+def cmd_get(args: list[str]) -> None:
+    """Get a specific message."""
+    if len(args) < 1:
+        error("Inbox ID required", "Usage: agentmail get <inbox-id> <message-id>")
+    if len(args) < 2:
+        error("Message ID required", "Usage: agentmail get <inbox-id> <message-id>")
+
+    result = api("GET", f"/inboxes/{args[0]}/messages/{args[1]}")
+    print(format_message(result))
+
+
+def cmd_threads(args: list[str]) -> None:
+    """List threads in an inbox."""
+    if not args:
+        error("Inbox ID required", "Usage: agentmail threads <inbox-id> [--limit N]")
+
+    limit, _ = parse_limit(args[1:])
+    inbox_id = args[0]
+
+    result = api("GET", f"/inboxes/{inbox_id}/threads", params={"limit": limit})
+    print(format_thread_list(result))
+
+
+def cmd_thread(args: list[str]) -> None:
+    """Get a specific thread with messages."""
+    if len(args) < 1:
+        error("Inbox ID required", "Usage: agentmail thread <inbox-id> <thread-id>")
+    if len(args) < 2:
+        error("Thread ID required", "Usage: agentmail thread <inbox-id> <thread-id>")
+
+    result = api("GET", f"/inboxes/{args[0]}/threads/{args[1]}")
+    print(format_thread(result))
+
+
+def cmd_delete(args: list[str]) -> None:
+    """Delete an inbox."""
+    if not args:
+        error("Inbox ID required", "Usage: agentmail delete <inbox-id>")
+
+    api("DELETE", f"/inboxes/{args[0]}")
+    print(f"Inbox `{args[0]}` deleted.")
+
+
+def cmd_webhooks(args: list[str]) -> None:
+    """List all webhooks."""
+    result = api("GET", "/webhooks")
+    print(format_webhook_list(result))
+
+
+def cmd_webhook_create(args: list[str]) -> None:
+    """Create a webhook. Usage: webhook-create <url> <event_type,...> [inbox_id,...]"""
+    if not args:
+        error(
+            "URL required",
+            "Usage: agentmail webhook-create <url> <event_type,...> [inbox_id,...]\n"
+            f"Event types: {', '.join(WEBHOOK_EVENT_TYPES)}",
+        )
+    if len(args) < 2:
+        error(
+            "Event types required",
+            "Usage: agentmail webhook-create <url> <event_type,...>\n"
+            f"Event types: {', '.join(WEBHOOK_EVENT_TYPES)}",
+        )
+
+    url = args[0]
+    event_types = [e.strip() for e in args[1].split(",")]
+
+    for et in event_types:
+        if et not in WEBHOOK_EVENT_TYPES:
+            error(
+                f"Unknown event type: '{et}'",
+                f"Valid types: {', '.join(WEBHOOK_EVENT_TYPES)}",
+            )
+
+    payload: dict[str, Any] = {"url": url, "event_types": event_types}
+
+    # Optional inbox filter
+    if len(args) > 2:
+        inbox_ids = [i.strip() for i in args[2].split(",")]
+        payload["inbox_ids"] = inbox_ids
+
+    result = api("POST", "/webhooks", json_body=payload)
+    print("Webhook created!\n")
+    print(format_webhook(result))
+    secret = (result or {}).get("secret", "")
+    if secret:
+        print(f"\nSave this secret for signature verification: `{secret}`")
+        print("AgentMail uses Svix — verify with: pip install svix")
+
+
+def cmd_webhook_get(args: list[str]) -> None:
+    """Get webhook details."""
+    if not args:
+        error("Webhook ID required", "Usage: agentmail webhook-get <webhook-id>")
+
+    result = api("GET", f"/webhooks/{args[0]}")
+    print(format_webhook(result))
+
+
+def cmd_webhook_delete(args: list[str]) -> None:
+    """Delete a webhook."""
+    if not args:
+        error("Webhook ID required", "Usage: agentmail webhook-delete <webhook-id>")
+
+    api("DELETE", f"/webhooks/{args[0]}")
+    print(f"Webhook `{args[0]}` deleted.")
+
+
+def cmd_raw(args: list[str]) -> None:
+    """Make a raw API call. Usage: raw GET /inboxes [json-body]"""
+    if len(args) < 2:
+        error("Method and path required", "Usage: agentmail raw GET /inboxes [json-body]")
+
+    method = args[0].upper()
+    path = args[1] if args[1].startswith("/") else f"/{args[1]}"
+    body = None
+    if len(args) > 2:
+        try:
+            body = json.loads(args[2])
+        except json.JSONDecodeError:
+            error("Invalid JSON body", f"Got: {args[2]}")
+
+    result = api(method, path, json_body=body)
+    print(json.dumps(result, indent=2))
+
+
+def cmd_help() -> None:
+    """Show help message."""
+    print("""AgentMail CLI - Email inboxes for AI agents
+
+Commands:
+  inboxes [--limit N]                    List inboxes (default: 10)
+  create [name] [username]               Create a new inbox
+  inbox <inbox-id>                       Get inbox details
+  send <inbox-id> <to> <subject> <body>  Send an email
+  reply <inbox-id> <msg-id> <body>       Reply to a message
+  messages <inbox-id> [--limit N]        List messages in an inbox
+  get <inbox-id> <message-id>            Get a specific message
+  threads <inbox-id> [--limit N]         List threads in an inbox
+  thread <inbox-id> <thread-id>          Get a thread with messages
+  delete <inbox-id>                      Delete an inbox
+
+Webhooks:
+  webhooks                               List all webhooks
+  webhook-create <url> <events> [inboxes]  Create a webhook
+  webhook-get <webhook-id>               Get webhook details
+  webhook-delete <webhook-id>            Delete a webhook
+
+Other:
+  raw <METHOD> <path> [json-body]        Raw API call
+  help                                   Show this help
+
+Environment:
+  AGENTMAIL_API_KEY    Required - your API key
+
+Event types for webhooks:
+  message.received, message.sent, message.delivered, message.bounced,
+  message.complained, message.rejected, message.received.spam,
+  message.received.blocked, domain.verified
+
+Examples:
+  agentmail create "Support Bot"
+  agentmail inboxes
+  agentmail send abc123 user@example.com "Hello" "How can I help?"
+  agentmail messages abc123
+  agentmail reply abc123 msg456 "Thanks for reaching out!"
+  agentmail threads abc123
+  agentmail webhooks
+  agentmail webhook-create https://my.host/hook message.received inbox123
+  agentmail webhook-delete wh_abc123
+  agentmail raw GET /inboxes
+
+Get your API key: https://agentmail.to → Dashboard → API Keys""")
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    commands = {
+        "inboxes": cmd_inboxes,
+        "create": cmd_create,
+        "inbox": cmd_inbox,
+        "send": cmd_send,
+        "reply": cmd_reply,
+        "messages": cmd_messages,
+        "get": cmd_get,
+        "threads": cmd_threads,
+        "thread": cmd_thread,
+        "delete": cmd_delete,
+        "webhooks": cmd_webhooks,
+        "webhook-create": cmd_webhook_create,
+        "webhook-get": cmd_webhook_get,
+        "webhook-delete": cmd_webhook_delete,
+        "raw": cmd_raw,
+    }
+
+    if command == "help":
+        cmd_help()
+    elif command in commands:
+        commands[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'agentmail help' for available commands")
+
+
+if __name__ == "__main__":
+    main()

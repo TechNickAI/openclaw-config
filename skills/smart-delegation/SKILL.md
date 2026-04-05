@@ -128,20 +128,20 @@ difference between a useful result and a generic one.
 Before sending any sub-agent prompt, verify:
 
 - [ ] **Self-contained** — the worker has zero access to your conversation. Everything
-  it needs is in the prompt.
-- [ ] **Specific references** — file paths, line numbers, error messages, URLs. Not
-  "the auth module" but "src/auth/validate.ts:42".
-- [ ] **"Done" is defined** — what does the worker deliver? A commit hash? A summary?
-  A list of file paths? State it explicitly.
+      it needs is in the prompt.
+- [ ] **Specific references** — file paths, line numbers, error messages, URLs. Not "the
+      auth module" but "src/auth/validate.ts:42".
+- [ ] **"Done" is defined** — what does the worker deliver? A commit hash? A summary? A
+      list of file paths? State it explicitly.
 - [ ] **Purpose statement** — tell the worker WHY it's doing this so it can calibrate
-  depth. "This research will inform my recommendation to the user" vs "This is a quick
-  sanity check before we proceed."
+      depth. "This research will inform my recommendation to the user" vs "This is a
+      quick sanity check before we proceed."
 - [ ] **Mode boundary** — for research: "Report findings — do not modify files." For
-  implementation: "Make the change, run tests, commit, report the hash." Don't leave
-  this ambiguous.
-- [ ] **No lazy delegation** — never write "based on your findings" or "based on what
-  we discussed." If you can't articulate the specific problem and approach, you haven't
-  synthesized yet. Do that first, then delegate.
+      implementation: "Make the change, run tests, commit, report the hash." Don't leave
+      this ambiguous.
+- [ ] **No lazy delegation** — never write "based on your findings" or "based on what we
+      discussed." If you can't articulate the specific problem and approach, you haven't
+      synthesized yet. Do that first, then delegate.
 
 **The synthesis rule:** When a sub-agent returns research findings, YOU must understand
 them before directing follow-up work. Read the findings. Identify the approach. Then
@@ -215,14 +215,14 @@ session (it has full context from its previous run) or spawn a fresh one (clean 
 
 **The question: how much of the worker's existing context overlaps with the next task?**
 
-| Situation | Action | Why |
-| --- | --- | --- |
-| Research explored exactly the files that need changing | **Continue** with a synthesized implementation spec | Worker already has the files in context AND now gets a clear plan |
-| Research was broad but implementation is narrow | **Spawn fresh** with synthesized spec | Avoid dragging along exploration noise; focused context is cleaner |
-| Correcting a failure or extending recent work | **Continue** | Worker has the error context and knows what it just tried |
-| Verifying code a different worker just wrote | **Spawn fresh** | Verifier should see the code with fresh eyes, not carry implementation assumptions |
-| First attempt used the wrong approach entirely | **Spawn fresh** | Wrong-approach context pollutes the retry; clean slate avoids anchoring on the failed path |
-| Completely unrelated task | **Spawn fresh** | No useful context to reuse |
+| Situation                                              | Action                                              | Why                                                                                        |
+| ------------------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Research explored exactly the files that need changing | **Continue** with a synthesized implementation spec | Worker already has the files in context AND now gets a clear plan                          |
+| Research was broad but implementation is narrow        | **Spawn fresh** with synthesized spec               | Avoid dragging along exploration noise; focused context is cleaner                         |
+| Correcting a failure or extending recent work          | **Continue**                                        | Worker has the error context and knows what it just tried                                  |
+| Verifying code a different worker just wrote           | **Spawn fresh**                                     | Verifier should see the code with fresh eyes, not carry implementation assumptions         |
+| First attempt used the wrong approach entirely         | **Spawn fresh**                                     | Wrong-approach context pollutes the retry; clean slate avoids anchoring on the failed path |
+| Completely unrelated task                              | **Spawn fresh**                                     | No useful context to reuse                                                                 |
 
 **There is no universal default.** High overlap → continue. Low overlap → spawn fresh.
 
@@ -245,9 +245,9 @@ update the assertions to match the new error message.")
 ### After launching sub-agents
 
 **Never fabricate or predict results.** Tell the user what you launched, then stop.
-Results arrive asynchronously — don't guess what the worker will find. Say "Investigating
-from two angles — I'll report back with findings" not "I expect the issue is probably
-in the auth module."
+Results arrive asynchronously — don't guess what the worker will find. Say
+"Investigating from two angles — I'll report back with findings" not "I expect the issue
+is probably in the auth module."
 
 ## Communication Patterns
 
@@ -278,8 +278,8 @@ them concurrently — don't serialize work that can run simultaneously.
 Rules of thumb:
 
 - **Read-only tasks** (research, analysis) — run in parallel freely
-- **Write-heavy tasks** (implementation, file edits) — one at a time per set of files
-  to avoid conflicts
+- **Write-heavy tasks** (implementation, file edits) — one at a time per set of files to
+  avoid conflicts
 - **Verification** can sometimes run alongside implementation on different file areas
 - **Research from multiple angles** — when investigating a problem, spawn workers to
   cover different dimensions simultaneously rather than exploring sequentially
@@ -358,14 +358,15 @@ Not everyone has Grok configured. Before attempting an unfiltered delegation:
 
 ## Anti-Patterns
 
-❌ Delegating everything complex → defeats the purpose of having Opus as default
-❌ Delegating without telling the user → they think you're frozen
-❌ Thin spawn prompts without context → generic, impersonal results
-❌ Relaying sub-agent results verbatim → sounds like a different AI
-❌ Using Deep Think for pure creative writing → reasoning reduces spontaneity
-❌ Escalating when the user said "quick" → honor explicit speed signals
-❌ "Based on your findings, fix the bug" → lazy delegation; synthesize first
-❌ Predicting sub-agent results before they return → never fabricate outcomes
-❌ Serializing independent research tasks → parallelize read-only work
-❌ Continuing a worker after a completely wrong approach → spawn fresh to avoid anchoring
-❌ Using one worker to check on another → workers report back when done
+- ❌ Delegating everything complex → defeats the purpose of having Opus as default
+- ❌ Delegating without telling the user → they think you're frozen
+- ❌ Thin spawn prompts without context → generic, impersonal results
+- ❌ Relaying sub-agent results verbatim → sounds like a different AI
+- ❌ Using Deep Think for pure creative writing → reasoning reduces spontaneity
+- ❌ Escalating when the user said "quick" → honor explicit speed signals
+- ❌ "Based on your findings, fix the bug" → lazy delegation; synthesize first
+- ❌ Predicting sub-agent results before they return → never fabricate outcomes
+- ❌ Serializing independent research tasks → parallelize read-only work
+- ❌ Continuing a worker after a completely wrong approach → spawn fresh to avoid
+  anchoring
+- ❌ Using one worker to check on another → workers report back when done
