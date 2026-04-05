@@ -10,7 +10,7 @@ Models are configured in `~/.openclaw/openclaw.json` across several scopes:
 ```
 agents.defaults.model.primary      → Main conversational model
 agents.defaults.model.fallbacks    → Ordered fallback chain
-agents.defaults.models             → Model catalog (alias → full ID + params)
+agents.defaults.models             → Model catalog (model ID → {alias, params})
 agents.defaults.heartbeat.model    → Lightweight ping model
 agents.defaults.subagents.model    → Model for spawned sub-agents
 Per-cron payload.model             → Override per scheduled job
@@ -101,9 +101,9 @@ schedule, uses a specific model, and delivers results through a configured chann
 
 ```bash
 openclaw cron add \
-  --name "Email Steward" \
+  --name "my-job" \
   --cron "*/30 8-22 * * *" \
-  --tz "America/New_York" \
+  --tz "<YOUR_TIMEZONE>" \
   --session isolated \
   --model sonnet \
   --announce
@@ -128,15 +128,15 @@ The general principle: **cheap models for checking, expensive models for thinkin
 
 ### Example Job Schedule
 
-| Job                   | Schedule            | Model  | Delivery  |
-| --------------------- | ------------------- | ------ | --------- |
-| Morning Standup       | 8am daily           | haiku  | announce  |
-| Intelligence Briefing | 7am daily           | sonnet | announce  |
-| Email Steward         | every 30m, 7am-10pm | haiku  | in-prompt |
-| Health Check          | every 30m           | haiku  | in-prompt |
-| Cron Healthcheck      | :05 past hour       | haiku  | in-prompt |
-| Nightly Reflection    | 11pm daily          | opus   | none      |
-| Security Sentinel     | Mon 4am             | opus   | none      |
+| Job                  | Schedule            | Model  | Delivery  |
+| -------------------- | ------------------- | ------ | --------- |
+| morning-briefing     | 8am daily           | haiku  | announce  |
+| daily-report         | 7am daily           | sonnet | announce  |
+| inbox-triage         | every 30m, 7am-10pm | haiku  | in-prompt |
+| health-check         | every 30m           | haiku  | in-prompt |
+| cron-healthcheck     | :05 past hour       | haiku  | in-prompt |
+| nightly-reflection   | 11pm daily          | opus   | none      |
+| weekly-security-scan | Mon 4am             | opus   | none      |
 
 ### The Cron Fleet Manifest
 
