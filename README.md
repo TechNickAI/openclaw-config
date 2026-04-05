@@ -79,7 +79,8 @@ openclaw-config/
 │   ├── fathom/         # Meeting recording & transcript search
 │   ├── fireflies/      # Meeting transcript search
 │   ├── limitless/      # Pendant lifelog search
-│   ├── asana/          # Task & project management
+│   ├── asana/          # Task & project management (Asana)
+│   ├── todoist/        # Task & project management (Todoist)
 │   ├── followupboss/   # Real estate CRM
 │   ├── librarian/      # Knowledge base maintenance
 │   ├── create-great-prompts/  # Prompt engineering guide
@@ -121,6 +122,7 @@ independently.
 | **fireflies**            | Search meeting transcripts & action items                              | 0.2.0   |
 | **limitless**            | Query Pendant lifelogs & conversations                                 | 0.2.0   |
 | **asana**                | Task & project management via MCP                                      | 0.1.0   |
+| **todoist**              | Task & project management via official CLI                             | 0.1.0   |
 | **followupboss**         | Real estate CRM — contacts, deals, pipeline                            | 0.1.0   |
 | **librarian**            | Curate and maintain the knowledge base                                 | 0.3.0   |
 | **create-great-prompts** | Prompt engineering for LLM agents                                      | 2.0.0   |
