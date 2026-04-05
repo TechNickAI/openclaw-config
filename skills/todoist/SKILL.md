@@ -58,7 +58,7 @@ OpenClaw gateway config).
 ```bash
 td today                              # Due today + overdue
 td upcoming                           # Next 7 days
-td upcoming --days 14                 # Next 14 days
+td upcoming 14                        # Next 14 days
 td inbox                              # Inbox tasks
 td completed                          # Completed today
 td completed --since 2026-04-01       # Completed since date
