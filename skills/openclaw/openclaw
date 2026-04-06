@@ -64,7 +64,12 @@ cmd_status() {
         installed=$(cat "$OPENCLAW_CACHE/installed-version")
     fi
     local remote="unknown"
-    if [ -f "$OPENCLAW_REPO/VERSION" ]; then
+    if [ -d "$OPENCLAW_REPO/.git" ]; then
+        git -C "$OPENCLAW_REPO" fetch --quiet 2>/dev/null
+        remote=$(git -C "$OPENCLAW_REPO" show origin/main:VERSION 2>/dev/null) \
+            || remote=$(cat "$OPENCLAW_REPO/VERSION" 2>/dev/null) \
+            || remote="unknown"
+    elif [ -f "$OPENCLAW_REPO/VERSION" ]; then
         remote=$(cat "$OPENCLAW_REPO/VERSION")
     fi
     echo "Installed: $installed"
@@ -72,7 +77,7 @@ cmd_status() {
     if [ "$installed" = "$remote" ]; then
         echo "✓ Up to date"
     else
-        echo "⬆ Update available — run: openclaw sync"
+        echo "⬆ Update available — run: openclaw upgrade"
     fi
 }
 
