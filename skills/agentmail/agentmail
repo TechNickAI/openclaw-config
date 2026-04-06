@@ -88,7 +88,7 @@ def api(
         try:
             body = e.response.json()
             msg = body.get("error") or body.get("message") or body.get("detail") or str(body)
-        except (ValueError, KeyError):
+        except Exception:
             msg = e.response.text or str(e)
         error(f"API returned HTTP {e.response.status_code}", str(msg))
     except httpx.RequestError as e:
