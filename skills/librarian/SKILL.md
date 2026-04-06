@@ -1,6 +1,6 @@
 ---
 name: librarian
-version: 0.3.0
+version: 0.4.0
 description: >
   Organize and maintain the knowledge base. Promotes durable knowledge from daily files
   into structured locations, trims MEMORY.md, deduplicates, and keeps the filing system
@@ -38,6 +38,15 @@ Most new information belongs in an existing file, not a new one.
 (new job, new city, breakup), update the document to reflect current state. Preserve
 history inline only when it adds meaningful context ("CTO at Acme. Previously at
 Google.").
+
+**Facts supersede, never silently overwrite.** When updating a substantive semantic fact
+(job, city, key relationship, tool choice — not minor phrasing fixes), preserve a
+one-line historical note inline immediately below the new value:
+
+_Previously: [old value] (until ~YYYY-MM)_
+
+This keeps the current-state-first philosophy while maintaining a light audit trail.
+Trivial corrections (typos, formatting) don't need history.
 
 ## When You Run
 
@@ -105,6 +114,29 @@ Follow these routing rules:
 - Include: what was decided, why, what alternatives were considered
 - Date-prefixed for chronological ordering
 
+**Procedures** (`memory/procedures/procedure-name.md`):
+
+- Reusable how-to docs — not descriptions (topics), not events (episodes)
+- Examples: `deploy-sequence.md`, `pr-conventions.md`, `debugging-pattern-x.md`
+- Each procedure should be self-contained and actionable
+- Procedures are graduated from `memory/learning/patterns.md` when patterns are promoted
+  (see Step 8), or created directly when a workflow deserves documentation
+
+**Episodic outcome summaries:** When a daily file entry represents a completed task or
+decision with a clear outcome, summarize it as an episode under a `## Key Episodes`
+section in the relevant people/ or projects/ file. Format:
+
+- **YYYY-MM-DD**: [What was attempted] → [outcome: success/failed/partial]. [One
+  sentence of why/what was learned.]
+
+This captures "what happened" (episodic) separately from "what is true" (semantic facts
+in the rest of the file). Not every daily entry qualifies — only those with a definitive
+outcome worth recalling.
+
+**Fact supersession in practice:** When updating a substantive fact in any structured
+file, apply the supersession rule from Philosophy. Log superseded facts in Step 7's
+librarian run summary as `Superseded: X → Y` rather than just `Updated`.
+
 ### Step 5: Maintain MEMORY.md
 
 MEMORY.md is the **index and executive summary** — not the encyclopedia. Target ~100
@@ -157,6 +189,8 @@ Append a brief summary to today's daily file (`memory/YYYY-MM-DD.md`):
 
 - Promoted 3 items from daily files to structured memory
 - Updated people/alex-chen.md with new relationship status
+- Superseded: alex-chen.md employer Acme Corp → Initech (fact change)
+- Added episode to projects/atlas.md: 2026-03-15 migration → success
 - Created topics/soil-health.md (extracted from multiple daily files)
 - Trimmed MEMORY.md from 145 to 98 lines
 - Removed 2 stale calendar entries
@@ -184,6 +218,10 @@ is how corrections compound into improvements over time.
    comment — those entries must survive until the pattern is promoted or expired
 7. **Prune stale pattern candidates** — archive entries in `patterns.md` whose HTML
    comment has `status: candidate` and is older than 60 days (move to archive)
+8. **Graduate active patterns** — when a pattern is promoted from `candidate` to
+   `active` status, create a standalone procedure doc in `memory/procedures/` with the
+   full how-to content. Replace the `patterns.md` entry with a one-line pointer:
+   `→ See memory/procedures/pattern-name.md`
 
 Log the results to today's daily file:
 
@@ -195,6 +233,7 @@ Log the results to today's daily file:
 - Existing patterns updated: N
 - Stale corrections archived: N
 - Stale pattern candidates expired: N
+- Patterns graduated to procedures/: N
 ```
 
 If `memory/learning/corrections.md` doesn't exist or is empty, skip this step silently.
@@ -213,6 +252,7 @@ knowledge graph that makes relationships visible and improves retrieval.
 - **Topics:** `[[topic-name]]` → links to `memory/topics/topic-name.md`
 - **Decisions:** `[[YYYY-MM-DD-topic]]` → links to
   `memory/decisions/YYYY-MM-DD-topic.md`
+- **Procedures:** `[[procedure-name]]` → links to `memory/procedures/procedure-name.md`
 
 ### When to Link
 
@@ -265,7 +305,7 @@ As part of each maintenance loop:
 
 - Don't delete daily files — they're the raw journal, kept for reference
 - Don't reorganize the directory structure itself (people/, projects/, topics/,
-  decisions/ are fixed)
+  decisions/, procedures/ are fixed)
 - Don't create files for people mentioned once in passing
 - Don't store sensitive data (API keys, passwords, tokens) in memory files
 - Don't create empty placeholder files "just in case"
@@ -283,4 +323,5 @@ Before finishing, verify:
 - [ ] Today's daily file has a librarian run summary
 - [ ] No orphaned topic files (mentioned nowhere, serve no purpose)
 - [ ] Wiki-links added to promoted content (people, projects, topics, decisions)
+- [ ] All procedures/ files are referenced from patterns.md or MEMORY.md
 - [ ] No orphan wiki-links pointing to nonexistent files
