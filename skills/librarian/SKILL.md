@@ -218,10 +218,11 @@ is how corrections compound into improvements over time.
    comment — those entries must survive until the pattern is promoted or expired
 7. **Prune stale pattern candidates** — archive entries in `patterns.md` whose HTML
    comment has `status: candidate` and is older than 60 days (move to archive)
-8. **Graduate active patterns** — when a pattern is promoted from `candidate` to
-   `active` status, create a standalone procedure doc in `memory/procedures/` with the
-   full how-to content. Replace the `patterns.md` entry with a one-line pointer:
-   `→ See memory/procedures/pattern-name.md`
+8. **Graduate promoted patterns** — when a pattern is promoted from `candidate` to
+   `promoted` status, create a standalone procedure doc in `memory/procedures/` with the
+   full how-to content. Update the `patterns.md` entry to add a reference link (e.g.,
+   `Promoted to: [[procedure-name]]`) — do not replace or delete the entry, as it serves
+   as the audit trail
 
 Log the results to today's daily file:
 
