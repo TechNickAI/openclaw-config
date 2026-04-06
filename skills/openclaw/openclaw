@@ -84,8 +84,9 @@ cmd_status() {
 is_user_owned() {
     local file="$1"
     local base=$(basename "$file")
+    # Only match user-owned files at the root level of the workflow directory
     for uf in $USER_OWNED_FILES; do
-        [ "$base" = "$uf" ] && return 0
+        [ "$file" = "$uf" ] && return 0
     done
     for ud in $USER_OWNED_DIRS; do
         # Match paths starting with the dir (logs/foo.md) or containing it (/logs/)
@@ -182,8 +183,8 @@ cmd_sync() {
         echo "✓ Everything up to date"
     fi
 
-    # Update installed version
-    if ! $dry_run && [ -f "$OPENCLAW_REPO/VERSION" ]; then
+    # Only update installed version on full sync (partial sync leaves other categories stale)
+    if ! $dry_run && $sync_all && [ -f "$OPENCLAW_REPO/VERSION" ]; then
         cp "$OPENCLAW_REPO/VERSION" "$OPENCLAW_CACHE/installed-version"
     fi
 }
