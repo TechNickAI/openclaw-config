@@ -77,7 +77,7 @@ cmd_status() {
     if [ "$installed" = "$remote" ]; then
         echo "✓ Up to date"
     else
-        echo "⬆ Update available — run: openclaw sync"
+        echo "⬆ Update available — run: openclaw upgrade"
     fi
 }
 
