@@ -358,13 +358,15 @@ Not everyone has Grok configured. Before attempting an unfiltered delegation:
 
 ## Anti-Patterns
 
-❌ Delegating everything complex → defeats the purpose of having chat as default ❌
-Delegating without telling the user → they think you're frozen ❌ Thin spawn prompts
-without context → generic, impersonal results ❌ Relaying sub-agent results verbatim →
-sounds like a different AI ❌ Using Deep Think for pure creative writing → reasoning
-reduces spontaneity ❌ Escalating when the user said "quick" → honor explicit speed
-signals ❌ "Based on your findings, fix the bug" → lazy delegation; synthesize first ❌
-Predicting sub-agent results before they return → never fabricate outcomes ❌
-Serializing independent research tasks → parallelize read-only work ❌ Continuing a
-worker after a completely wrong approach → spawn fresh to avoid anchoring ❌ Using one
-worker to check on another → workers report back when done
+- ❌ Delegating everything complex → defeats the purpose of having chat as default
+- ❌ Delegating without telling the user → they think you're frozen
+- ❌ Thin spawn prompts without context → generic, impersonal results
+- ❌ Relaying sub-agent results verbatim → sounds like a different AI
+- ❌ Using Deep Think for pure creative writing → reasoning reduces spontaneity
+- ❌ Escalating when the user said "quick" → honor explicit speed signals
+- ❌ "Based on your findings, fix the bug" → lazy delegation; synthesize first
+- ❌ Predicting sub-agent results before they return → never fabricate outcomes
+- ❌ Serializing independent research tasks → parallelize read-only work
+- ❌ Continuing a worker after a completely wrong approach → spawn fresh to avoid
+  anchoring
+- ❌ Using one worker to check on another → workers report back when done
