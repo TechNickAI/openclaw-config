@@ -84,7 +84,7 @@ Do these steps in order:
    - Resolve the claude CLI path with `which claude` — use the full path in the cron job
    - Install the cron job (substitute CLAUDE_PATH with the resolved path):
      ```
-     0 0,7-23 * * * test -f "$HOME/.openclaw-config/devops/health-check.md" && flock -n "$HOME/.openclaw/health-check.lock" CLAUDE_PATH -p "Run health check" --model work --append-system-prompt-file "$HOME/.openclaw-config/devops/health-check.md" --dangerously-skip-permissions --max-budget-usd 5.00 >> "$HOME/.openclaw/health-check.log" 2>&1
+     0 0,7-23 * * * test -f "$HOME/.openclaw-config/devops/health-check.md" && flock -n "$HOME/.openclaw/health-check.lock" CLAUDE_PATH -p "Run health check" --model simple --append-system-prompt-file "$HOME/.openclaw-config/devops/health-check.md" --dangerously-skip-permissions --max-budget-usd 5.00 >> "$HOME/.openclaw/health-check.log" 2>&1
      ```
    - Verify: `crontab -l | grep health-check`
    - Do a test run: execute the claude command once and verify it produces output
