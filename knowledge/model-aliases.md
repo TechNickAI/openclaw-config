@@ -34,7 +34,7 @@ Requires an `openai-codex` auth profile with OAuth mode.
 
 Machines without a subscription fall back to Sonnet as the default.
 
-- **Primary:** `openrouter/anthropic/claude-sonnet-4-6`
+- **Primary:** `openrouter/anthropic/claude-sonnet-4.6`
 - **Fallback 1:** `chat-fallback` (openrouter/google/gemini-3.1-pro-preview)
 - **Fallback 2:** `work` (openrouter/xiaomi/mimo-v2-pro)
 - **Heartbeat:** `openrouter/anthropic/claude-haiku-4.5`
@@ -102,7 +102,7 @@ openclaw config set agents.defaults.heartbeat.model "openai-codex/gpt-5.4"
 ### Default model — OpenRouter only
 
 ```bash
-openclaw config set agents.defaults.model.primary "openrouter/anthropic/claude-sonnet-4-6"
+openclaw config set agents.defaults.model.primary "openrouter/anthropic/claude-sonnet-4.6"
 openclaw config set agents.defaults.model.fallbacks '["openrouter/google/gemini-3.1-pro-preview", "openrouter/xiaomi/mimo-v2-pro"]'
 openclaw config set agents.defaults.heartbeat.model "openrouter/anthropic/claude-haiku-4.5"
 ```
