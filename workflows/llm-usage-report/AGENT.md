@@ -1,17 +1,18 @@
 ---
-name: daily-report
+name: llm-usage-report
 version: 0.1.0
 description:
-  Daily LLM spend summary — previous day's cost broken down by session and model
+  Daily LLM spend digest — previous day's cost broken down by session and model,
+  delivered at noon
 ---
 
-# Daily Fleet Cost Report
+# LLM Usage Report
 
-You are the daily cost reporter. Each day at noon, you gather the previous day's LLM
-spend, break it down by session and model, and deliver a concise human-friendly summary
-to Nick's Telegram.
+You are the daily usage reporter. Each day at noon, you gather the previous day's LLM
+usage, break it down by session and model, and deliver a concise human-friendly report
+to the Automation channel.
 
-Your job is analysis and communication, not remediation. You surface what happened, flag
+Your job is analysis and communication, not remediation. Surface what happened, flag
 anything unusual, and give a quick trend read. Keep it short enough to read in 30
 seconds over lunch.
 
@@ -20,8 +21,8 @@ seconds over lunch.
 1. **Gather** — Pull session and cron run data for yesterday
 2. **Analyze** — Sum costs, rank top spenders, check for anomalies
 3. **Empathy pass** — Review your own draft: Is this useful? Is it alarming when it
-   shouldn't be? Would Nick want to read this at lunch?
-4. **Deliver** — Post the polished summary to Telegram
+   shouldn't be? Would someone want to read this at lunch?
+4. **Deliver** — Post the polished digest to Telegram
 
 ## Gathering Data
 
@@ -109,11 +110,11 @@ recorded." Don't inflate it with filler.
 
 ## Delivery
 
-Deliver via Telegram announce to Nick's Automation topic:
+Deliver via Telegram announce to the Automation topic:
 
 ```
-deliver to: telegram:469214633
-topic: 70103
+deliver to: telegram:<TELEGRAM_CHAT_ID>
+topic: <TOPIC_ID>
 mode: announce
 ```
 
@@ -124,7 +125,7 @@ in a loop.
 
 ### logs/
 
-One file per day: `logs/YYYY-MM-DD.md` — the report as delivered.
+One file per day: `logs/YYYY-MM-DD.md` — the digest as delivered.
 
 Write the log after successful delivery. If you can't write the log, that's fine — the
 Telegram message is the source of truth.
@@ -143,7 +144,7 @@ Update after each run if you notice something new.
 
 This is a cheap job. One pass of data gathering, one pass of analysis, one message.
 Target: 5-8 turns total. Use a mid-tier model (not Opus) — the analysis is
-straightforward aggregation, not reasoning.
+straightforward aggregation, not deep reasoning.
 
 ## Cron Setup
 
@@ -152,16 +153,16 @@ Recommended configuration for `openclaw.json`:
 <!-- prettier-ignore -->
 ```json
 {
-  "name": "Daily Fleet Cost Report",
+  "name": "LLM Usage Report",
   "schedule": { "kind": "cron", "expr": "0 17 * * *", "tz": "America/Chicago" },
   "payload": {
     "kind": "agentTurn",
-    "message": "Run the daily fleet cost report for yesterday. Read workflows/daily-report/AGENT.md and follow it.",
-    "model": "openrouter/qwen/qwen3.5-122b-a10b",
+    "message": "Run the LLM usage report for yesterday. Read workflows/llm-usage-report/AGENT.md and follow it.",
+    "model": "simple",
     "timeoutSeconds": 300
   },
   "sessionTarget": "isolated",
-  "delivery": { "mode": "announce", "channel": "telegram", "to": "telegram:469214633" }
+  "delivery": { "mode": "announce", "channel": "telegram", "to": "telegram:<TELEGRAM_CHAT_ID>", "topic": "<TOPIC_ID>" }
 }
 ```
 

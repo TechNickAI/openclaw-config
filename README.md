@@ -147,6 +147,7 @@ invoke), workflows maintain state, learn your preferences, and manage themselves
 | **security-sentinel** | Threat intelligence research & fleet exposure mapping                      | 0.1.0   |
 | **cron-healthcheck**  | Detect broken cron jobs, auto-remediate, escalate failures                 | 0.1.0   |
 | **learning-loop**     | Self-improvement — capture corrections, detect patterns, promote learnings | 0.1.0   |
+| **llm-usage-report**  | Daily LLM spend digest — cost breakdown by session and model               | 0.1.0   |
 
 Each workflow maintains its own state:
 

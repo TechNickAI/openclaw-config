@@ -1,4 +1,4 @@
-"""Tests for daily-report workflow AGENT.md structure.
+"""Tests for llm-usage-report workflow AGENT.md structure.
 
 Validates that the workflow file has correct frontmatter and required sections.
 No API key or external service required.
@@ -9,7 +9,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-WORKFLOW_PATH = Path(__file__).parent.parent / "workflows" / "daily-report" / "AGENT.md"
+WORKFLOW_PATH = (
+    Path(__file__).parent.parent / "workflows" / "llm-usage-report" / "AGENT.md"
+)
 
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -40,9 +42,9 @@ class TestFrontmatter:
         return fm
 
     def test_has_name(self, frontmatter):
-        """Frontmatter includes a name field."""
+        """Frontmatter includes the correct name field."""
         assert "name" in frontmatter
-        assert frontmatter["name"] == "daily-report"
+        assert frontmatter["name"] == "llm-usage-report"
 
     def test_has_version(self, frontmatter):
         """Frontmatter includes a version field."""
@@ -89,7 +91,7 @@ class TestRequiredSections:
         assert "15 line" in body.lower() or "15-line" in body.lower()
 
     def test_has_delivery_section(self, body):
-        """Describes how to deliver the report."""
+        """Describes how to deliver the digest."""
         assert "deliver" in body.lower() or "telegram" in body.lower()
 
     def test_has_cron_setup_section(self, body):
@@ -113,9 +115,17 @@ class TestRequiredSections:
         assert "budget" in body.lower() or "Budget" in body
 
     def test_telegram_delivery_target(self, body):
-        """References telegram as the delivery channel."""
-        assert "telegram" in body.lower()
+        """References telegram placeholder in delivery config."""
+        assert "<TELEGRAM_CHAT_ID>" in body
+
+    def test_has_topic_config(self, body):
+        """Includes a topic placeholder in delivery config."""
+        assert "<TOPIC_ID>" in body
 
     def test_has_deployment_note(self, body):
         """Mentions deployment / update behavior."""
         assert "deployment" in body.lower() or "Deployment" in body
+
+    def test_no_daily_report_references(self, body):
+        """Workflow does not reference the daily-report workflow by name."""
+        assert "daily-report" not in body
