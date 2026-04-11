@@ -1,0 +1,866 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml>=6.0"]
+# ///
+"""
+Cortex CLI - Personal knowledge compiler utilities
+
+Mechanical operations for the Cortex knowledge system: setup, locking,
+hashing, state tracking, and index rebuilding. The LLM handles the actual
+knowledge compilation; this script handles the bookkeeping.
+"""
+
+import hashlib
+import os
+import platform
+import re
+import sys
+import time
+from pathlib import Path
+from typing import NoReturn
+
+import yaml
+
+# Sensitive file patterns to skip during enumeration
+SENSITIVE_PATTERNS = {
+    ".env",
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    ".git",
+    ".DS_Store",
+    "__pycache__",
+    "node_modules",
+}
+SENSITIVE_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"}
+SENSITIVE_PREFIXES = ("secret", "credentials", ".env")
+
+SUPPORTED_EXTENSIONS = {
+    ".md", ".txt", ".pdf", ".html", ".htm", ".json", ".csv",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".py", ".js", ".ts", ".sh", ".yaml", ".yml", ".toml",
+    ".xml", ".rst", ".org", ".tex", ".rtf", ".doc", ".docx",
+}
+
+KNOWLEDGE_CATEGORIES = [
+    "entities", "concepts", "summaries", "synthesis", "decisions", "how-to",
+]
+
+CONFIG_DIR = Path.home() / ".config" / "cortex"
+CONFIG_FILE = CONFIG_DIR / "config"
+
+LOCK_TIMEOUT_MINUTES = 30
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def load_config() -> dict[str, str]:
+    """Load config from ~/.config/cortex/config."""
+    if not CONFIG_FILE.exists():
+        error(
+            "Cortex not configured",
+            "Run `cortex setup` to detect cloud storage and initialize the store.",
+        )
+    config = {}
+    for line in CONFIG_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, _, value = line.partition("=")
+            config[key.strip()] = os.path.expanduser(value.strip())
+    return config
+
+
+def get_store_path() -> Path:
+    """Get the cortex store path from config."""
+    config = load_config()
+    store = config.get("CORTEX_STORE_PATH")
+    if not store:
+        error("CORTEX_STORE_PATH not set in config", "Run `cortex setup` to fix.")
+    path = Path(store)
+    if not path.exists():
+        error(
+            f"Cortex store not found at {path}",
+            "Is cloud storage running? Run `cortex setup` to reconfigure.",
+        )
+    return path
+
+
+def get_knowledge_path() -> Path:
+    """Get the knowledge directory path."""
+    return get_store_path() / "knowledge"
+
+
+# --- Cloud storage detection ---
+
+def detect_cloud_storage() -> list[tuple[str, Path]]:
+    """Detect available cloud storage paths. Returns list of (provider, path) tuples."""
+    found = []
+    home = Path.home()
+
+    # Dropbox
+    dropbox = home / "Dropbox"
+    if dropbox.is_dir():
+        found.append(("dropbox", dropbox))
+
+    # Google Drive (macOS — ~/Library/CloudStorage/GoogleDrive-*/My Drive/)
+    cloud_storage = home / "Library" / "CloudStorage"
+    if cloud_storage.is_dir():
+        for entry in cloud_storage.iterdir():
+            if entry.name.startswith("GoogleDrive-") and entry.is_dir():
+                my_drive = entry / "My Drive"
+                if my_drive.is_dir():
+                    found.append(("google-drive", my_drive))
+                    break
+
+    # Google Drive (Linux rclone)
+    gdrive_linux = home / "google-drive"
+    if gdrive_linux.is_dir():
+        found.append(("google-drive", gdrive_linux))
+
+    return found
+
+
+# --- Setup ---
+
+def cmd_setup() -> None:
+    """Detect cloud storage, initialize store, create symlinks."""
+    providers = detect_cloud_storage()
+
+    if not providers:
+        error(
+            "No cloud storage found",
+            "Cortex requires Dropbox or Google Drive.\n"
+            "Looked for:\n"
+            f"  ~/Dropbox/\n"
+            f"  ~/Library/CloudStorage/GoogleDrive-*/My Drive/\n"
+            f"  ~/google-drive/\n"
+            "Install one and run `cortex setup` again.",
+        )
+
+    # Pick provider
+    if len(providers) == 1:
+        provider, base_path = providers[0]
+        print(f"Found {provider} at {base_path}")
+    else:
+        print("Multiple cloud storage providers found:")
+        for i, (name, path) in enumerate(providers, 1):
+            print(f"  {i}. {name} ({path})")
+        choice = input("Select provider [1]: ").strip() or "1"
+        try:
+            idx = int(choice) - 1
+            provider, base_path = providers[idx]
+        except (ValueError, IndexError):
+            error("Invalid selection")
+
+    store_path = base_path / "cortex"
+    knowledge_path = store_path / "knowledge"
+    raw_path = store_path / "raw"
+    schema_path = store_path / "schema.md"
+
+    # Create directory structure
+    created = []
+    for d in [
+        store_path,
+        raw_path,
+        raw_path / "documents",
+        raw_path / "notes",
+        raw_path / "captures",
+        raw_path / "transcripts",
+        raw_path / "media",
+        raw_path / "code",
+        raw_path / "conversations",
+        raw_path / "reference",
+        knowledge_path,
+    ] + [knowledge_path / cat for cat in KNOWLEDGE_CATEGORIES]:
+        if not d.exists():
+            d.mkdir(parents=True, exist_ok=True)
+            created.append(str(d.relative_to(store_path)))
+
+    if created:
+        print(f"Created {len(created)} directories")
+    else:
+        print("Store structure already exists")
+
+    # Create initial knowledge files
+    _init_knowledge_files(knowledge_path)
+
+    # Deploy schema.md if not present
+    if not schema_path.exists():
+        _deploy_schema(schema_path)
+        print("Deployed schema.md")
+    else:
+        print("schema.md already exists (not overwriting)")
+
+    # Create .gitignore for raw/ (large/binary files)
+    gitignore = store_path / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text("raw/\n.obsidian/\n")
+        print("Created .gitignore (excludes raw/ and .obsidian/)")
+
+    # Save config
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    is_writer = input("Is this a writer machine? (ingest/lint here) [y/N]: ").strip().lower()
+    config_content = (
+        f"CORTEX_STORE_PATH={store_path}\n"
+        f"CORTEX_RAW_PATH={raw_path}\n"
+        f"CORTEX_KNOWLEDGE_PATH={knowledge_path}\n"
+        f"CORTEX_SCHEMA_PATH={schema_path}\n"
+        f"CLOUD_PROVIDER={provider}\n"
+        f"WRITER_MACHINE={'true' if is_writer in ('y', 'yes') else 'false'}\n"
+    )
+    CONFIG_FILE.write_text(config_content)
+    print(f"Config saved to {CONFIG_FILE}")
+
+    # Symlink into OpenClaw memory if available
+    _setup_symlink(knowledge_path)
+
+    # Init git if needed
+    git_dir = store_path / ".git"
+    if not git_dir.exists():
+        os.system(f"cd '{store_path}' && git init -q")
+        print("Initialized git repository")
+
+    print(f"\nCortex initialized at {store_path}")
+    print(f"Provider: {provider}")
+    print("Drop files in raw/ and ask your AI agent to ingest them.")
+
+
+def _init_knowledge_files(knowledge_path: Path) -> None:
+    """Create initial knowledge files if they don't exist."""
+    # Root index
+    index = knowledge_path / "index.md"
+    if not index.exists():
+        index.write_text(
+            "# Cortex Index\n\n"
+            f"Last updated: {_today()}\n"
+            "Total pages: 0 | Sources ingested: 0\n\n"
+            "## Categories\n\n"
+            "| Category | Pages | Sub-index |\n"
+            "|----------|-------|-----------|\n"
+            + "".join(
+                f"| {cat.title().replace('-', ' ')} | 0 | "
+                f"[{cat}/_index.md]({cat}/_index.md) |\n"
+                for cat in KNOWLEDGE_CATEGORIES
+            )
+            + "\n## Recent Activity\n\n"
+            "_No activity yet._\n"
+        )
+
+    # Sub-indexes
+    for cat in KNOWLEDGE_CATEGORIES:
+        sub_index = knowledge_path / cat / "_index.md"
+        if not sub_index.exists():
+            title = cat.title().replace("-", " ")
+            sub_index.write_text(
+                f"# {title}\n\n"
+                "_No entries yet._\n"
+            )
+
+    # Log
+    log = knowledge_path / "log.md"
+    if not log.exists():
+        log.write_text("# Operation Log\n\n_No operations yet._\n")
+
+    # Ingest state
+    state = knowledge_path / ".ingest-state.md"
+    if not state.exists():
+        state.write_text(
+            "# Ingest State\n\n"
+            "| Path | Hash | Status | Timestamp |\n"
+            "|------|------|--------|-----------|\n"
+        )
+
+
+def _deploy_schema(schema_path: Path) -> None:
+    """Deploy the schema.md template to the store."""
+    # Look for bundled template in skill directory
+    skill_dir = Path(__file__).parent
+    template = skill_dir / "schema-template.md"
+    if template.exists():
+        schema_path.write_text(template.read_text())
+    else:
+        # Minimal fallback
+        schema_path.write_text(
+            "# Cortex Schema\n\n"
+            "This file instructs the LLM how to maintain the knowledge store.\n"
+            "See the full schema-template.md in the cortex skill directory.\n"
+        )
+
+
+def _setup_symlink(knowledge_path: Path) -> None:
+    """Create symlink from OpenClaw memory to knowledge path."""
+    # Look for OpenClaw workspace
+    openclaw_memory = Path.home() / "openclaw" / "memory"
+    if not openclaw_memory.exists():
+        # Try common alternative paths
+        for candidate in [
+            Path.home() / ".openclaw" / "memory",
+            Path.home() / "moltbot" / "memory",  # legacy name
+        ]:
+            if candidate.exists():
+                openclaw_memory = candidate
+                break
+
+    if not openclaw_memory.exists():
+        print("No OpenClaw memory directory found — skipping symlink.")
+        print("Create the symlink manually when OpenClaw is set up:")
+        print(f"  ln -s {knowledge_path} <openclaw-workspace>/memory/cortex")
+        return
+
+    symlink_path = openclaw_memory / "cortex"
+
+    if symlink_path.is_symlink():
+        current_target = symlink_path.resolve()
+        if current_target == knowledge_path.resolve():
+            print(f"Symlink already correct: {symlink_path} -> {knowledge_path}")
+            return
+        print(f"Existing symlink points to: {current_target}")
+        confirm = input(f"Update to {knowledge_path}? [y/N]: ").strip().lower()
+        if confirm not in ("y", "yes"):
+            print("Symlink not updated.")
+            return
+        symlink_path.unlink()
+    elif symlink_path.exists():
+        print(f"Warning: {symlink_path} exists and is not a symlink. Skipping.")
+        return
+
+    symlink_path.symlink_to(knowledge_path)
+    print(f"Symlink created: {symlink_path} -> {knowledge_path}")
+
+    # Update MEMORY.md
+    memory_md = openclaw_memory / "MEMORY.md"
+    cortex_entry = "- [Cortex](cortex/index.md) — compiled knowledge base from all personal sources"
+    if memory_md.exists():
+        content = memory_md.read_text()
+        if "cortex/index.md" not in content:
+            content = content.rstrip() + "\n" + cortex_entry + "\n"
+            memory_md.write_text(content)
+            print("Added Cortex entry to MEMORY.md")
+        else:
+            print("MEMORY.md already references Cortex")
+    else:
+        memory_md.write_text("# Memory Index\n\n" + cortex_entry + "\n")
+        print("Created MEMORY.md with Cortex entry")
+
+
+# --- Status ---
+
+def cmd_status() -> None:
+    """Show store statistics."""
+    store = get_store_path()
+    knowledge = store / "knowledge"
+
+    # Count pages per category
+    total_pages = 0
+    print("# Cortex Status\n")
+    print(f"Store: {store}")
+    print(f"Config: {CONFIG_FILE}\n")
+
+    print("## Knowledge Pages\n")
+    print(f"{'Category':<12} {'Pages':>5}")
+    print(f"{'-'*12} {'-'*5}")
+    for cat in KNOWLEDGE_CATEGORIES:
+        cat_dir = knowledge / cat
+        if cat_dir.is_dir():
+            pages = [
+                f for f in cat_dir.iterdir()
+                if f.suffix == ".md" and f.name != "_index.md"
+            ]
+            count = len(pages)
+        else:
+            count = 0
+        total_pages += count
+        print(f"{cat:<12} {count:>5}")
+    print(f"{'-'*12} {'-'*5}")
+    print(f"{'Total':<12} {total_pages:>5}")
+
+    # Count raw sources
+    raw_path = store / "raw"
+    raw_count = 0
+    if raw_path.is_dir():
+        for root, _, files in os.walk(raw_path):
+            raw_count += len(files)
+    print(f"\n## Raw Sources: {raw_count}")
+
+    # Ingest state
+    state_file = knowledge / ".ingest-state.md"
+    if state_file.exists():
+        content = state_file.read_text()
+        ingested = content.count("| complete |")
+        pending = content.count("| pending |")
+        print(f"\n## Ingest State")
+        print(f"Completed: {ingested}")
+        if pending:
+            print(f"Pending: {pending}")
+
+    # Last activity from log
+    log_file = knowledge / "log.md"
+    if log_file.exists():
+        content = log_file.read_text()
+        timestamps = re.findall(r"## (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", content)
+        if timestamps:
+            print(f"\n## Last Activity: {timestamps[-1]}")
+
+    # Lock status
+    lock_file = knowledge / ".lock"
+    if lock_file.exists():
+        lock_info = lock_file.read_text().strip()
+        print(f"\n## Lock: ACTIVE ({lock_info})")
+    else:
+        print(f"\n## Lock: none")
+
+    # Writer machine?
+    config = load_config()
+    writer = config.get("WRITER_MACHINE", "false")
+    print(f"Writer machine: {writer}")
+
+
+# --- Lock management ---
+
+def cmd_lock() -> None:
+    """Acquire advisory write lock."""
+    knowledge = get_knowledge_path()
+    lock_file = knowledge / ".lock"
+
+    if lock_file.exists():
+        content = lock_file.read_text().strip()
+        # Check if expired
+        try:
+            parts = content.split("|")
+            ts = float(parts[-1].strip()) if len(parts) > 1 else 0
+            age_minutes = (time.time() - ts) / 60
+            if age_minutes < LOCK_TIMEOUT_MINUTES:
+                error(
+                    f"Write lock held by: {parts[0].strip()}",
+                    f"Age: {age_minutes:.0f} minutes. "
+                    f"Expires in {LOCK_TIMEOUT_MINUTES - age_minutes:.0f} minutes.\n"
+                    "If this is stale, run `cortex unlock --force`.",
+                )
+            else:
+                print(f"Expired lock from {parts[0].strip()} ({age_minutes:.0f}m old) — overriding")
+        except (ValueError, IndexError):
+            print("Malformed lock file — overriding")
+
+    hostname = platform.node()
+    lock_content = f"{hostname} | {time.time()}"
+    lock_file.write_text(lock_content)
+    print(f"Lock acquired by {hostname}")
+
+
+def cmd_unlock(force: bool = False) -> None:
+    """Release advisory write lock."""
+    knowledge = get_knowledge_path()
+    lock_file = knowledge / ".lock"
+
+    if not lock_file.exists():
+        print("No lock to release.")
+        return
+
+    if not force:
+        content = lock_file.read_text().strip()
+        hostname = platform.node()
+        if not content.startswith(hostname):
+            lock_owner = content.split("|")[0].strip()
+            error(
+                f"Lock held by {lock_owner}, not this machine ({hostname})",
+                "Use `cortex unlock --force` to override.",
+            )
+
+    lock_file.unlink()
+    print("Lock released.")
+
+
+# --- Hash and ingest state ---
+
+def _compute_hash(file_path: Path) -> str:
+    """Compute SHA-256 hash of file content."""
+    h = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()[:16]
+
+
+def _read_ingest_state(knowledge_path: Path) -> dict[str, dict]:
+    """Read .ingest-state.md into a dict of {path: {hash, status, timestamp}}."""
+    state_file = knowledge_path / ".ingest-state.md"
+    state = {}
+    if not state_file.exists():
+        return state
+
+    for line in state_file.read_text().splitlines():
+        if not line.startswith("|") or line.startswith("| Path") or line.startswith("|--"):
+            continue
+        parts = [p.strip() for p in line.split("|")[1:-1]]
+        if len(parts) >= 4:
+            state[parts[0]] = {
+                "hash": parts[1],
+                "status": parts[2],
+                "timestamp": parts[3],
+            }
+    return state
+
+
+def _write_ingest_state(knowledge_path: Path, state: dict[str, dict]) -> None:
+    """Write ingest state back to .ingest-state.md."""
+    state_file = knowledge_path / ".ingest-state.md"
+    lines = [
+        "# Ingest State\n",
+        "| Path | Hash | Status | Timestamp |",
+        "|------|------|--------|-----------|",
+    ]
+    for path, info in sorted(state.items()):
+        lines.append(f"| {path} | {info['hash']} | {info['status']} | {info['timestamp']} |")
+    state_file.write_text("\n".join(lines) + "\n")
+
+
+def cmd_hash(file_path: str) -> None:
+    """Compute and print content hash of a file."""
+    path = Path(file_path).expanduser().resolve()
+    if not path.exists():
+        error(f"File not found: {path}")
+    h = _compute_hash(path)
+    print(h)
+
+
+def cmd_check(file_path: str) -> None:
+    """Check if a file has already been ingested."""
+    path = Path(file_path).expanduser().resolve()
+    if not path.exists():
+        error(f"File not found: {path}")
+
+    knowledge = get_knowledge_path()
+    state = _read_ingest_state(knowledge)
+    file_hash = _compute_hash(path)
+
+    # Check by hash (content match, regardless of path)
+    for recorded_path, info in state.items():
+        if info["hash"] == file_hash and info["status"] == "complete":
+            print(f"already-ingested | hash={file_hash} | original={recorded_path}")
+            return
+
+    # Check by path (might have changed)
+    store = get_store_path()
+    try:
+        rel_path = str(path.relative_to(store))
+    except ValueError:
+        rel_path = str(path)
+
+    if rel_path in state:
+        if state[rel_path]["status"] == "pending":
+            print(f"pending | hash={file_hash} | previous_hash={state[rel_path]['hash']}")
+            return
+        if state[rel_path]["hash"] != file_hash:
+            print(f"changed | new_hash={file_hash} | old_hash={state[rel_path]['hash']}")
+            return
+
+    print(f"new | hash={file_hash}")
+
+
+def cmd_mark_ingested(file_path: str, status: str = "complete") -> None:
+    """Record a file as ingested in .ingest-state.md."""
+    path = Path(file_path).expanduser().resolve()
+    if not path.exists():
+        error(f"File not found: {path}")
+
+    knowledge = get_knowledge_path()
+    store = get_store_path()
+    state = _read_ingest_state(knowledge)
+
+    try:
+        rel_path = str(path.relative_to(store))
+    except ValueError:
+        rel_path = str(path)
+
+    file_hash = _compute_hash(path)
+    state[rel_path] = {
+        "hash": file_hash,
+        "status": status,
+        "timestamp": _now(),
+    }
+    _write_ingest_state(knowledge, state)
+    print(f"Marked {rel_path} as {status} (hash={file_hash})")
+
+
+# --- Enumerate ---
+
+def _is_sensitive(path: Path) -> bool:
+    """Check if a file matches sensitive patterns."""
+    name = path.name.lower()
+    for part in path.parts:
+        if part.lower() in SENSITIVE_PATTERNS:
+            return True
+    if path.suffix.lower() in SENSITIVE_EXTENSIONS:
+        return True
+    for prefix in SENSITIVE_PREFIXES:
+        if name.startswith(prefix):
+            return True
+    return False
+
+
+def _is_supported(path: Path) -> bool:
+    """Check if file type is supported for ingestion."""
+    return path.suffix.lower() in SUPPORTED_EXTENSIONS
+
+
+def cmd_enumerate(dir_path: str, estimate: bool = False) -> None:
+    """List files eligible for bulk import."""
+    path = Path(dir_path).expanduser().resolve()
+    if not path.is_dir():
+        error(f"Not a directory: {path}")
+
+    knowledge = get_knowledge_path()
+    state = _read_ingest_state(knowledge)
+    existing_hashes = {
+        info["hash"] for info in state.values() if info["status"] == "complete"
+    }
+
+    files = []
+    skipped_sensitive = 0
+    skipped_unsupported = 0
+    skipped_ingested = 0
+    total_bytes = 0
+
+    for root, _, filenames in os.walk(path):
+        for name in sorted(filenames):
+            fpath = Path(root) / name
+            if _is_sensitive(fpath):
+                skipped_sensitive += 1
+                continue
+            if not _is_supported(fpath):
+                skipped_unsupported += 1
+                continue
+            # Check if already ingested
+            file_hash = _compute_hash(fpath)
+            if file_hash in existing_hashes:
+                skipped_ingested += 1
+                continue
+            size = fpath.stat().st_size
+            total_bytes += size
+            files.append((str(fpath), size, file_hash))
+
+    # Output
+    if estimate:
+        avg_tokens_per_file = 3000  # conservative estimate
+        total_tokens = len(files) * avg_tokens_per_file
+        # Rough cost: $3/M input tokens (Sonnet), each ingest ~50K tokens total
+        estimated_cost = len(files) * 50_000 * 3 / 1_000_000
+        print("# Bulk Import Estimate\n")
+        print(f"Directory: {path}")
+        print(f"Eligible files: {len(files)}")
+        print(f"Total size: {total_bytes / 1024 / 1024:.1f} MB")
+        print(f"Estimated tokens: ~{total_tokens:,}")
+        print(f"Estimated API cost: ~${estimated_cost:.2f}")
+        print(f"\nSkipped:")
+        print(f"  Sensitive: {skipped_sensitive}")
+        print(f"  Unsupported type: {skipped_unsupported}")
+        print(f"  Already ingested: {skipped_ingested}")
+    else:
+        for fpath, size, file_hash in files:
+            print(f"{file_hash} {size:>10} {fpath}")
+        print(f"\n---")
+        print(f"Total: {len(files)} files, {total_bytes / 1024 / 1024:.1f} MB")
+        if skipped_sensitive or skipped_unsupported or skipped_ingested:
+            print(f"Skipped: {skipped_sensitive} sensitive, {skipped_unsupported} unsupported, {skipped_ingested} already ingested")
+
+
+# --- Rebuild index ---
+
+def _parse_frontmatter(file_path: Path) -> dict | None:
+    """Parse YAML frontmatter from a markdown file."""
+    try:
+        content = file_path.read_text()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    if not content.startswith("---"):
+        return None
+
+    end = content.find("---", 3)
+    if end == -1:
+        return None
+
+    try:
+        return yaml.safe_load(content[3:end])
+    except yaml.YAMLError:
+        return None
+
+
+def cmd_rebuild_index() -> None:
+    """Regenerate all indexes from knowledge page frontmatter."""
+    knowledge = get_knowledge_path()
+
+    category_entries: dict[str, list[tuple[str, str, str]]] = {
+        cat: [] for cat in KNOWLEDGE_CATEGORIES
+    }
+    errors = []
+
+    for cat in KNOWLEDGE_CATEGORIES:
+        cat_dir = knowledge / cat
+        if not cat_dir.is_dir():
+            continue
+        for page in sorted(cat_dir.iterdir()):
+            if page.name == "_index.md" or page.suffix != ".md":
+                continue
+            fm = _parse_frontmatter(page)
+            if fm is None:
+                errors.append(f"No frontmatter: {cat}/{page.name}")
+                continue
+            title = fm.get("title", page.stem.replace("-", " ").title())
+            # Build one-line description from tags or first sentence
+            tags = fm.get("tags", [])
+            desc = ", ".join(tags[:3]) if tags else ""
+            rel_path = f"{page.name}"
+            category_entries[cat].append((rel_path, title, desc))
+
+    # Write sub-indexes
+    total_pages = 0
+    for cat, entries in category_entries.items():
+        total_pages += len(entries)
+        cat_title = cat.title().replace("-", " ")
+        lines = [f"# {cat_title}\n"]
+        if entries:
+            for rel_path, title, desc in entries:
+                suffix = f" — {desc}" if desc else ""
+                lines.append(f"- [{title}]({rel_path}){suffix}")
+        else:
+            lines.append("_No entries yet._")
+        sub_index = knowledge / cat / "_index.md"
+        sub_index.write_text("\n".join(lines) + "\n")
+
+    # Write root index
+    # Count raw sources
+    store = get_store_path()
+    raw_count = 0
+    raw_path = store / "raw"
+    if raw_path.is_dir():
+        for _, _, files in os.walk(raw_path):
+            raw_count += len(files)
+
+    lines = [
+        "# Cortex Index\n",
+        f"Last updated: {_today()}",
+        f"Total pages: {total_pages} | Sources ingested: {raw_count}\n",
+        "## Categories\n",
+        "| Category | Pages | Sub-index |",
+        "|----------|-------|-----------|",
+    ]
+    for cat in KNOWLEDGE_CATEGORIES:
+        cat_title = cat.title().replace("-", " ")
+        count = len(category_entries[cat])
+        lines.append(f"| {cat_title} | {count} | [{cat}/_index.md]({cat}/_index.md) |")
+
+    # Preserve recent activity from existing index
+    existing_index = knowledge / "index.md"
+    if existing_index.exists():
+        content = existing_index.read_text()
+        activity_match = re.search(r"## Recent Activity.*", content, re.DOTALL)
+        if activity_match:
+            lines.append("")
+            lines.append(activity_match.group(0).rstrip())
+    else:
+        lines.append("\n## Recent Activity\n")
+        lines.append("_No activity yet._")
+
+    existing_index.write_text("\n".join(lines) + "\n")
+
+    print(f"Rebuilt indexes: {total_pages} pages across {len(KNOWLEDGE_CATEGORIES)} categories")
+    if errors:
+        print(f"\nWarnings ({len(errors)}):")
+        for e in errors:
+            print(f"  - {e}")
+
+
+# --- Helpers ---
+
+def _today() -> str:
+    """Current date as YYYY-MM-DD."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _now() -> str:
+    """Current timestamp as ISO 8601."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# --- CLI router ---
+
+USAGE = """\
+Usage: cortex <command> [args]
+
+Commands:
+  setup                     Detect cloud storage, initialize store, create symlinks
+  status                    Show store statistics
+  lock                      Acquire advisory write lock
+  unlock [--force]          Release write lock
+  hash <file>               Compute content hash
+  check <file>              Check if file already ingested
+  mark-ingested <file>      Record file as ingested
+  mark-pending <file>       Record file as pending ingest
+  enumerate <dir>           List files eligible for bulk import
+  enumerate <dir> --estimate  Show cost estimate for bulk import
+  rebuild-index             Regenerate all indexes from page frontmatter
+
+Cortex is a personal knowledge compiler. The CLI handles mechanical operations
+(setup, locking, hashing, state tracking). The LLM handles knowledge compilation
+by following schema.md instructions.\
+"""
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help", "help"):
+        print(USAGE)
+        sys.exit(0)
+
+    cmd = args[0]
+
+    if cmd == "setup":
+        cmd_setup()
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "lock":
+        cmd_lock()
+    elif cmd == "unlock":
+        force = "--force" in args
+        cmd_unlock(force=force)
+    elif cmd == "hash":
+        if len(args) < 2:
+            error("Missing file path", "Usage: cortex hash <file>")
+        cmd_hash(args[1])
+    elif cmd == "check":
+        if len(args) < 2:
+            error("Missing file path", "Usage: cortex check <file>")
+        cmd_check(args[1])
+    elif cmd == "mark-ingested":
+        if len(args) < 2:
+            error("Missing file path", "Usage: cortex mark-ingested <file>")
+        cmd_mark_ingested(args[1], status="complete")
+    elif cmd == "mark-pending":
+        if len(args) < 2:
+            error("Missing file path", "Usage: cortex mark-pending <file>")
+        cmd_mark_ingested(args[1], status="pending")
+    elif cmd == "enumerate":
+        if len(args) < 2:
+            error("Missing directory path", "Usage: cortex enumerate <dir> [--estimate]")
+        estimate = "--estimate" in args
+        cmd_enumerate(args[1], estimate=estimate)
+    elif cmd == "rebuild-index":
+        cmd_rebuild_index()
+    else:
+        error(f"Unknown command: {cmd}", "Run `cortex help` for available commands.")
+
+
+if __name__ == "__main__":
+    main()
