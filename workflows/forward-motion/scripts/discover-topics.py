@@ -2,7 +2,8 @@
 """Discover all Telegram forum topics for a list of peers.
 
 Uses the Telegram Client API (MTProto) via Telethon to call
-GetForumTopicsRequest -- something the Bot API cannot do.
+GetForumTopicsRequest, including paginated topic discovery beyond the first 100 topics.
+Something the Bot API cannot do.
 
 Requires:
 - tgcli authenticated (session in ~/.tgcli/)
@@ -11,7 +12,7 @@ Requires:
 
 Usage:
     python3 discover-topics.py [--peers 123,456,...] [--all]
-    python3 discover-topics.py --all --json
+    python3 discover-topics.py --all --include-flat --json
     python3 discover-topics.py --all --markdown
 """
 
@@ -23,9 +24,25 @@ import sys
 from pathlib import Path
 
 from telethon import TelegramClient
+from telethon.errors import (
+    AuthKeyError,
+    FloodWaitError,
+    RPCError,
+    SessionPasswordNeededError,
+    UnauthorizedError,
+)
 from telethon.tl.functions.messages import GetForumTopicsRequest
 
-DEFAULT_SESSION = "/tmp/tg-session"  # noqa: S108
+DEFAULT_SESSION = "~/.tgcli/telethon-session"
+
+_NON_FORUM_ERROR_MARKERS = (
+    "forum",
+    "topic",
+    "channel forum",
+    "not a channel",
+    "broadcast",
+    "megagroup",
+)
 
 
 def load_config() -> dict:
@@ -68,31 +85,69 @@ def _output_markdown(results: dict) -> None:
             print("(no topics)\n")
 
 
-async def _scan_peer(client, entity, dialog_name: str) -> dict:
+def _is_non_forum_error(exc: Exception) -> bool:
+    if isinstance(
+        exc,
+        (AuthKeyError, FloodWaitError, SessionPasswordNeededError, UnauthorizedError),
+    ):
+        return False
+    if isinstance(exc, RPCError):
+        text = str(exc).lower()
+        return any(marker in text for marker in _NON_FORUM_ERROR_MARKERS)
+    return False
+
+
+async def _scan_peer(
+    client, entity, dialog_name: str, include_flat: bool = False
+) -> dict | None:
     """Try to get forum topics for a single peer."""
+    topics = []
+    offset_date = 0
+    offset_id = 0
+    offset_topic = 0
+
     try:
-        result = await client(
-            GetForumTopicsRequest(
-                peer=entity,
-                offset_date=0,
-                offset_id=0,
-                offset_topic=0,
-                limit=100,
-                q="",
+        while True:
+            result = await client(
+                GetForumTopicsRequest(
+                    peer=entity,
+                    offset_date=offset_date,
+                    offset_id=offset_id,
+                    offset_topic=offset_topic,
+                    limit=100,
+                    q="",
+                )
             )
-        )
-        topics = [
-            {"id": t.id, "name": t.title}
-            for t in sorted(result.topics, key=lambda x: x.id)
-        ]
+            batch = sorted(result.topics, key=lambda x: x.id)
+            topics.extend({"id": t.id, "name": t.title} for t in batch)
+            if not batch or len(topics) >= getattr(result, "count", len(topics)):
+                break
+            last = batch[-1]
+            offset_topic = last.id
+            offset_id = 0
+            offset_date = 0
+
         return {
             "name": dialog_name,
             "peer_id": getattr(entity, "id", 0),
             "topics": topics,
         }
     except Exception as exc:  # noqa: BLE001
-        logging.debug("Not a forum: %s (%s)", dialog_name, exc)
-        return {}
+        if _is_non_forum_error(exc):
+            if include_flat:
+                return {
+                    "name": dialog_name,
+                    "peer_id": getattr(entity, "id", 0),
+                    "topics": [],
+                }
+            return None
+
+        logging.exception("Topic discovery failed for %s", dialog_name)
+        return {
+            "name": dialog_name,
+            "peer_id": getattr(entity, "id", 0),
+            "error": str(exc),
+        }
 
 
 async def discover(
@@ -100,9 +155,11 @@ async def discover(
     scan_all: bool = False,
     output_format: str = "text",
     session_path: str = DEFAULT_SESSION,
+    include_flat: bool = False,
 ) -> None:
     cfg = load_config()
-    sess = Path(f"{session_path}.session")
+    session_base = Path(session_path).expanduser()
+    sess = session_base.with_suffix(".session")
     if not sess.exists():
         print(
             "Session not found. Run convert-session.py first.",
@@ -110,7 +167,7 @@ async def discover(
         )
         sys.exit(1)
 
-    client = TelegramClient(session_path, cfg["app_id"], cfg["app_hash"])
+    client = TelegramClient(str(session_base), cfg["app_id"], cfg["app_hash"])
     await client.connect()
 
     if not await client.is_user_authorized():
@@ -129,8 +186,10 @@ async def discover(
             eid = getattr(entity, "id", None)
             if not eid or (peers and eid not in peers):
                 continue
-            info = await _scan_peer(client, entity, dialog.name)
-            if info and info.get("topics"):
+            info = await _scan_peer(
+                client, entity, dialog.name, include_flat=include_flat
+            )
+            if info:
                 results[str(eid)] = info
     else:
         for peer_id in peers or []:
@@ -143,9 +202,15 @@ async def discover(
                 results[str(peer_id)] = {"error": "not found"}
                 continue
             info = await _scan_peer(
-                client, entity, getattr(entity, "first_name", str(peer_id))
+                client,
+                entity,
+                getattr(entity, "first_name", str(peer_id)),
+                include_flat=include_flat,
             )
-            results[str(peer_id)] = info or {"error": "not a forum"}
+            if info is None:
+                results[str(peer_id)] = {"error": "not a forum"}
+            else:
+                results[str(peer_id)] = info
 
     await client.disconnect()
 
@@ -165,8 +230,20 @@ if __name__ == "__main__":
     parser.add_argument("--all", action="store_true", help="Scan all dialogs")
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--markdown", action="store_true", help="Markdown output")
+    parser.add_argument(
+        "--include-flat",
+        action="store_true",
+        help="Include chats with no forum topics as topics: []",
+    )
     args = parser.parse_args()
 
     peer_list = [int(p) for p in args.peers.split(",")] if args.peers else None
     fmt = "json" if args.json else ("markdown" if args.markdown else "text")
-    asyncio.run(discover(peers=peer_list, scan_all=args.all, output_format=fmt))
+    asyncio.run(
+        discover(
+            peers=peer_list,
+            scan_all=args.all,
+            output_format=fmt,
+            include_flat=args.include_flat,
+        )
+    )

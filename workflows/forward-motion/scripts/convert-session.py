@@ -5,7 +5,7 @@ tgcli stores its session in ~/.tgcli/session.json (Go gotd format).
 Telethon needs a .session SQLite file. This script bridges them.
 
 Usage:
-    python3 convert-session.py [--output /tmp/tg-session]
+    python3 convert-session.py [--output ~/.tgcli/telethon-session] [--force]
 """
 
 import argparse
@@ -13,6 +13,7 @@ import base64
 import json
 import sqlite3
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 DC_ADDRESSES = {
@@ -23,12 +24,13 @@ DC_ADDRESSES = {
     5: "91.108.56.130",
 }
 
-DEFAULT_OUTPUT = "/tmp/tg-session"  # noqa: S108
+DEFAULT_OUTPUT = "~/.tgcli/telethon-session"
 
 
 def convert(
     tgcli_dir: str = "~/.tgcli",
     output: str = DEFAULT_OUTPUT,
+    force: bool = False,
 ) -> Path:
     store = Path(tgcli_dir).expanduser()
     session_path = store / "session.json"
@@ -60,7 +62,15 @@ def convert(
         host = addr
         port = 443
 
-    db_path = Path(f"{output}.session")
+    db_path = Path(f"{output}").expanduser().with_suffix(".session")
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    if db_path.exists() and not force:
+        modified_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=UTC)
+        if datetime.now(tz=UTC) - modified_at < timedelta(hours=24):
+            print(
+                f"Telethon session is fresh, skipping conversion: {db_path}",
+            )
+            return db_path
     if db_path.exists():
         db_path.unlink()
 
@@ -92,6 +102,7 @@ def convert(
     )"""
     )
     c.execute("CREATE TABLE version (version INTEGER PRIMARY KEY)")
+    # Telethon SQLite schema version pinned to 7.
     c.execute("INSERT INTO version VALUES (7)")
     c.execute(
         "INSERT INTO sessions VALUES (?, ?, ?, ?, ?)",
@@ -119,5 +130,10 @@ if __name__ == "__main__":
         default=DEFAULT_OUTPUT,
         help="Output path (without .session)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Recreate the Telethon session even if existing one is less than 24h old",
+    )
     args = parser.parse_args()
-    convert(args.tgcli_dir, args.output)
+    convert(args.tgcli_dir, args.output, force=args.force)

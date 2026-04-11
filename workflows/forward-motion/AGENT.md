@@ -30,7 +30,10 @@ Example: "DCOS: [your message]" or "🏗️ DCOS: Noticed the WhatsApp bridge is
 - **Telethon** (Python, Client API) for per-topic message retrieval and topic discovery
   - Reuses tgcli's session auth from `~/.tgcli/`
   - Setup: `python3 -m venv /tmp/tg-topics && /tmp/tg-topics/bin/pip install telethon`
-  - Session converter creates a telethon session from tgcli's gotd format
+  - Session converter creates a telethon session from tgcli's gotd format at
+    `~/.tgcli/telethon-session.session`
+  - Topic discovery script paginates `GetForumTopicsRequest` via `offset_topic`; do not
+    assume the first 100 topics is complete
 - **SQLite3** for tracking state
 - **Message tool** for Telegram actions (sending, reacting, cleanup)
 
@@ -44,7 +47,8 @@ If `rules.md` doesn't exist or is empty, run this setup before scanning.
 2. Verify telethon venv exists: `/tmp/tg-topics/bin/python3 -c "import telethon"`
    - If missing, create:
      `python3 -m venv /tmp/tg-topics && /tmp/tg-topics/bin/pip install telethon`
-3. Convert tgcli session to telethon format (see scripts/convert-session.py)
+3. Convert tgcli session to telethon format (see `scripts/convert-session.py`, output
+   `~/.tgcli/telethon-session.session`)
 
 ### 1. Discover Fleet
 
@@ -59,6 +63,29 @@ Use the telethon Client API (`GetForumTopicsRequest`) to auto-discover:
    "Julianna", "Life", "Hot" unless told otherwise).
 
 Save the complete map to `rules.md` with chat IDs, topic IDs, and names.
+
+Preferred machine-readable schema:
+
+```yaml
+fleet_map:
+  - chat_id: "-1001234567890"
+    chat_name: "Main Bot Chat"
+    chat_kind: forum # forum | flat | dm | support
+    scan: true
+    topics:
+      - topic_id: "42"
+        topic_name: "Agent Ops"
+        classification: fleet # fleet | personal | info | skip
+        notes: ""
+  - chat_id: "123456789"
+    chat_name: "Support Bot DM"
+    chat_kind: dm
+    scan: true
+    topics: []
+```
+
+Keep any human-friendly prose you want, but parsers should be able to rely on the YAML
+block instead of a markdown table.
 
 ### 2. Scan Scope
 
@@ -136,6 +163,8 @@ On first run, create DB and tables if they don't exist. Each run, check
 ### Each Run
 
 1. **Read context:**
+   - If `~/.tgcli/telethon-session.session` is missing, auto-run
+     `scripts/convert-session.py` before scanning
    - `rules.md` for fleet map and preferences
    - `agent_notes.md` for learned patterns
    - Query DB for last-checked state
@@ -149,7 +178,10 @@ On first run, create DB and tables if they don't exist. Each run, check
 3. **Clean up noise (housekeeping, no review needed):** Use judgment. Look at bot
    messages through your human's eyes -- will they bring value or noise? Delete
    duplicates, consolidate stale health checks, remove resolved error/success pairs.
-   Don't touch human messages or anything less than the configured minimum age.
+   Don't touch human messages or anything less than the configured minimum age. If a
+   thread is client-facing, VIP-adjacent, or could plausibly be reviewed by a client or
+   executive later, treat cleanup as review-required and escalate instead of silently
+   deleting.
 
 4. **Review before acting:** Before any ACTION (steering a bot, posting to human,
    intervening in a thread), spawn a reviewer sub-agent with the proposed action. Only
@@ -166,6 +198,25 @@ On first run, create DB and tables if they don't exist. Each run, check
    - Update DB with new last_message_id and timestamps
    - Append to today's log
    - Update `agent_notes.md` if patterns emerged
+
+Preferred `agent_notes.md` pattern template:
+
+```yaml
+patterns:
+  - id: repeated-tool-timeout
+    observed_in:
+      - chat_id: "-1001234567890"
+        topic_id: "42"
+    summary: "Agent retries the same failing tool call without changing approach."
+    trigger_signals:
+      - "Same error 3+ times in <30m"
+      - "No user-visible progress update"
+    recommended_response:
+      "Steer agent to acknowledge the failure, change tactic, or escalate."
+    confidence: high
+    last_seen: "2026-04-11"
+    review_required: false
+```
 
 ### Judgment Guidelines
 
@@ -209,6 +260,8 @@ On first run, create DB and tables if they don't exist. Each run, check
 - **NEVER dismiss a client complaint.** Always escalate.
 - **Max 1 message to human per run.** Batch everything.
 - **Don't delete human messages.** Only clean up bot/agent noise.
+- **VIP-adjacent cleanup requires review.** If deletion could affect a client,
+  executive, or sensitive support thread, do not treat it as routine housekeeping.
 - **Review with second model before acting.** No unreviewed interventions.
 - **Message in the correct thread/topic.** Match where the activity happened.
 - **Identify yourself as DCOS** in all messages.

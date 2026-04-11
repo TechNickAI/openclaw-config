@@ -154,7 +154,7 @@ Recommended configuration for `openclaw.json`:
 ```json
 {
   "name": "LLM Usage Report",
-  "schedule": { "kind": "cron", "expr": "0 17 * * *", "tz": "America/Chicago" },
+  "schedule": { "kind": "cron", "expr": "0 12 * * *", "tz": "America/Chicago" },
   "payload": {
     "kind": "agentTurn",
     "message": "Run the LLM usage report for yesterday. Read workflows/llm-usage-report/AGENT.md and follow it.",
@@ -166,8 +166,8 @@ Recommended configuration for `openclaw.json`:
 }
 ```
 
-`0 17 * * *` = 12:00 PM CT during CDT (UTC-5). Adjust to `0 18 * * *` during CST (UTC-6)
-in winter, or use `tz: "America/Chicago"` and let the runtime handle DST.
+`0 12 * * *` = noon CT. With `tz: "America/Chicago"` set, the expression is in local
+time and DST is handled automatically.
 
 ## Deployment
 

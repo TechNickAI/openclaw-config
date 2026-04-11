@@ -100,7 +100,7 @@ class TestRequiredSections:
 
     def test_cron_config_has_schedule(self, body):
         """Cron config includes a schedule expression."""
-        assert "0 17 * * *" in body or "0 18 * * *" in body
+        assert "0 12 * * *" in body
 
     def test_cron_config_has_timeout(self, body):
         """Cron config includes a timeout."""
