@@ -29,4 +29,5 @@
 /tmp/
 Thumbs.db
 __pycache__/
+drafts/
 uv.lock
