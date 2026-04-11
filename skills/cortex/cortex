@@ -430,28 +430,37 @@ def cmd_lock() -> None:
     """Acquire advisory write lock."""
     knowledge = get_knowledge_path()
     lock_file = knowledge / ".lock"
-
-    if lock_file.exists():
-        content = lock_file.read_text().strip()
-        # Check if expired
-        try:
-            parts = content.split("|")
-            ts = float(parts[-1].strip()) if len(parts) > 1 else 0
-            age_minutes = (time.time() - ts) / 60
-            if age_minutes < LOCK_TIMEOUT_MINUTES:
-                error(
-                    f"Write lock held by: {parts[0].strip()}",
-                    f"Age: {age_minutes:.0f} minutes. "
-                    f"Expires in {LOCK_TIMEOUT_MINUTES - age_minutes:.0f} minutes.\n"
-                    "If this is stale, run `cortex unlock --force`.",
-                )
-            else:
-                print(f"Expired lock from {parts[0].strip()} ({age_minutes:.0f}m old) — overriding")
-        except (ValueError, IndexError):
-            print("Malformed lock file — overriding")
-
     hostname = platform.node()
     lock_content = f"{hostname} | {time.time()}"
+
+    # Try atomic create first (O_CREAT | O_EXCL — fails if file exists)
+    try:
+        fd = os.open(str(lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, lock_content.encode())
+        os.close(fd)
+        print(f"Lock acquired by {hostname}")
+        return
+    except FileExistsError:
+        pass
+
+    # Lock file exists — check if it's expired or stale
+    try:
+        content = lock_file.read_text().strip()
+        parts = content.split("|")
+        ts = float(parts[-1].strip()) if len(parts) > 1 else 0
+        age_minutes = (time.time() - ts) / 60
+        if age_minutes < LOCK_TIMEOUT_MINUTES:
+            error(
+                f"Write lock held by: {parts[0].strip()}",
+                f"Age: {age_minutes:.0f} minutes. "
+                f"Expires in {LOCK_TIMEOUT_MINUTES - age_minutes:.0f} minutes.\n"
+                "If this is stale, run `cortex unlock --force`.",
+            )
+        else:
+            print(f"Expired lock from {parts[0].strip()} ({age_minutes:.0f}m old) — overriding")
+    except (ValueError, IndexError, OSError):
+        print("Malformed or unreadable lock file — overriding")
+
     lock_file.write_text(lock_content)
     print(f"Lock acquired by {hostname}")
 
@@ -468,8 +477,8 @@ def cmd_unlock(force: bool = False) -> None:
     if not force:
         content = lock_file.read_text().strip()
         hostname = platform.node()
-        if not content.startswith(hostname):
-            lock_owner = content.split("|")[0].strip()
+        lock_owner = content.split("|")[0].strip()
+        if lock_owner != hostname:
             error(
                 f"Lock held by {lock_owner}, not this machine ({hostname})",
                 "Use `cortex unlock --force` to override.",
@@ -650,16 +659,17 @@ def cmd_enumerate(dir_path: str, estimate: bool = False) -> None:
 
     # Output
     if estimate:
-        avg_tokens_per_file = 3000  # conservative estimate
-        total_tokens = len(files) * avg_tokens_per_file
-        # Rough cost: $3/M input tokens (Sonnet), each ingest ~50K tokens total
-        estimated_cost = len(files) * 50_000 * 3 / 1_000_000
+        # Each ingest: schema (~2K) + source (variable) + sub-index + pages = ~50K total
+        tokens_per_ingest = 50_000
+        total_tokens = len(files) * tokens_per_ingest
+        # Rough cost: $3/M input tokens (Claude Sonnet)
+        estimated_cost = total_tokens * 3 / 1_000_000
         print("# Bulk Import Estimate\n")
         print(f"Directory: {path}")
         print(f"Eligible files: {len(files)}")
         print(f"Total size: {total_bytes / 1024 / 1024:.1f} MB")
-        print(f"Estimated tokens: ~{total_tokens:,}")
-        print(f"Estimated API cost: ~${estimated_cost:.2f}")
+        print(f"Estimated tokens: ~{total_tokens:,} (~{tokens_per_ingest:,}/file incl. schema + context)")
+        print(f"Estimated API cost: ~${estimated_cost:.2f} (at $3/M tokens)")
         print(f"\nSkipped:")
         print(f"  Sensitive: {skipped_sensitive}")
         print(f"  Unsupported type: {skipped_unsupported}")
@@ -682,17 +692,27 @@ def _parse_frontmatter(file_path: Path) -> dict | None:
     except (OSError, UnicodeDecodeError):
         return None
 
-    if not content.startswith("---"):
+    if not content.startswith("---\n"):
         return None
 
-    end = content.find("---", 3)
+    # Find closing fence as a line boundary (not just any occurrence of ---)
+    end = content.find("\n---\n", 4)
     if end == -1:
-        return None
+        # Handle trailing fence at end of file
+        if content.endswith("\n---"):
+            end = len(content) - 4
+        else:
+            return None
 
     try:
-        return yaml.safe_load(content[3:end])
+        result = yaml.safe_load(content[4:end])
     except yaml.YAMLError:
         return None
+
+    # safe_load can return non-dict types (list, str, int) for malformed YAML
+    if not isinstance(result, dict):
+        return None
+    return result
 
 
 def cmd_rebuild_index() -> None:
