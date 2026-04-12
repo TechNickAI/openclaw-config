@@ -28,7 +28,7 @@ Requires an `openai-codex` auth profile with OAuth mode.
 - **Primary:** `openai-codex/gpt-5.4`
 - **Fallback 1:** `chat-fallback` (openrouter/google/gemini-3.1-pro-preview)
 - **Fallback 2:** `work` (openrouter/xiaomi/mimo-v2-pro)
-- **Heartbeat:** `openai-codex/gpt-5.4`
+- **Heartbeat:** `openrouter/anthropic/claude-haiku-4.5`
 
 ### OpenRouter-only machines
 
@@ -96,7 +96,7 @@ openclaw models aliases add verify openrouter/x-ai/grok-4.20
 openclaw auth add openai-codex --mode oauth
 openclaw config set agents.defaults.model.primary "openai-codex/gpt-5.4"
 openclaw config set agents.defaults.model.fallbacks '["openrouter/google/gemini-3.1-pro-preview", "openrouter/xiaomi/mimo-v2-pro"]'
-openclaw config set agents.defaults.heartbeat.model "openai-codex/gpt-5.4"
+openclaw config set agents.defaults.heartbeat.model "openrouter/anthropic/claude-haiku-4.5"
 ```
 
 ### Default model — OpenRouter only

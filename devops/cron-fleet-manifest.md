@@ -24,7 +24,7 @@ See `topic-standard.md` for the routing rules and topic definitions.
 | ------------------------------- | ------------------ | -------------- | ------------- | --------------- | ----------------------------- |
 | **DCOS Morning Standup**        | 8am daily          | haiku          | 📋 Automation | announce        |                               |
 | **Daily Intelligence Briefing** | 7am daily          | sonnet         | 📋 Automation | announce        |                               |
-| **Daily EOD Briefing**          | 7pm daily          | grok           | 📋 Automation | announce        |                               |
+| **Daily EOD Briefing**          | 7pm daily          | verify         | 📋 Automation | announce        |                               |
 | **DCOS Weekly Review**          | Sun 6pm            | sonnet         | 📋 Automation | announce        |                               |
 | **Cora's Daily Check-In**       | 10am weekdays      | sonnet         | 🏠 Home       | in-prompt       | Personal, not operational     |
 | **Birthday Check**              | 8am daily          | default        | 📋 Automation | announce        |                               |
