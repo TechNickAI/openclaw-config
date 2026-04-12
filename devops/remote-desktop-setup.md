@@ -219,6 +219,7 @@ After=network.target
 
 [Service]
 Type=forking
+PIDFile=%h/.vnc/%H:1.pid
 ExecStartPre=-/usr/bin/vncserver -kill :1
 ExecStart=/usr/bin/vncserver :1 -geometry 1280x800 -depth 24 -localhost no
 ExecStop=/usr/bin/vncserver -kill :1
