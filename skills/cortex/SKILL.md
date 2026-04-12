@@ -1,6 +1,6 @@
 ---
 name: cortex
-version: 0.1.0
+version: 0.1.1
 description: >
   Personal knowledge compiler. Ingests raw sources (documents, notes, transcripts,
   captures, media) into a structured, interlinked knowledge base that AI agents can

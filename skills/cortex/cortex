@@ -29,7 +29,7 @@ SENSITIVE_PATTERNS = {
     ".aws",
     ".gnupg",
     ".git",
-    ".DS_Store",
+    ".ds_store",
     "__pycache__",
     "node_modules",
 }
@@ -758,18 +758,14 @@ def cmd_rebuild_index() -> None:
         sub_index.write_text("\n".join(lines) + "\n")
 
     # Write root index
-    # Count raw sources
-    store = get_store_path()
-    raw_count = 0
-    raw_path = store / "raw"
-    if raw_path.is_dir():
-        for _, _, files in os.walk(raw_path):
-            raw_count += len(files)
+    # Count completed ingests from state file
+    state = _read_ingest_state(knowledge)
+    completed_count = sum(1 for info in state.values() if info["status"] == "complete")
 
     lines = [
         "# Cortex Index\n",
         f"Last updated: {_today()}",
-        f"Total pages: {total_pages} | Sources ingested: {raw_count}\n",
+        f"Total pages: {total_pages} | Sources ingested: {completed_count}\n",
         "## Categories\n",
         "| Category | Pages | Sub-index |",
         "|----------|-------|-----------|",
