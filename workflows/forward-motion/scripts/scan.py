@@ -300,7 +300,6 @@ async def scan(  # noqa: PLR0915
     human_id = int(rules["account"]["human_id"])
 
     results: dict[str, Any] = {}
-    errors: list[str] = []
 
     client = await _make_client(tgcli_cfg, session)
     if not await client.is_user_authorized():
@@ -407,7 +406,12 @@ async def scan(  # noqa: PLR0915
 
     total = len(results)
     skipped = sum(1 for value in results.values() if value.get("skipped"))
-    errored = sum(1 for value in results.values() if value.get("error"))
+    errors = [
+        f"{value['thread_name']}: {value['error']}"
+        for value in results.values()
+        if value.get("error")
+    ]
+    errored = len(errors)
     active = total - skipped - errored
 
     return {
