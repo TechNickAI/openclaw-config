@@ -27,9 +27,9 @@ specifics. Generic placeholders in all examples.
 
 ```
 openclaw-config/
-├── skills/              17 standalone tools (Python UV scripts + bash wrappers)
-├── workflows/            9 autonomous agents with state and learning
-├── templates/            8 identity and deployment templates
+├── skills/              Standalone tools (Python UV scripts + bash wrappers)
+├── workflows/           Autonomous agents with state and learning
+├── templates/           Identity and deployment templates
 ├── devops/               Health check, machine setup, security review, notifications
 ├── knowledge/            Operational documentation and architecture guides
 ├── memory/               Example memory structure (people/, projects/, topics/)
@@ -45,7 +45,7 @@ openclaw-config/
 
 ---
 
-## Skills (17)
+## Skills
 
 Each skill is self-contained: `SKILL.md` (metadata) + executable script (same name as
 directory). No shared code, no project-level dependencies.
@@ -97,7 +97,7 @@ directory). No shared code, no project-level dependencies.
 
 ---
 
-## Workflows (9)
+## Workflows
 
 Autonomous agents that run on schedules, maintain state, and learn from corrections.
 
@@ -141,7 +141,7 @@ Autonomous agents that run on schedules, maintain state, and learn from correcti
 
 ---
 
-## Templates (8)
+## Templates
 
 Identity and configuration files deployed to `~/.openclaw/workspace/`:
 
@@ -270,9 +270,9 @@ correctly.
 
 This repo is the **shareable brain** for OpenClaw instances:
 
-1. **17 integration skills** — API wrappers for communication, knowledge, productivity
-2. **9 autonomous workflows** — scheduled agents that learn and maintain state
-3. **8 identity templates** — personality, preferences, startup routines
+1. **Integration skills** — API wrappers for communication, knowledge, productivity
+2. **Autonomous workflows** — scheduled agents that learn and maintain state
+3. **Identity templates** — personality, preferences, startup routines
 4. **DevOps specs** — health monitoring, machine setup, security hardening
 5. **Fleet commands** — multi-machine management from Claude Code
 6. **Knowledge docs** — model routing, multi-agent patterns, boot sequences
