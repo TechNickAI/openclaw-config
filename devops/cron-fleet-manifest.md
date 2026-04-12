@@ -45,7 +45,7 @@ See `topic-standard.md` for the routing rules and topic definitions.
 | **DCOS Limitless Sentinel**     | every 15m 7am-11pm | haiku          | (silent)      | none            | Internal processing           |
 | **DCOS Fireflies Sentinel**     | every 2h 8am-6pm   | haiku          | (silent)      | none            | Internal processing           |
 | **Nightly Reflection**          | 11pm daily         | opus           | (silent)      | none            | Internal self-improvement     |
-| **Nightly Librarian**           | 3am daily          | sonnet         | (silent)      | none            | Internal memory maintenance   |
+| **Nightly Cortex**              | 3am daily          | sonnet         | (silent)      | none            | Internal memory maintenance   |
 | **Task Steward**                | hourly 8am-10pm    | haiku          | (silent)      | none            | Internal task management      |
 | **Contact Steward — iMessage**  | 7am daily          | haiku          | (silent)      | none            | Internal contact processing   |
 | **Contact Steward — WhatsApp**  | 7:05am daily       | haiku          | (silent)      | none            | Internal contact processing   |

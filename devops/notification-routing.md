@@ -71,7 +71,7 @@ for fleet files:
 | -------------- | --------------------------------------------------------------------- | ------- | --------------------------------------------------- |
 | **System**     | Health checks, update checks, infrastructure monitoring               | Admin   | `none` (agent self-notifies via health-check-admin) |
 | **User**       | Briefings, reviews, alerts, stewards that produce output for the user | User    | `announce` or `none` with in-prompt messaging       |
-| **Internal**   | Librarian, memory org, knowledge extraction — no notification needed  | Neither | `none`                                              |
+| **Internal**   | Cortex, memory org, knowledge extraction — no notification needed     | Neither | `none`                                              |
 
 ## Setting Up a New Fleet Machine
 

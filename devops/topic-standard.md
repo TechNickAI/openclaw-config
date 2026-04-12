@@ -36,8 +36,8 @@ everything until volume justifies splitting.
 ### For each cron job, determine its destination:
 
 1. **Does this job produce user-visible output?**
-   - No → `delivery: none`, no topic. (Internal jobs: librarian, reflection, sentinels
-     with no findings, etc.)
+   - No → `delivery: none`, no topic. (Internal jobs: cortex, reflection, sentinels with
+     no findings, etc.)
    - Yes → continue.
 
 2. **Is it conversational / personal?**

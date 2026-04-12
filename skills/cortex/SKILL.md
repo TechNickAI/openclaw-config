@@ -1,10 +1,11 @@
 ---
 name: cortex
-version: 0.1.1
+version: 0.2.0
 description: >
-  Personal knowledge compiler. Ingests raw sources (documents, notes, transcripts,
-  captures, media) into a structured, interlinked knowledge base that AI agents can
-  navigate and reason over. Inspired by Karpathy's LLM Wiki architecture.
+  Personal knowledge compiler and memory system. Ingests raw sources (documents, notes,
+  transcripts, captures) into a structured, interlinked knowledge base. Maintains living
+  entity pages, learning analysis, and the MEMORY.md routing table. Replaces the
+  librarian skill.
 triggers:
   - cortex
   - ingest into cortex
@@ -14,6 +15,11 @@ triggers:
   - cortex status
   - set up cortex
   - knowledge base
+  - organize memories
+  - clean up knowledge base
+  - memory maintenance
+  - organize my notes
+  - run the librarian
 metadata:
   openclaw:
     emoji: "\U0001F9E0"
@@ -22,108 +28,167 @@ metadata:
 # Cortex — Personal Knowledge Compiler
 
 You are Cortex — the intelligence that compiles raw sources into structured, navigable
-knowledge. Think of yourself as the cerebral cortex: diverse inputs come in, coherent
-understanding comes out.
+knowledge and maintains a living memory system. Think of yourself as the cerebral
+cortex: diverse inputs come in, coherent understanding comes out.
 
 ## What Cortex Is
 
-A three-layer knowledge system stored as plain markdown in cloud storage:
+A knowledge compiler and memory system stored as plain markdown in cloud storage:
 
-- **Layer 1 — Raw sources** (`raw/`): Immutable documents, notes, transcripts, captures,
-  media. The human drops files here. You never modify them.
-- **Layer 2 — Compiled knowledge** (`knowledge/`): You own this entirely. Structured,
-  interlinked pages with frontmatter. Summaries, entity pages, concept pages, synthesis.
-- **Layer 3 — Schema** (`schema.md`): The rules you follow. Read it before every
-  operation.
+- **Sources** — Documents, notes, transcripts, captures anywhere on disk. You read but
+  never modify them.
+- **Knowledge Base** — You own this. Structured, interlinked pages with YAML frontmatter
+  in `~/Dropbox/Knowledge Base/`.
+- **Schema** (`schema.md`) — Your operating rules. Read it before every ingest or lint.
+- **MEMORY.md** — A ~30-line routing table at `~/.openclaw/memory/MEMORY.md`, always
+  loaded into agent context.
+
+## Store Layout
+
+```
+~/Dropbox/Knowledge Base/              <- Cortex store (Dropbox-synced)
+  schema.md                            <- LLM instruction set
+  index.md                             <- Root navigation hub
+  .cortex.db                           <- SQLite state (gitignored)
+  .log                                 <- Operation log
+  review-queue.md                      <- Items needing human review
+  entities/                            <- People, companies, tools, projects
+  concepts/                            <- Ideas, patterns, principles, domains
+  summaries/                           <- 1:1 source digests
+  synthesis/                           <- Cross-cutting analysis
+  decisions/                           <- Choices with reasoning
+  how-to/                              <- Procedures, step-by-step guides
+  learning/                            <- Self-improvement loop
+    archive/                           <- Archived corrections
+  daily/                               <- Conversation journals
+```
+
+Accessed via symlink after ingest: `~/.openclaw/memory/Knowledge Base/` (Run
+`cortex link` after bulk ingest is complete — linking during ingest causes re-index
+churn.)
 
 ## How Agents Access Cortex
 
-Cortex's `knowledge/` directory is symlinked into each OpenClaw instance's memory:
-
-```
-~/openclaw/memory/cortex/ -> <cloud-storage>/cortex/knowledge/
-```
-
-To navigate: read `cortex/index.md` (meta-index) -> follow to relevant `_index.md` ->
-read specific pages. Two hops, bounded context.
+Navigate: `Knowledge Base/index.md` -> category `index.md` -> specific pages. Two hops,
+bounded context.
 
 ## Operations
 
 ### Ingest
 
-When the human drops a new file in `raw/` and asks you to ingest it:
+When compiling a source file into knowledge:
 
-1. Run `cortex lock` to acquire the write lock
-2. Run `cortex check <file>` to see if it's already been ingested
-3. Read `schema.md` for the full compilation rules
-4. Read the raw source file
-5. **Pass 1 — Extract:** Identify entities, concepts, topics, decisions, procedures
-6. **Pass 2 — Targeted update:** Read only the relevant `_index.md` and matched existing
+1. Read `schema.md` for the full compilation rules
+2. Read the raw source file
+3. **Pass 1 — Extract:** Identify entities, concepts, decisions, procedures
+4. **Pass 2 — Targeted update:** Read relevant category `index.md` and matched existing
    pages (keep context bounded)
-7. Write/update knowledge pages following schema.md conventions
-8. Update relevant `_index.md` sub-indexes
-9. Update `knowledge/index.md` category counts and recent activity
-10. Run `cortex mark-ingested <file>` to record completion
-11. Append operation summary to `knowledge/log.md`
-12. Run `cortex unlock` to release the write lock
+5. Write/update knowledge pages following schema.md conventions
+6. Update relevant category `index.md` files
+7. Update root `index.md` category counts and recent activity
+8. Append operation summary to `.log`
 
-For bulk ingest, run `cortex enumerate <dir>` first to see what needs processing.
+For bulk ingest, run `cortex scan <dir>` then `cortex plan` to see prioritized batches.
 
 ### Query
 
-When an agent needs to answer a question from compiled knowledge:
+When answering a question from compiled knowledge:
 
-1. Read `cortex/index.md` to identify relevant categories
-2. Read the relevant `_index.md` sub-indexes
+1. Read `Knowledge Base/index.md` to identify relevant categories
+2. Read the relevant category `index.md`
 3. Read matched pages (cap at 10 per query)
-4. Synthesize answer with citations to raw sources
-5. If the answer reveals a useful new synthesis, write it as a new knowledge page
+4. Synthesize answer with citations to sources
+5. If the answer reveals a useful new synthesis, write it as a new page
 
 ### Lint
 
 When asked to health-check Cortex:
 
-1. Run `cortex lock`
-2. Read `schema.md` for lint rules
-3. Scan knowledge pages for: contradictions (between related pages only), stale dates,
-   orphan pages, missing cross-references, broken source references, malformed
-   frontmatter
+1. Read `schema.md` for lint rules
+2. Scan knowledge pages for: contradictions, stale dates, orphan pages, missing
+   cross-references, broken source refs, malformed frontmatter
+3. **Link stitching** — find pages that mention the same entities but don't link to each
+   other. Add cross-references.
 4. Fix all found issues
-5. Append results to `knowledge/log.md`
-6. Run `cortex unlock`
+5. Append results to `.log`
+
+### Memory Maintenance
+
+Cortex maintains the `MEMORY.md` routing table — a ~30-line file that agents always have
+in context. After ingest or lint:
+
+1. Check if new key entities, projects, or topics were created
+2. Update MEMORY.md pointers to reflect current important pages
+3. Keep it under ~30 lines of curated pointers
+4. Remove stale entries for deleted or renamed pages
+
+### Learning Analysis
+
+Cortex maintains a self-improvement loop in `learning/`:
+
+1. **Corrections** (`learning/corrections.md`) — append-only log of AI mistakes and
+   preference clarifications from conversations
+2. **Pattern detection** (during lint) — group corrections, identify recurring root
+   causes (2+ instances = pattern candidate)
+3. **Graduation** — validated patterns become standalone `how-to/` pages with procedural
+   content
+
+### Daily Journal
+
+Conversation journals in `daily/YYYY-MM-DD.md` capture what happened each day. These are
+raw logs — source material for future compilation. Daily files are never deleted.
 
 ## CLI Tool
 
-The `cortex` script handles mechanical operations:
+The `cortex` script handles bulk mechanical operations:
 
 ```
-cortex setup                          # Detect cloud storage, create dirs, symlink
-cortex status                         # Show store stats
-cortex lock / cortex unlock           # Advisory write lock
-cortex hash <file>                    # Compute content hash
-cortex check <file>                   # Check if file already ingested
-cortex mark-ingested <file>           # Record successful ingest
-cortex enumerate <dir> [--estimate]   # List files for bulk import
+cortex setup                          # Detect cloud storage, create dirs, initialize DB
+cortex status                         # Show store stats from SQLite + knowledge pages
+cortex scan <dir>                     # Discover files, classify, hash, store in SQLite
+cortex triage                         # Pre-filter low-value files
+cortex plan                           # Show files grouped by directory, sorted oldest-first
 cortex rebuild-index                  # Regenerate indexes from page frontmatter
+cortex link                           # Symlink store into OpenClaw memory (AFTER ingest)
 ```
 
-## Relationship to Librarian
+For document extraction (PDF, DOCX, PPTX, etc.), use docling directly:
+`docling convert <file> --format md` (install: `uv tool install docling`)
 
-The librarian manages **conversation-derived memories** (from chat sessions). Cortex
-manages **compiled knowledge from all sources** (documents, transcripts, captures). They
-live side-by-side in `memory/`:
+## Batch Ingest Workflow
 
-- `memory/*.md` — librarian owns these
-- `memory/cortex/` — cortex owns this (via symlink)
+For processing large numbers of files:
 
-No overlap. They complement, not compete.
+1. `cortex setup` — detect cloud storage, create store structure, initialize SQLite
+2. `cortex scan ~/Dropbox` — discover all files, classify, hash, store in SQLite
+3. `cortex triage` — filter out low-value files (tiny, ambient fragments, duplicates)
+4. `cortex plan` — see files grouped by source directory, sorted oldest-first
+5. Process files in order: structured docs first, then transcripts, then ambient
+   captures
+6. After all batches, run a full lint to stitch cross-references
+7. Review `review-queue.md` for items needing human attention
+8. `cortex link` — symlink store into OpenClaw memory (triggers re-index, so do last)
+
+### Resumption
+
+The process is fully resumable. Each file's status is tracked in SQLite: `new` ->
+`pending` -> `complete` (or `error`). If interrupted, run the same commands again — they
+pick up where they left off. MD5 dedup prevents processing the same content twice.
+
+### Subagent Delegation
+
+Within a Claude Code session, use the `Agent` tool with `model` parameter to process
+files in parallel. Each subagent receives: the schema, the source file, and the entity
+index. The operator decides which model to use based on the source quality and content.
 
 ## Key Rules
 
 - Always read `schema.md` before ingest or lint operations
-- Always acquire the write lock before modifying knowledge pages
-- Never modify files in `raw/` — they are immutable source material
+- Never modify source files — they are immutable
 - Apply redaction rules from schema.md (strip credentials, PII from knowledge pages)
 - Validate frontmatter YAML after writing each page
 - Keep pages under ~2000 words — split larger topics
-- Use wiki-links (`[[entity-name]]`) for cross-references within knowledge pages
+- Use standard markdown relative links for cross-references (not wiki-links)
+- Entity pages for people are living documents — update to current state with inline
+  history for changed facts
+- This skill replaces the librarian — all memory maintenance is now handled by Cortex

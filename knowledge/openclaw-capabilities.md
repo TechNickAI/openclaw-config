@@ -106,7 +106,7 @@ OpenClaw uses a **three-tier memory architecture:**
 - Organized by type: `memory/people/`, `memory/projects/`, `memory/topics/`,
   `memory/decisions/`
 - Vector-searchable via embeddings (LM Studio local or OpenAI fallback)
-- The `librarian` skill promotes durable knowledge upward through tiers
+- The `cortex` skill promotes durable knowledge upward through tiers
 
 **Persistence:** Memory lives in SQLite (`~/.openclaw/memory/main.sqlite`) for search,
 with markdown files as the human-readable canonical source. Memory persists across all
@@ -177,7 +177,7 @@ Skills are standalone tools the AI agent can invoke:
 vapi-calls (outbound voice calls)
 
 **Knowledge:** parallel (web search), limitless (lifelog recall), fireflies (meeting
-transcripts), fathom (meeting recordings), librarian (knowledge curation)
+transcripts), fathom (meeting recordings), cortex (knowledge curation)
 
 **Productivity:** asana (task management), todoist (task management), followupboss (CRM)
 

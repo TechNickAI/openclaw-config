@@ -82,7 +82,8 @@ openclaw-config/
 │   ├── asana/          # Task & project management (Asana)
 │   ├── todoist/        # Task & project management (Todoist)
 │   ├── followupboss/   # Real estate CRM
-│   ├── librarian/      # Knowledge base maintenance
+│   ├── cortex/         # Personal knowledge compiler
+│   ├── librarian/      # Deprecated → replaced by cortex
 │   ├── create-great-prompts/  # Prompt engineering guide
 │   ├── smart-delegation/     # Route work to the right model
 │   ├── vapi-calls/          # Voice calls via Vapi AI
@@ -114,25 +115,25 @@ Each skill is a standalone [UV script](https://docs.astral.sh/uv/guides/scripts/
 Python with inline dependencies, no project-level setup. Run directly, version
 independently.
 
-| Skill                    | What it does                                                               | Version |
-| ------------------------ | -------------------------------------------------------------------------- | ------- |
-| **parallel**             | Web search, extraction, deep research & enrichment via Parallel.ai CLI     | 0.3.0   |
-| **quo**                  | Business phone — calls, texts, voicemails, contacts, SMS                   | 0.6.0   |
-| **fathom**               | Query meeting recordings — transcripts, summaries, action items            | 0.1.0   |
-| **fireflies**            | Search meeting transcripts & action items                                  | 0.2.0   |
-| **limitless**            | Query Pendant lifelogs & conversations                                     | 0.2.0   |
-| **asana**                | Task & project management via MCP                                          | 0.1.0   |
-| **todoist**              | Task & project management via official CLI                                 | 0.1.0   |
-| **followupboss**         | Real estate CRM — contacts, deals, pipeline                                | 0.1.0   |
-| **librarian**            | Curate and maintain the knowledge base                                     | 0.3.0   |
-| **create-great-prompts** | Prompt engineering for LLM agents                                          | 2.0.0   |
-| **smart-delegation**     | Route work to Opus, Grok, or handle directly                               | 0.2.0   |
-| **workflow-builder**     | Design new autonomous workflows                                            | 0.1.0   |
-| **gateway-restart**      | Graceful gateway restart — waits for active work                           | 0.1.0   |
-| **vapi-calls**           | Make outbound phone calls via Vapi voice AI                                | 0.1.0   |
-| **tgcli**                | Read, search, and send Telegram messages via personal account              | 0.1.0   |
-| **cortex**               | Personal knowledge compiler — ingest raw sources into structured knowledge | 0.1.0   |
-| **openclaw**             | Install, update, and health-check the config                               | 0.2.2   |
+| Skill                    | What it does                                                           | Version |
+| ------------------------ | ---------------------------------------------------------------------- | ------- |
+| **parallel**             | Web search, extraction, deep research & enrichment via Parallel.ai CLI | 0.3.0   |
+| **quo**                  | Business phone — calls, texts, voicemails, contacts, SMS               | 0.6.0   |
+| **fathom**               | Query meeting recordings — transcripts, summaries, action items        | 0.1.0   |
+| **fireflies**            | Search meeting transcripts & action items                              | 0.2.0   |
+| **limitless**            | Query Pendant lifelogs & conversations                                 | 0.2.0   |
+| **asana**                | Task & project management via MCP                                      | 0.1.0   |
+| **todoist**              | Task & project management via official CLI                             | 0.1.0   |
+| **followupboss**         | Real estate CRM — contacts, deals, pipeline                            | 0.1.0   |
+| **librarian**            | ~~Knowledge base maintenance~~ → replaced by **cortex**                | 0.5.0   |
+| **create-great-prompts** | Prompt engineering for LLM agents                                      | 2.0.0   |
+| **smart-delegation**     | Route work to Opus, Grok, or handle directly                           | 0.2.0   |
+| **workflow-builder**     | Design new autonomous workflows                                        | 0.1.0   |
+| **gateway-restart**      | Graceful gateway restart — waits for active work                       | 0.1.0   |
+| **vapi-calls**           | Make outbound phone calls via Vapi voice AI                            | 0.1.0   |
+| **tgcli**                | Read, search, and send Telegram messages via personal account          | 0.1.0   |
+| **cortex**               | Personal knowledge compiler — ingest, query, lint, memory maintenance  | 0.2.0   |
+| **openclaw**             | Install, update, and health-check the config                           | 0.2.2   |
 
 ## Workflows
 
@@ -172,8 +173,8 @@ automatically. Raw observations, not curated.
 Searched via vector embeddings (LM Studio local or OpenAI). Retrieved when relevant, not
 loaded by default.
 
-The **librarian** skill promotes durable knowledge upward — daily observations become
-structured knowledge, structured knowledge gets summarized into MEMORY.md.
+The **cortex** skill compiles raw sources into structured knowledge — documents, notes,
+and transcripts become interlinked entity pages, summaries, and decision records.
 
 What gets remembered is filtered through four criteria:
 

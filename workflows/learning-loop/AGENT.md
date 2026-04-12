@@ -129,8 +129,8 @@ step rather than mid-execution.
 
 ## Phase 2: Pattern Detection
 
-**When:** Daily cron (piggyback on librarian run) or manual trigger. **Where:** Reads
-`corrections.md`, writes to `patterns.md` **Who:** The librarian skill (extended with
+**When:** Daily cron (piggyback on Cortex run) or manual trigger. **Where:** Reads
+`corrections.md`, writes to `patterns.md` **Who:** The Cortex skill (extended with
 learning analysis).
 
 ### The Detection Algorithm
@@ -251,8 +251,8 @@ Don't delete promoted entries from patterns.md — they're the audit trail.
 
 ## Phase 4: Decay and Pruning
 
-**When:** Monthly, or during librarian runs. **Where:** `corrections.md`, `patterns.md`
-**Who:** Librarian skill.
+**When:** Monthly, or during Cortex runs. **Where:** `corrections.md`, `patterns.md`
+**Who:** Cortex skill.
 
 ### Decay Rules
 
@@ -319,9 +319,9 @@ Quarterly compressed summaries of decayed entries.
 
 ## Integration Points
 
-### With Librarian (Daily)
+### With Cortex (Daily)
 
-The librarian's daily cron should include a learning analysis pass:
+The Cortex daily cron should include a learning analysis pass:
 
 1. After standard memory maintenance, read `memory/learning/corrections.md`
 2. Run pattern detection (Phase 2)
@@ -387,8 +387,8 @@ Compared to other self-improvement systems:
 
 The learning loop runs on two schedules:
 
-**Pattern detection (daily, via librarian):** Already included in librarian's daily cron
-— no separate job needed.
+**Pattern detection (daily, via Cortex):** Already included in Cortex's daily cron — no
+separate job needed.
 
 **Validation (nightly):**
 

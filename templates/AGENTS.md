@@ -506,5 +506,5 @@ trigger false follow-up suggestions.
 **Most sessions produce zero corrections. That's healthy.** Don't force it. Don't
 announce it. Just write the rule and move on.
 
-The librarian's daily run detects recurring patterns and promotes them to permanent
-homes. See `workflows/learning-loop/AGENT.md` for the full architecture.
+Cortex's daily run detects recurring patterns and promotes them to permanent homes. See
+`workflows/learning-loop/AGENT.md` for the full architecture.

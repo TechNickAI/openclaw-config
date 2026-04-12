@@ -1,6 +1,32 @@
 # Cortex: Personal Knowledge Compiler
 
-Status: reviewed (deep multi-review complete) Date: April 11, 2026
+Status: v2 implemented | Date: April 12, 2026
+
+> **v2 Update (2026-04-12):** Major revision. Key changes from v1 below:
+>
+> - **Store path:** `~/Dropbox/Knowledge Base/` (was `~/Dropbox/cortex/`)
+> - **No raw/ directory.** Sources live wherever they live. Cortex ingests from any
+>   path.
+> - **No locking.** Removed — unnecessary complexity for single-writer use.
+> - **SQLite for state tracking** (was markdown `.ingest-state.md`). Full schema in CLI.
+> - **No tiers.** Removed tier-based model routing. `cortex plan` groups by source
+>   directory; the operator decides which model to use per batch.
+> - **Deferred symlink.** `cortex setup` no longer creates the OpenClaw symlink. Run
+>   `cortex link` AFTER ingest completes to avoid re-index churn.
+> - **Speaker attribution warnings.** Limitless/ambient transcripts have unreliable
+>   speaker labels. "Unknown" does NOT mean the owner. Schema includes detailed
+>   guidance.
+> - **Review queue.** `review-queue.md` captures contradictions, attribution
+>   uncertainty, and items needing human clarification during ingest.
+> - **Librarian absorbed.** Cortex v2 handles all memory maintenance. Librarian skill is
+>   deprecated.
+> - **Docling for extraction.** External tool for PDF/DOCX/PPTX conversion. Not bundled.
+> - **Temporal sensitivity.** Source dates, fact decay categories (volatile/stable/
+>   permanent), "as of" annotations on entity pages.
+>
+> The sections below are v1 architecture. They remain as historical context but the
+> authoritative references are now `skills/cortex/schema-template.md` (LLM instructions)
+> and `skills/cortex/SKILL.md` (operational guide).
 
 ## Motivation
 

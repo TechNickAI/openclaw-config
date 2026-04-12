@@ -6,51 +6,63 @@
 """
 Cortex CLI - Personal knowledge compiler utilities
 
-Mechanical operations for the Cortex knowledge system: setup, locking,
-hashing, state tracking, and index rebuilding. The LLM handles the actual
-knowledge compilation; this script handles the bookkeeping.
+Mechanical operations for the Cortex knowledge system: setup, scanning,
+triage, batch planning, extraction, and index rebuilding. The LLM handles
+the actual knowledge compilation; this script handles the bookkeeping.
 """
 
 import hashlib
 import os
-import platform
 import re
+import sqlite3
+import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import NoReturn
 
 import yaml
 
-# Sensitive file patterns to skip during enumeration
-SENSITIVE_PATTERNS = {
-    ".env",
-    ".ssh",
-    ".aws",
-    ".gnupg",
-    ".git",
-    ".ds_store",
-    "__pycache__",
-    "node_modules",
-}
-SENSITIVE_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore"}
-SENSITIVE_PREFIXES = ("secret", "credentials", ".env")
+# --- File classification ---
 
-SUPPORTED_EXTENSIONS = {
-    ".md", ".txt", ".pdf", ".html", ".htm", ".json", ".csv",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
-    ".py", ".js", ".ts", ".sh", ".yaml", ".yml", ".toml",
-    ".xml", ".rst", ".org", ".tex", ".rtf", ".doc", ".docx",
+FILE_TYPES = {
+    "text": {".md", ".txt", ".rst", ".org", ".csv", ".json", ".jsonl", ".yaml", ".yml", ".toml", ".xml"},
+    "code": {".py", ".js", ".ts", ".sh", ".go", ".rs", ".java", ".rb", ".sql", ".r"},
+    "pdf": {".pdf"},
+    "document": {".docx", ".doc", ".rtf", ".pptx", ".xlsx"},
+    "web": {".html", ".htm"},
+    "image": {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".tiff"},
+    "audio": {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac", ".opus", ".aiff"},
+    "video": {".mp4", ".mov", ".avi", ".mkv", ".webm"},
 }
+
+# Reverse lookup: extension -> file type
+EXT_TO_TYPE: dict[str, str] = {}
+for ftype, exts in FILE_TYPES.items():
+    for ext in exts:
+        EXT_TO_TYPE[ext] = ftype
+
+# Types that an LLM can read and should be downloaded if online-only
+READABLE_TYPES = {"text", "code", "pdf", "document", "web"}
+
+# Types that are cataloged but not read by an LLM
+CATALOG_TYPES = {"image", "audio", "video"}
+
+SENSITIVE_PATTERNS = {
+    ".env", ".ssh", ".aws", ".gnupg", ".git", ".ds_store",
+    "__pycache__", "node_modules", ".obsidian", ".netrc", ".npmrc", ".pgpass",
+    ".kube", ".docker",
+}
+SENSITIVE_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".keychain", ".keychain-db"}
+SENSITIVE_PREFIXES = ("secret", "credentials", ".env", "id_rsa", "id_ed25519", "id_ecdsa")
 
 KNOWLEDGE_CATEGORIES = [
     "entities", "concepts", "summaries", "synthesis", "decisions", "how-to",
 ]
 
+EXTRA_DIRECTORIES = ["learning", "learning/archive", "daily"]
+
 CONFIG_DIR = Path.home() / ".config" / "cortex"
 CONFIG_FILE = CONFIG_DIR / "config"
-
-LOCK_TIMEOUT_MINUTES = 30
 
 
 def error(message: str, hint: str | None = None) -> NoReturn:
@@ -94,24 +106,56 @@ def get_store_path() -> Path:
     return path
 
 
-def get_knowledge_path() -> Path:
-    """Get the knowledge directory path."""
-    return get_store_path() / "knowledge"
+def get_db_path() -> Path:
+    """Get the SQLite database path."""
+    return get_store_path() / ".cortex.db"
+
+
+def get_db() -> sqlite3.Connection:
+    """Open SQLite connection with WAL mode."""
+    db = sqlite3.connect(str(get_db_path()))
+    db.execute("PRAGMA journal_mode=WAL")
+    db.execute("PRAGMA foreign_keys=ON")
+    db.row_factory = sqlite3.Row
+    return db
+
+
+def init_db(db_path: Path) -> None:
+    """Create the SQLite schema."""
+    db = sqlite3.connect(str(db_path))
+    db.execute("PRAGMA journal_mode=WAL")
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS sources (
+            path TEXT PRIMARY KEY,
+            hash TEXT,
+            status TEXT NOT NULL DEFAULT 'new',
+            file_type TEXT,
+            file_size INTEGER,
+            online_only INTEGER DEFAULT 0,
+            source_date TEXT,
+            discovered_at TEXT NOT NULL,
+            ingested_at TEXT,
+            error TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_sources_status ON sources(status);
+        CREATE INDEX IF NOT EXISTS idx_sources_hash ON sources(hash);
+        CREATE INDEX IF NOT EXISTS idx_sources_date ON sources(source_date);
+    """)
+    db.commit()
+    db.close()
 
 
 # --- Cloud storage detection ---
 
 def detect_cloud_storage() -> list[tuple[str, Path]]:
-    """Detect available cloud storage paths. Returns list of (provider, path) tuples."""
+    """Detect available cloud storage paths."""
     found = []
     home = Path.home()
 
-    # Dropbox
     dropbox = home / "Dropbox"
     if dropbox.is_dir():
         found.append(("dropbox", dropbox))
 
-    # Google Drive (macOS — ~/Library/CloudStorage/GoogleDrive-*/My Drive/)
     cloud_storage = home / "Library" / "CloudStorage"
     if cloud_storage.is_dir():
         for entry in cloud_storage.iterdir():
@@ -121,7 +165,6 @@ def detect_cloud_storage() -> list[tuple[str, Path]]:
                     found.append(("google-drive", my_drive))
                     break
 
-    # Google Drive (Linux rclone)
     gdrive_linux = home / "google-drive"
     if gdrive_linux.is_dir():
         found.append(("google-drive", gdrive_linux))
@@ -129,10 +172,98 @@ def detect_cloud_storage() -> list[tuple[str, Path]]:
     return found
 
 
+# --- Hash ---
+
+def compute_hash(file_path: Path) -> str | None:
+    """Compute MD5 hash of file content. Returns None if file is not readable (online-only)."""
+    h = hashlib.md5()
+    try:
+        with open(file_path, "rb") as f:
+            chunk = f.read(8192)
+            if not chunk and file_path.stat().st_size > 0:
+                # File reports a size but no content — likely online-only
+                return None
+            h.update(chunk)
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
+# --- Sensitivity check ---
+
+def is_sensitive(path: Path) -> bool:
+    """Check if a file matches sensitive patterns."""
+    name = path.name.lower()
+    for part in path.parts:
+        if part.lower() in SENSITIVE_PATTERNS:
+            return True
+    if path.suffix.lower() in SENSITIVE_EXTENSIONS:
+        return True
+    for prefix in SENSITIVE_PREFIXES:
+        if name.startswith(prefix):
+            return True
+    return False
+
+
+def classify_file(path: Path) -> str:
+    """Classify a file by its extension."""
+    return EXT_TO_TYPE.get(path.suffix.lower(), "other")
+
+
+# Date patterns found in filenames and paths
+DATE_PATTERNS = [
+    # YYYY-MM-DD in filename or path
+    re.compile(r"(\d{4})-(\d{2})-(\d{2})"),
+    # YYYY_MM_DD
+    re.compile(r"(\d{4})_(\d{2})_(\d{2})"),
+    # Fireflies/Limitless style: no explicit date but has ID suffix
+    # Fall back to file mtime for these
+]
+
+
+def _match_date(text: str) -> str | None:
+    """Try to extract a YYYY-MM-DD date from text. Returns None if no valid date found."""
+    for pattern in DATE_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            year, month, day = int(match.group(1)), int(match.group(2)), int(match.group(3))
+            if 2000 <= year <= 2030 and 1 <= month <= 12 and 1 <= day <= 31:
+                return f"{year:04d}-{month:02d}-{day:02d}"
+    return None
+
+
+def extract_source_date(path: Path) -> str | None:
+    """Extract a date from filename/path, falling back to file mtime.
+
+    Searches filename first (more specific), then full path, then mtime.
+    Returns YYYY-MM-DD or None.
+    """
+    # Filename first — most specific date
+    result = _match_date(path.name)
+    if result:
+        return result
+
+    # Full path — catches date-named directories
+    result = _match_date(str(path))
+    if result:
+        return result
+
+    # Fall back to file modification time
+    try:
+        mtime = path.stat().st_mtime
+        from datetime import datetime, timezone
+        dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
+        return dt.strftime("%Y-%m-%d")
+    except OSError:
+        return None
+
+
 # --- Setup ---
 
 def cmd_setup() -> None:
-    """Detect cloud storage, initialize store, create symlinks."""
+    """Detect cloud storage, initialize store."""
     providers = detect_cloud_storage()
 
     if not providers:
@@ -140,13 +271,12 @@ def cmd_setup() -> None:
             "No cloud storage found",
             "Cortex requires Dropbox or Google Drive.\n"
             "Looked for:\n"
-            f"  ~/Dropbox/\n"
-            f"  ~/Library/CloudStorage/GoogleDrive-*/My Drive/\n"
-            f"  ~/google-drive/\n"
+            "  ~/Dropbox/\n"
+            "  ~/Library/CloudStorage/GoogleDrive-*/My Drive/\n"
+            "  ~/google-drive/\n"
             "Install one and run `cortex setup` again.",
         )
 
-    # Pick provider
     if len(providers) == 1:
         provider, base_path = providers[0]
         print(f"Found {provider} at {base_path}")
@@ -161,26 +291,16 @@ def cmd_setup() -> None:
         except (ValueError, IndexError):
             error("Invalid selection")
 
-    store_path = base_path / "cortex"
-    knowledge_path = store_path / "knowledge"
-    raw_path = store_path / "raw"
+    store_path = base_path / "Knowledge Base"
     schema_path = store_path / "schema.md"
 
     # Create directory structure
     created = []
-    for d in [
-        store_path,
-        raw_path,
-        raw_path / "documents",
-        raw_path / "notes",
-        raw_path / "captures",
-        raw_path / "transcripts",
-        raw_path / "media",
-        raw_path / "code",
-        raw_path / "conversations",
-        raw_path / "reference",
-        knowledge_path,
-    ] + [knowledge_path / cat for cat in KNOWLEDGE_CATEGORIES]:
+    for d in (
+        [store_path]
+        + [store_path / cat for cat in KNOWLEDGE_CATEGORIES]
+        + [store_path / d for d in EXTRA_DIRECTORIES]
+    ):
         if not d.exists():
             d.mkdir(parents=True, exist_ok=True)
             created.append(str(d.relative_to(store_path)))
@@ -191,7 +311,7 @@ def cmd_setup() -> None:
         print("Store structure already exists")
 
     # Create initial knowledge files
-    _init_knowledge_files(knowledge_path)
+    _init_knowledge_files(store_path)
 
     # Deploy schema.md if not present
     if not schema_path.exists():
@@ -200,95 +320,106 @@ def cmd_setup() -> None:
     else:
         print("schema.md already exists (not overwriting)")
 
-    # Create .gitignore for raw/ (large/binary files)
+    # Create .gitignore
     gitignore = store_path / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text("raw/\n.obsidian/\n")
-        print("Created .gitignore (excludes raw/ and .obsidian/)")
+        gitignore.write_text(".obsidian/\n.cortex.db\n.cortex.db-wal\n.cortex.db-shm\n.log\n")
+        print("Created .gitignore")
+
+    # Initialize SQLite
+    db_path = store_path / ".cortex.db"
+    if not db_path.exists():
+        init_db(db_path)
+        print("Initialized SQLite database")
+    else:
+        print("SQLite database already exists")
 
     # Save config
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    is_writer = input("Is this a writer machine? (ingest/lint here) [y/N]: ").strip().lower()
     config_content = (
         f"CORTEX_STORE_PATH={store_path}\n"
-        f"CORTEX_RAW_PATH={raw_path}\n"
-        f"CORTEX_KNOWLEDGE_PATH={knowledge_path}\n"
-        f"CORTEX_SCHEMA_PATH={schema_path}\n"
         f"CLOUD_PROVIDER={provider}\n"
-        f"WRITER_MACHINE={'true' if is_writer in ('y', 'yes') else 'false'}\n"
     )
     CONFIG_FILE.write_text(config_content)
     print(f"Config saved to {CONFIG_FILE}")
 
-    # Symlink into OpenClaw memory if available
-    _setup_symlink(knowledge_path)
-
     # Init git if needed
     git_dir = store_path / ".git"
     if not git_dir.exists():
-        os.system(f"cd '{store_path}' && git init -q")
-        print("Initialized git repository")
+        result = subprocess.run(["git", "init", "-q"], cwd=store_path, capture_output=True)
+        if result.returncode == 0:
+            print("Initialized git repository")
+        else:
+            print("Warning: git init failed (git may not be installed). Git tracking disabled.")
 
     print(f"\nCortex initialized at {store_path}")
     print(f"Provider: {provider}")
-    print("Drop files in raw/ and ask your AI agent to ingest them.")
+    print("Next: run `cortex scan ~/Dropbox` to discover files for ingestion.")
+    print("After ingest is complete, run `cortex link` to connect to OpenClaw.")
 
 
-def _init_knowledge_files(knowledge_path: Path) -> None:
+def _init_knowledge_files(store_path: Path) -> None:
     """Create initial knowledge files if they don't exist."""
     # Root index
-    index = knowledge_path / "index.md"
+    index = store_path / "index.md"
     if not index.exists():
         index.write_text(
             "# Cortex Index\n\n"
             f"Last updated: {_today()}\n"
             "Total pages: 0 | Sources ingested: 0\n\n"
             "## Categories\n\n"
-            "| Category | Pages | Sub-index |\n"
-            "|----------|-------|-----------|\n"
+            "| Category | Pages | Index |\n"
+            "|----------|-------|-------|\n"
             + "".join(
                 f"| {cat.title().replace('-', ' ')} | 0 | "
-                f"[{cat}/_index.md]({cat}/_index.md) |\n"
+                f"[{cat}/index.md]({cat}/index.md) |\n"
                 for cat in KNOWLEDGE_CATEGORIES
             )
             + "\n## Recent Activity\n\n"
             "_No activity yet._\n"
         )
 
-    # Sub-indexes
+    # Category indexes
     for cat in KNOWLEDGE_CATEGORIES:
-        sub_index = knowledge_path / cat / "_index.md"
-        if not sub_index.exists():
+        cat_index = store_path / cat / "index.md"
+        if not cat_index.exists():
             title = cat.title().replace("-", " ")
-            sub_index.write_text(
-                f"# {title}\n\n"
-                "_No entries yet._\n"
-            )
+            cat_index.write_text(f"# {title}\n\n_No entries yet._\n")
 
     # Log
-    log = knowledge_path / "log.md"
+    log = store_path / ".log"
     if not log.exists():
         log.write_text("# Operation Log\n\n_No operations yet._\n")
 
-    # Ingest state
-    state = knowledge_path / ".ingest-state.md"
-    if not state.exists():
-        state.write_text(
-            "# Ingest State\n\n"
-            "| Path | Hash | Status | Timestamp |\n"
-            "|------|------|--------|-----------|\n"
+    # Review queue
+    review = store_path / "review-queue.md"
+    if not review.exists():
+        review.write_text(
+            "# Review Queue\n\n"
+            "Items below were flagged during ingest because Cortex couldn't resolve them\n"
+            "confidently. Review each item, resolve it, and delete the entry.\n\n"
+            "_No items pending._\n"
         )
+
+    # Learning files
+    corrections = store_path / "learning" / "corrections.md"
+    if not corrections.exists():
+        corrections.write_text("# Corrections\n\nAppend corrections here.\n")
+
+    patterns = store_path / "learning" / "patterns.md"
+    if not patterns.exists():
+        patterns.write_text("# Patterns\n\n_No patterns detected yet._\n")
 
 
 def _deploy_schema(schema_path: Path) -> None:
     """Deploy the schema.md template to the store."""
-    # Look for bundled template in skill directory
     skill_dir = Path(__file__).parent
     template = skill_dir / "schema-template.md"
     if template.exists():
         schema_path.write_text(template.read_text())
     else:
-        # Minimal fallback
+        print(f"WARNING: schema-template.md not found at {template}", file=sys.stderr)
+        print("  Deploying stub schema. Copy the full schema manually.", file=sys.stderr)
         schema_path.write_text(
             "# Cortex Schema\n\n"
             "This file instructs the LLM how to maintain the knowledge store.\n"
@@ -296,35 +427,24 @@ def _deploy_schema(schema_path: Path) -> None:
         )
 
 
-def _setup_symlink(knowledge_path: Path) -> None:
-    """Create symlink from OpenClaw memory to knowledge path."""
-    # Look for OpenClaw workspace
-    openclaw_memory = Path.home() / "openclaw" / "memory"
-    if not openclaw_memory.exists():
-        # Try common alternative paths
-        for candidate in [
-            Path.home() / ".openclaw" / "memory",
-            Path.home() / "moltbot" / "memory",  # legacy name
-        ]:
-            if candidate.exists():
-                openclaw_memory = candidate
-                break
+def _setup_symlink(store_path: Path) -> None:
+    """Create symlink from OpenClaw memory to store."""
+    openclaw_memory = Path.home() / ".openclaw" / "memory"
 
+    # Create ~/.openclaw/memory if it doesn't exist
     if not openclaw_memory.exists():
-        print("No OpenClaw memory directory found — skipping symlink.")
-        print("Create the symlink manually when OpenClaw is set up:")
-        print(f"  ln -s {knowledge_path} <openclaw-workspace>/memory/cortex")
-        return
+        openclaw_memory.mkdir(parents=True, exist_ok=True)
+        print(f"Created {openclaw_memory}")
 
-    symlink_path = openclaw_memory / "cortex"
+    symlink_path = openclaw_memory / "Knowledge Base"
 
     if symlink_path.is_symlink():
         current_target = symlink_path.resolve()
-        if current_target == knowledge_path.resolve():
-            print(f"Symlink already correct: {symlink_path} -> {knowledge_path}")
+        if current_target == store_path.resolve():
+            print(f"Symlink already correct: {symlink_path} -> {store_path}")
             return
         print(f"Existing symlink points to: {current_target}")
-        confirm = input(f"Update to {knowledge_path}? [y/N]: ").strip().lower()
+        confirm = input(f"Update to {store_path}? [y/N]: ").strip().lower()
         if confirm not in ("y", "yes"):
             print("Symlink not updated.")
             return
@@ -333,23 +453,26 @@ def _setup_symlink(knowledge_path: Path) -> None:
         print(f"Warning: {symlink_path} exists and is not a symlink. Skipping.")
         return
 
-    symlink_path.symlink_to(knowledge_path)
-    print(f"Symlink created: {symlink_path} -> {knowledge_path}")
+    symlink_path.symlink_to(store_path)
+    print(f"Symlink created: {symlink_path} -> {store_path}")
 
-    # Update MEMORY.md
+    # Create MEMORY.md routing table if it doesn't exist
     memory_md = openclaw_memory / "MEMORY.md"
-    cortex_entry = "- [Cortex](cortex/index.md) — compiled knowledge base from all personal sources"
-    if memory_md.exists():
-        content = memory_md.read_text()
-        if "cortex/index.md" not in content:
-            content = content.rstrip() + "\n" + cortex_entry + "\n"
-            memory_md.write_text(content)
-            print("Added Cortex entry to MEMORY.md")
-        else:
-            print("MEMORY.md already references Cortex")
+    if not memory_md.exists():
+        memory_md.write_text(
+            "# Memory Index\n\n"
+            "## Quick Links\n"
+            "- [Knowledge Base Index](Knowledge Base/index.md)\n"
+            "- [All Entities](Knowledge Base/entities/index.md)\n"
+            "- [Recent Decisions](Knowledge Base/decisions/index.md)\n"
+        )
+        print("Created MEMORY.md routing table")
     else:
-        memory_md.write_text("# Memory Index\n\n" + cortex_entry + "\n")
-        print("Created MEMORY.md with Cortex entry")
+        content = memory_md.read_text()
+        if "Knowledge Base/index.md" not in content:
+            content = content.rstrip() + "\n- [Knowledge Base Index](Knowledge Base/index.md)\n"
+            memory_md.write_text(content)
+            print("Added Knowledge Base entry to MEMORY.md")
 
 
 # --- Status ---
@@ -357,23 +480,23 @@ def _setup_symlink(knowledge_path: Path) -> None:
 def cmd_status() -> None:
     """Show store statistics."""
     store = get_store_path()
-    knowledge = store / "knowledge"
+    db = get_db()
 
-    # Count pages per category
-    total_pages = 0
     print("# Cortex Status\n")
     print(f"Store: {store}")
     print(f"Config: {CONFIG_FILE}\n")
 
+    # Knowledge pages per category
+    total_pages = 0
     print("## Knowledge Pages\n")
     print(f"{'Category':<12} {'Pages':>5}")
     print(f"{'-'*12} {'-'*5}")
     for cat in KNOWLEDGE_CATEGORIES:
-        cat_dir = knowledge / cat
+        cat_dir = store / cat
         if cat_dir.is_dir():
             pages = [
                 f for f in cat_dir.iterdir()
-                if f.suffix == ".md" and f.name != "_index.md"
+                if f.suffix == ".md" and f.name != "index.md"
             ]
             count = len(pages)
         else:
@@ -383,307 +506,403 @@ def cmd_status() -> None:
     print(f"{'-'*12} {'-'*5}")
     print(f"{'Total':<12} {total_pages:>5}")
 
-    # Count raw sources
-    raw_path = store / "raw"
-    raw_count = 0
-    if raw_path.is_dir():
-        for root, _, files in os.walk(raw_path):
-            raw_count += len(files)
-    print(f"\n## Raw Sources: {raw_count}")
+    # Source stats from SQLite
+    row = db.execute("SELECT COUNT(*) as total FROM sources").fetchone()
+    total_sources = row["total"]
 
-    # Ingest state
-    state_file = knowledge / ".ingest-state.md"
-    if state_file.exists():
-        content = state_file.read_text()
-        ingested = content.count("| complete |")
-        pending = content.count("| pending |")
-        print(f"\n## Ingest State")
-        print(f"Completed: {ingested}")
-        if pending:
-            print(f"Pending: {pending}")
+    print(f"\n## Sources: {total_sources}\n")
+    if total_sources > 0:
+        rows = db.execute(
+            "SELECT status, COUNT(*) as cnt FROM sources GROUP BY status ORDER BY cnt DESC"
+        ).fetchall()
+        for row in rows:
+            print(f"  {row['status']:<12} {row['cnt']:>6}")
 
-    # Last activity from log
-    log_file = knowledge / "log.md"
-    if log_file.exists():
-        content = log_file.read_text()
-        timestamps = re.findall(r"## (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", content)
-        if timestamps:
-            print(f"\n## Last Activity: {timestamps[-1]}")
+        # File type breakdown
+        print("\n## File Types\n")
+        rows = db.execute(
+            "SELECT file_type, COUNT(*) as cnt FROM sources WHERE status != 'skipped' "
+            "GROUP BY file_type ORDER BY cnt DESC"
+        ).fetchall()
+        for row in rows:
+            print(f"  {row['file_type'] or 'unknown':<12} {row['cnt']:>6}")
 
-    # Lock status
-    lock_file = knowledge / ".lock"
-    if lock_file.exists():
-        lock_info = lock_file.read_text().strip()
-        print(f"\n## Lock: ACTIVE ({lock_info})")
-    else:
-        print(f"\n## Lock: none")
+        # Online-only count
+        online = db.execute(
+            "SELECT COUNT(*) as cnt FROM sources WHERE online_only = 1"
+        ).fetchone()["cnt"]
+        if online:
+            print(f"\n## Online-only files: {online}")
+            print("  These need to be synced from Dropbox before ingesting.")
 
-    # Writer machine?
-    config = load_config()
-    writer = config.get("WRITER_MACHINE", "false")
-    print(f"Writer machine: {writer}")
+    db.close()
 
 
-# --- Lock management ---
+# --- Scan ---
 
-def cmd_lock() -> None:
-    """Acquire advisory write lock."""
-    knowledge = get_knowledge_path()
-    lock_file = knowledge / ".lock"
-    hostname = platform.node()
-    lock_content = f"{hostname} | {time.time()}"
-
-    # Try atomic create first (O_CREAT | O_EXCL — fails if file exists)
-    try:
-        fd = os.open(str(lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        os.write(fd, lock_content.encode())
-        os.close(fd)
-        print(f"Lock acquired by {hostname}")
-        return
-    except FileExistsError:
-        pass
-
-    # Lock file exists — check if it's expired or stale
-    try:
-        content = lock_file.read_text().strip()
-        parts = content.split("|")
-        ts = float(parts[-1].strip()) if len(parts) > 1 else 0
-        age_minutes = (time.time() - ts) / 60
-        if age_minutes < LOCK_TIMEOUT_MINUTES:
-            error(
-                f"Write lock held by: {parts[0].strip()}",
-                f"Age: {age_minutes:.0f} minutes. "
-                f"Expires in {LOCK_TIMEOUT_MINUTES - age_minutes:.0f} minutes.\n"
-                "If this is stale, run `cortex unlock --force`.",
-            )
-        else:
-            print(f"Expired lock from {parts[0].strip()} ({age_minutes:.0f}m old) — overriding")
-    except (ValueError, IndexError, OSError):
-        print("Malformed or unreadable lock file — overriding")
-
-    lock_file.write_text(lock_content)
-    print(f"Lock acquired by {hostname}")
-
-
-def cmd_unlock(force: bool = False) -> None:
-    """Release advisory write lock."""
-    knowledge = get_knowledge_path()
-    lock_file = knowledge / ".lock"
-
-    if not lock_file.exists():
-        print("No lock to release.")
-        return
-
-    if not force:
-        content = lock_file.read_text().strip()
-        hostname = platform.node()
-        lock_owner = content.split("|")[0].strip()
-        if lock_owner != hostname:
-            error(
-                f"Lock held by {lock_owner}, not this machine ({hostname})",
-                "Use `cortex unlock --force` to override.",
-            )
-
-    lock_file.unlink()
-    print("Lock released.")
-
-
-# --- Hash and ingest state ---
-
-def _compute_hash(file_path: Path) -> str:
-    """Compute SHA-256 hash of file content."""
-    h = hashlib.sha256()
-    with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()[:16]
-
-
-def _read_ingest_state(knowledge_path: Path) -> dict[str, dict]:
-    """Read .ingest-state.md into a dict of {path: {hash, status, timestamp}}."""
-    state_file = knowledge_path / ".ingest-state.md"
-    state = {}
-    if not state_file.exists():
-        return state
-
-    for line in state_file.read_text().splitlines():
-        if not line.startswith("|") or line.startswith("| Path") or line.startswith("|--"):
-            continue
-        parts = [p.strip() for p in line.split("|")[1:-1]]
-        if len(parts) >= 4:
-            state[parts[0]] = {
-                "hash": parts[1],
-                "status": parts[2],
-                "timestamp": parts[3],
-            }
-    return state
-
-
-def _write_ingest_state(knowledge_path: Path, state: dict[str, dict]) -> None:
-    """Write ingest state back to .ingest-state.md."""
-    state_file = knowledge_path / ".ingest-state.md"
-    lines = [
-        "# Ingest State\n",
-        "| Path | Hash | Status | Timestamp |",
-        "|------|------|--------|-----------|",
-    ]
-    for path, info in sorted(state.items()):
-        lines.append(f"| {path} | {info['hash']} | {info['status']} | {info['timestamp']} |")
-    state_file.write_text("\n".join(lines) + "\n")
-
-
-def cmd_hash(file_path: str) -> None:
-    """Compute and print content hash of a file."""
-    path = Path(file_path).expanduser().resolve()
-    if not path.exists():
-        error(f"File not found: {path}")
-    h = _compute_hash(path)
-    print(h)
-
-
-def cmd_check(file_path: str) -> None:
-    """Check if a file has already been ingested."""
-    path = Path(file_path).expanduser().resolve()
-    if not path.exists():
-        error(f"File not found: {path}")
-
-    knowledge = get_knowledge_path()
-    state = _read_ingest_state(knowledge)
-    file_hash = _compute_hash(path)
-
-    # Check by hash (content match, regardless of path)
-    for recorded_path, info in state.items():
-        if info["hash"] == file_hash and info["status"] == "complete":
-            print(f"already-ingested | hash={file_hash} | original={recorded_path}")
-            return
-
-    # Check by path (might have changed)
-    store = get_store_path()
-    try:
-        rel_path = str(path.relative_to(store))
-    except ValueError:
-        rel_path = str(path)
-
-    if rel_path in state:
-        if state[rel_path]["status"] == "pending":
-            print(f"pending | hash={file_hash} | previous_hash={state[rel_path]['hash']}")
-            return
-        if state[rel_path]["hash"] != file_hash:
-            print(f"changed | new_hash={file_hash} | old_hash={state[rel_path]['hash']}")
-            return
-
-    print(f"new | hash={file_hash}")
-
-
-def cmd_mark_ingested(file_path: str, status: str = "complete") -> None:
-    """Record a file as ingested in .ingest-state.md."""
-    path = Path(file_path).expanduser().resolve()
-    if not path.exists():
-        error(f"File not found: {path}")
-
-    knowledge = get_knowledge_path()
-    store = get_store_path()
-    state = _read_ingest_state(knowledge)
-
-    try:
-        rel_path = str(path.relative_to(store))
-    except ValueError:
-        rel_path = str(path)
-
-    file_hash = _compute_hash(path)
-    state[rel_path] = {
-        "hash": file_hash,
-        "status": status,
-        "timestamp": _now(),
-    }
-    _write_ingest_state(knowledge, state)
-    print(f"Marked {rel_path} as {status} (hash={file_hash})")
-
-
-# --- Enumerate ---
-
-def _is_sensitive(path: Path) -> bool:
-    """Check if a file matches sensitive patterns."""
-    name = path.name.lower()
-    for part in path.parts:
-        if part.lower() in SENSITIVE_PATTERNS:
-            return True
-    if path.suffix.lower() in SENSITIVE_EXTENSIONS:
-        return True
-    for prefix in SENSITIVE_PREFIXES:
-        if name.startswith(prefix):
-            return True
-    return False
-
-
-def _is_supported(path: Path) -> bool:
-    """Check if file type is supported for ingestion."""
-    return path.suffix.lower() in SUPPORTED_EXTENSIONS
-
-
-def cmd_enumerate(dir_path: str, estimate: bool = False) -> None:
-    """List files eligible for bulk import."""
+def cmd_scan(dir_path: str) -> None:
+    """Discover files, classify, hash, and store in SQLite."""
     path = Path(dir_path).expanduser().resolve()
     if not path.is_dir():
         error(f"Not a directory: {path}")
 
-    knowledge = get_knowledge_path()
-    state = _read_ingest_state(knowledge)
-    existing_hashes = {
-        info["hash"] for info in state.values() if info["status"] == "complete"
+    store = get_store_path()
+    db = get_db()
+
+    # Don't scan the store itself
+    store_resolved = store.resolve()
+
+    stats = {
+        "discovered": 0,
+        "skipped_sensitive": 0,
+        "skipped_unknown": 0,
+        "already_known": 0,
+        "online_only": 0,
+        "triggered_downloads": 0,
+        "skipped_errors": 0,
     }
 
-    files = []
-    skipped_sensitive = 0
-    skipped_unsupported = 0
-    skipped_ingested = 0
-    total_bytes = 0
+    print(f"Scanning {path}...")
+    batch = []
+    seen_hashes: dict[str, str] = {}  # hash -> first path (in-batch dedup)
+    files_processed = 0
 
-    for root, _, filenames in os.walk(path):
+    for root, dirs, filenames in os.walk(path):
+        root_path = Path(root)
+
+        # Skip the store directory itself
+        if root_path.resolve() == store_resolved or str(root_path.resolve()).startswith(str(store_resolved) + "/"):
+            continue
+
+        # Skip hidden directories and sensitive patterns
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in SENSITIVE_PATTERNS]
+
         for name in sorted(filenames):
-            fpath = Path(root) / name
-            if _is_sensitive(fpath):
-                skipped_sensitive += 1
+            if name.startswith("."):
                 continue
-            if not _is_supported(fpath):
-                skipped_unsupported += 1
+
+            fpath = root_path / name
+
+            if is_sensitive(fpath):
+                stats["skipped_sensitive"] += 1
                 continue
-            # Check if already ingested
-            file_hash = _compute_hash(fpath)
-            if file_hash in existing_hashes:
-                skipped_ingested += 1
+
+            file_type = classify_file(fpath)
+            if file_type == "other":
+                stats["skipped_unknown"] += 1
                 continue
-            size = fpath.stat().st_size
-            total_bytes += size
-            files.append((str(fpath), size, file_hash))
 
-    # Output
-    if estimate:
-        # Each ingest: schema (~2K) + source (variable) + sub-index + pages = ~50K total
-        tokens_per_ingest = 50_000
-        total_tokens = len(files) * tokens_per_ingest
-        # Rough cost: $3/M input tokens (Claude Sonnet)
-        estimated_cost = total_tokens * 3 / 1_000_000
-        print("# Bulk Import Estimate\n")
-        print(f"Directory: {path}")
-        print(f"Eligible files: {len(files)}")
-        print(f"Total size: {total_bytes / 1024 / 1024:.1f} MB")
-        print(f"Estimated tokens: ~{total_tokens:,} (~{tokens_per_ingest:,}/file incl. schema + context)")
-        print(f"Estimated API cost: ~${estimated_cost:.2f} (at $3/M tokens)")
-        print(f"\nSkipped:")
-        print(f"  Sensitive: {skipped_sensitive}")
-        print(f"  Unsupported type: {skipped_unsupported}")
-        print(f"  Already ingested: {skipped_ingested}")
-    else:
-        for fpath, size, file_hash in files:
-            print(f"{file_hash} {size:>10} {fpath}")
-        print(f"\n---")
-        print(f"Total: {len(files)} files, {total_bytes / 1024 / 1024:.1f} MB")
-        if skipped_sensitive or skipped_unsupported or skipped_ingested:
-            print(f"Skipped: {skipped_sensitive} sensitive, {skipped_unsupported} unsupported, {skipped_ingested} already ingested")
+            abs_path = str(fpath.resolve())
+
+            # Check if already in database
+            existing = db.execute(
+                "SELECT hash, status FROM sources WHERE path = ?", (abs_path,)
+            ).fetchone()
+            if existing:
+                stats["already_known"] += 1
+                continue
+
+            # Get file size
+            try:
+                file_size = fpath.stat().st_size
+            except OSError:
+                stats["skipped_errors"] += 1
+                continue
+
+            # Extract source date from filename/path/mtime
+            source_date = extract_source_date(fpath)
+
+            # Catalog files (images, audio, video) — don't hash, just record metadata
+            if file_type in CATALOG_TYPES:
+                batch.append((
+                    abs_path, None, "new", file_type, file_size,
+                    0, source_date, _now(), None, None,
+                ))
+                stats["discovered"] += 1
+                files_processed += 1
+                if files_processed % 1000 == 0:
+                    print(f"  ...{files_processed} files processed")
+                    _insert_sources(db, batch)
+                    db.commit()
+                    batch = []
+                continue
+
+            # Readable files — hash content (triggers download for online-only)
+            file_hash = compute_hash(fpath)
+            is_online = file_hash is None
+
+            if is_online:
+                stats["online_only"] += 1
+                if file_type in READABLE_TYPES:
+                    stats["triggered_downloads"] += 1
+
+            # Check for duplicate content by hash (DB + in-memory for current batch)
+            if file_hash:
+                dup_path = seen_hashes.get(file_hash)
+                if not dup_path:
+                    dup = db.execute(
+                        "SELECT path FROM sources WHERE hash = ?",
+                        (file_hash,),
+                    ).fetchone()
+                    if dup:
+                        dup_path = dup["path"]
+                if dup_path:
+                    batch.append((
+                        abs_path, file_hash, "skipped", file_type, file_size,
+                        0, source_date, _now(),
+                        None, f"Duplicate of {dup_path}",
+                    ))
+                    stats["discovered"] += 1
+                    files_processed += 1
+                    if files_processed % 1000 == 0:
+                        print(f"  ...{files_processed} files processed")
+                        _insert_sources(db, batch)
+                        batch = []
+                    continue
+
+            if file_hash:
+                seen_hashes[file_hash] = abs_path
+
+            batch.append((
+                abs_path, file_hash, "new", file_type, file_size,
+                1 if is_online else 0, source_date, _now(), None, None,
+            ))
+            stats["discovered"] += 1
+            files_processed += 1
+
+            if files_processed % 1000 == 0:
+                print(f"  ...{files_processed} files processed")
+                _insert_sources(db, batch)
+                batch = []
+
+    # Final batch
+    if batch:
+        _insert_sources(db, batch)
+
+    db.commit()
+    db.close()
+
+    print(f"\n## Scan Results\n")
+    print(f"  New files discovered: {stats['discovered']}")
+    print(f"  Already in database:  {stats['already_known']}")
+    print(f"  Skipped (sensitive):  {stats['skipped_sensitive']}")
+    print(f"  Skipped (unknown):    {stats['skipped_unknown']}")
+    if stats["skipped_errors"]:
+        print(f"  Skipped (read error): {stats['skipped_errors']}")
+    if stats["online_only"]:
+        print(f"  Online-only:          {stats['online_only']}")
+        print(f"  Downloads triggered:  {stats['triggered_downloads']}")
+        print("\n  Online-only files will sync from Dropbox in the background.")
+        print("  Re-run `cortex scan` after they sync to compute hashes.")
 
 
-# --- Rebuild index ---
+def _insert_sources(db: sqlite3.Connection, batch: list[tuple]) -> None:
+    """Batch insert source records."""
+    db.executemany(
+        "INSERT OR IGNORE INTO sources "
+        "(path, hash, status, file_type, file_size, online_only, source_date, discovered_at, ingested_at, error) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        batch,
+    )
+
+
+# --- Triage ---
+
+# Triage patterns — files matching these are low-value
+TRIAGE_SKIP_PREFIXES = [
+    "A Brief ",        # Limitless ambient fragments
+    "A Short ",
+    "An Unrelated ",
+    "A Single ",
+]
+
+TRIAGE_MIN_SIZE = 500  # bytes — skip files smaller than this
+
+
+def cmd_triage() -> None:
+    """Pre-filter low-value files in the database."""
+    db = get_db()
+
+    # Count files eligible for triage
+    total = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE status = 'new'"
+    ).fetchone()["cnt"]
+
+    if total == 0:
+        print("No new files to triage. Run `cortex scan` first.")
+        db.close()
+        return
+
+    print(f"Triaging {total} new files...\n")
+    skipped = 0
+
+    # Skip by filename prefix (match only the filename after the last /)
+    for prefix in TRIAGE_SKIP_PREFIXES:
+        # Fetch candidates and filter in Python for accurate filename matching
+        candidates = db.execute(
+            "SELECT path FROM sources WHERE status = 'new' AND path LIKE ?",
+            (f"%/{prefix}%",),
+        ).fetchall()
+        paths_to_skip = [r["path"] for r in candidates if Path(r["path"]).name.startswith(prefix)]
+        if paths_to_skip:
+            db.executemany(
+                "UPDATE sources SET status = 'skipped', error = ? WHERE path = ?",
+                [(f"Triage: filename prefix '{prefix}'", p) for p in paths_to_skip],
+            )
+            skipped += len(paths_to_skip)
+
+    # Skip tiny files (likely empty or trivial)
+    cursor = db.execute(
+        "UPDATE sources SET status = 'skipped', error = 'Triage: file too small' "
+        "WHERE status = 'new' AND file_size < ? AND file_type IN ('text', 'code')",
+        (TRIAGE_MIN_SIZE,),
+    )
+    skipped += cursor.rowcount
+
+    # Skip duplicate Otter Transcripts (same name exists in Otter/)
+    cursor = db.execute("""
+        UPDATE sources SET status = 'skipped', error = 'Triage: duplicate transcript directory'
+        WHERE status = 'new' AND path LIKE '%/Otter Transcripts/%'
+        AND EXISTS (
+            SELECT 1 FROM sources s2
+            WHERE s2.path LIKE '%/Otter/%'
+            AND s2.path != sources.path
+            AND s2.hash = sources.hash
+        )
+    """)
+    skipped += cursor.rowcount
+
+    db.commit()
+
+    remaining = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE status = 'new'"
+    ).fetchone()["cnt"]
+
+    print(f"  Skipped: {skipped}")
+    print(f"  Remaining: {remaining}")
+    print(f"\nRun `cortex plan` to see prioritized ingest batches.")
+
+    db.close()
+
+
+# --- Plan ---
+
+def _extract_group(path_str: str) -> str:
+    """Extract a meaningful group name from a file path.
+
+    Returns the first two directory levels under a cloud storage root
+    (e.g. 'Data For AI/Conversations') for natural grouping in plan output.
+    """
+    parts = Path(path_str).parts
+    for i, part in enumerate(parts):
+        if part in ("Dropbox", "My Drive", "google-drive"):
+            remaining = parts[i + 1 : -1]  # dirs between root and filename
+            if not remaining:
+                return part
+            return "/".join(remaining[:2])
+    # Fallback: parent directory name
+    return Path(path_str).parent.name or "root"
+
+
+def cmd_plan() -> None:
+    """Show files ready for ingestion, grouped by source directory."""
+    db = get_db()
+
+    # Readable files (LLM will process these)
+    readable = db.execute(
+        "SELECT path, file_type, file_size, source_date FROM sources "
+        "WHERE status = 'new' AND file_type NOT IN ('image', 'audio', 'video') "
+        "ORDER BY source_date ASC NULLS LAST"
+    ).fetchall()
+
+    # Catalog files (metadata only, no LLM)
+    catalog = db.execute(
+        "SELECT COUNT(*) as cnt, SUM(file_size) as total_size FROM sources "
+        "WHERE status = 'new' AND file_type IN ('image', 'audio', 'video')"
+    ).fetchone()
+
+    if not readable and not catalog["cnt"]:
+        print("No files ready for ingestion. Run `cortex scan` and `cortex triage` first.")
+        db.close()
+        return
+
+    if readable:
+        # Group by source directory
+        groups: dict[str, list[sqlite3.Row]] = {}
+        for row in readable:
+            group = _extract_group(row["path"])
+            groups.setdefault(group, []).append(row)
+
+        print("## Files to Ingest\n")
+        for group_name in sorted(groups.keys()):
+            group_rows = groups[group_name]
+            total_size = sum(r["file_size"] or 0 for r in group_rows)
+            dates = [r["source_date"] for r in group_rows if r["source_date"]]
+            date_range = f" ({dates[0]} to {dates[-1]})" if dates else ""
+
+            print(f"### {group_name}")
+            print(f"{len(group_rows)} files, {total_size / 1024 / 1024:.1f} MB{date_range}\n")
+
+            for row in group_rows[:10]:
+                date = row["source_date"] or "no-date"
+                print(f"  {date}  {row['file_type']:<8}  {Path(row['path']).name}")
+
+            if len(group_rows) > 10:
+                print(f"  ... and {len(group_rows) - 10} more")
+            print()
+
+    if catalog["cnt"]:
+        size_mb = (catalog["total_size"] or 0) / 1024 / 1024
+        print(f"### Media (catalog only)")
+        print(f"{catalog['cnt']} files, {size_mb:.1f} MB — no LLM processing needed\n")
+
+    # Summary
+    print("## Summary\n")
+    total = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE status = 'new'"
+    ).fetchone()["cnt"]
+    complete = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE status = 'complete'"
+    ).fetchone()["cnt"]
+    skipped = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE status = 'skipped'"
+    ).fetchone()["cnt"]
+    errors = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE status = 'error'"
+    ).fetchone()["cnt"]
+    online = db.execute(
+        "SELECT COUNT(*) as cnt FROM sources WHERE online_only = 1 AND status = 'new'"
+    ).fetchone()["cnt"]
+
+    print(f"  Ready to ingest: {total}")
+    print(f"  Already complete: {complete}")
+    print(f"  Skipped: {skipped}")
+    if errors:
+        print(f"  Errors: {errors}")
+    if online:
+        print(f"  Waiting for sync: {online}")
+
+    db.close()
+
+
+
+
+# --- Link ---
+
+def cmd_link() -> None:
+    """Create symlink from OpenClaw memory to the Cortex store.
+
+    Run this AFTER ingest is complete. Each new file in the symlinked
+    directory triggers an OpenClaw re-index, so linking during bulk
+    ingest would cause constant re-indexing churn.
+    """
+    store = get_store_path()
+    _setup_symlink(store)
+    print("\nCortex store is now linked to OpenClaw memory.")
+    print("OpenClaw agents can navigate via: Knowledge Base/index.md")
+
+
+# --- Rebuild Index ---
 
 def _parse_frontmatter(file_path: Path) -> dict | None:
     """Parse YAML frontmatter from a markdown file."""
@@ -695,10 +914,8 @@ def _parse_frontmatter(file_path: Path) -> dict | None:
     if not content.startswith("---\n"):
         return None
 
-    # Find closing fence as a line boundary (not just any occurrence of ---)
     end = content.find("\n---\n", 4)
     if end == -1:
-        # Handle trailing fence at end of file
         if content.endswith("\n---"):
             end = len(content) - 4
         else:
@@ -709,7 +926,6 @@ def _parse_frontmatter(file_path: Path) -> dict | None:
     except yaml.YAMLError:
         return None
 
-    # safe_load can return non-dict types (list, str, int) for malformed YAML
     if not isinstance(result, dict):
         return None
     return result
@@ -717,7 +933,7 @@ def _parse_frontmatter(file_path: Path) -> dict | None:
 
 def cmd_rebuild_index() -> None:
     """Regenerate all indexes from knowledge page frontmatter."""
-    knowledge = get_knowledge_path()
+    store = get_store_path()
 
     category_entries: dict[str, list[tuple[str, str, str]]] = {
         cat: [] for cat in KNOWLEDGE_CATEGORIES
@@ -725,24 +941,22 @@ def cmd_rebuild_index() -> None:
     errors = []
 
     for cat in KNOWLEDGE_CATEGORIES:
-        cat_dir = knowledge / cat
+        cat_dir = store / cat
         if not cat_dir.is_dir():
             continue
         for page in sorted(cat_dir.iterdir()):
-            if page.name == "_index.md" or page.suffix != ".md":
+            if page.name == "index.md" or page.suffix != ".md":
                 continue
             fm = _parse_frontmatter(page)
             if fm is None:
                 errors.append(f"No frontmatter: {cat}/{page.name}")
                 continue
             title = fm.get("title", page.stem.replace("-", " ").title())
-            # Build one-line description from tags or first sentence
             tags = fm.get("tags", [])
             desc = ", ".join(tags[:3]) if tags else ""
-            rel_path = f"{page.name}"
-            category_entries[cat].append((rel_path, title, desc))
+            category_entries[cat].append((page.name, title, desc))
 
-    # Write sub-indexes
+    # Write category indexes
     total_pages = 0
     for cat, entries in category_entries.items():
         total_pages += len(entries)
@@ -754,29 +968,34 @@ def cmd_rebuild_index() -> None:
                 lines.append(f"- [{title}]({rel_path}){suffix}")
         else:
             lines.append("_No entries yet._")
-        sub_index = knowledge / cat / "_index.md"
-        sub_index.write_text("\n".join(lines) + "\n")
+        cat_index = store / cat / "index.md"
+        cat_index.write_text("\n".join(lines) + "\n")
 
     # Write root index
-    # Count completed ingests from state file
-    state = _read_ingest_state(knowledge)
-    completed_count = sum(1 for info in state.values() if info["status"] == "complete")
+    db_path = get_db_path()
+    completed_count = 0
+    if db_path.exists():
+        db = get_db()
+        completed_count = db.execute(
+            "SELECT COUNT(*) as cnt FROM sources WHERE status = 'complete'"
+        ).fetchone()["cnt"]
+        db.close()
 
     lines = [
         "# Cortex Index\n",
         f"Last updated: {_today()}",
         f"Total pages: {total_pages} | Sources ingested: {completed_count}\n",
         "## Categories\n",
-        "| Category | Pages | Sub-index |",
-        "|----------|-------|-----------|",
+        "| Category | Pages | Index |",
+        "|----------|-------|-------|",
     ]
     for cat in KNOWLEDGE_CATEGORIES:
         cat_title = cat.title().replace("-", " ")
         count = len(category_entries[cat])
-        lines.append(f"| {cat_title} | {count} | [{cat}/_index.md]({cat}/_index.md) |")
+        lines.append(f"| {cat_title} | {count} | [{cat}/index.md]({cat}/index.md) |")
 
     # Preserve recent activity from existing index
-    existing_index = knowledge / "index.md"
+    existing_index = store / "index.md"
     if existing_index.exists():
         content = existing_index.read_text()
         activity_match = re.search(r"## Recent Activity.*", content, re.DOTALL)
@@ -816,21 +1035,21 @@ USAGE = """\
 Usage: cortex <command> [args]
 
 Commands:
-  setup                     Detect cloud storage, initialize store, create symlinks
+  setup                     Detect cloud storage, initialize store
   status                    Show store statistics
-  lock                      Acquire advisory write lock
-  unlock [--force]          Release write lock
-  hash <file>               Compute content hash
-  check <file>              Check if file already ingested
-  mark-ingested <file>      Record file as ingested
-  mark-pending <file>       Record file as pending ingest
-  enumerate <dir>           List files eligible for bulk import
-  enumerate <dir> --estimate  Show cost estimate for bulk import
+  scan <dir>                Discover files, classify, hash, store in SQLite
+  triage                    Pre-filter low-value files in the database
+  plan                      Show files grouped by directory, sorted oldest-first
   rebuild-index             Regenerate all indexes from page frontmatter
+  link                      Symlink store into OpenClaw memory (run AFTER ingest)
 
-Cortex is a personal knowledge compiler. The CLI handles mechanical operations
-(setup, locking, hashing, state tracking). The LLM handles knowledge compilation
-by following schema.md instructions.\
+For document extraction (PDF, DOCX, PPTX, etc.), use docling directly:
+  docling convert <file> --format md
+  Install: uv tool install docling
+
+Cortex is a personal knowledge compiler. The CLI handles bulk mechanical
+operations (scanning, triage, indexing). The LLM handles knowledge
+compilation by following schema.md instructions.\
 """
 
 
@@ -846,37 +1065,29 @@ def main() -> None:
         cmd_setup()
     elif cmd == "status":
         cmd_status()
-    elif cmd == "lock":
-        cmd_lock()
-    elif cmd == "unlock":
-        force = "--force" in args
-        cmd_unlock(force=force)
-    elif cmd == "hash":
+    elif cmd == "scan":
         if len(args) < 2:
-            error("Missing file path", "Usage: cortex hash <file>")
-        cmd_hash(args[1])
-    elif cmd == "check":
-        if len(args) < 2:
-            error("Missing file path", "Usage: cortex check <file>")
-        cmd_check(args[1])
-    elif cmd == "mark-ingested":
-        if len(args) < 2:
-            error("Missing file path", "Usage: cortex mark-ingested <file>")
-        cmd_mark_ingested(args[1], status="complete")
-    elif cmd == "mark-pending":
-        if len(args) < 2:
-            error("Missing file path", "Usage: cortex mark-pending <file>")
-        cmd_mark_ingested(args[1], status="pending")
-    elif cmd == "enumerate":
-        if len(args) < 2:
-            error("Missing directory path", "Usage: cortex enumerate <dir> [--estimate]")
-        estimate = "--estimate" in args
-        cmd_enumerate(args[1], estimate=estimate)
+            error("Missing directory path", "Usage: cortex scan <dir>")
+        cmd_scan(args[1])
+    elif cmd == "triage":
+        cmd_triage()
+    elif cmd == "plan":
+        cmd_plan()
     elif cmd == "rebuild-index":
         cmd_rebuild_index()
+    elif cmd == "link":
+        cmd_link()
     else:
         error(f"Unknown command: {cmd}", "Run `cortex help` for available commands.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        sys.exit(130)
+    except Exception as e:
+        print(f"cortex: unexpected error: {e}", file=sys.stderr)
+        print("If this persists, delete ~/.config/cortex/config and run `cortex setup`.", file=sys.stderr)
+        sys.exit(1)
