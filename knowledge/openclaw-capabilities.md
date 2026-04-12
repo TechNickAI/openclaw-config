@@ -75,7 +75,7 @@ OpenClaw includes a built-in cron scheduler that runs jobs on configurable sched
 - **Job health visibility** — `openclaw cron status` shows all jobs with last run time,
   error count, and model used
 
-**Current job inventory (Nick's instance):** 15 active jobs spanning health monitoring,
+**Current job inventory (example instance):** 15 active jobs spanning health monitoring,
 email triage, contact management, daily briefings, knowledge curation, and more —
 running from every 15 minutes to weekly schedules.
 
