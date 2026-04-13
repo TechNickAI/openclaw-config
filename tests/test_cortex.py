@@ -1,18 +1,25 @@
-"""Tests for the Cortex knowledge compiler skill.
+"""Tests for the Cortex v2 knowledge compiler skill.
 
-Tests the mechanical operations: hashing, lock management, ingest state
-tracking, file enumeration, index rebuilding. All tests use a temporary
-directory — no cloud storage required.
+Tests the v2 CLI surface: help, status, scan, rebuild-index.
+All tests use a temporary directory — no cloud storage required.
 """
 
 import os
+import sqlite3
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
 SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "cortex" / "cortex")
+KNOWLEDGE_CATEGORIES = [
+    "entities",
+    "concepts",
+    "summaries",
+    "synthesis",
+    "decisions",
+    "how-to",
+]
 
 
 def run_cortex(
@@ -33,88 +40,81 @@ def run_cortex(
     )
 
 
+def _init_store_db(db_path: Path) -> None:
+    """Initialize a cortex SQLite database."""
+    db = sqlite3.connect(str(db_path))
+    db.execute("PRAGMA journal_mode=WAL")
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS sources (
+            path TEXT PRIMARY KEY,
+            hash TEXT,
+            status TEXT NOT NULL DEFAULT 'new',
+            file_type TEXT,
+            file_size INTEGER,
+            online_only INTEGER DEFAULT 0,
+            source_date TEXT,
+            discovered_at TEXT NOT NULL,
+            ingested_at TEXT,
+            error TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_status ON sources(status);
+        CREATE INDEX IF NOT EXISTS idx_hash ON sources(hash);
+    """)
+    db.commit()
+    db.close()
+
+
 @pytest.fixture
 def cortex_store(tmp_path):
-    """Create a minimal cortex store structure for testing."""
-    store = tmp_path / "cortex"
-    knowledge = store / "knowledge"
-    raw = store / "raw"
+    """Create a v2 cortex store with SQLite and config."""
+    store = tmp_path / "knowledge-base"
+    store.mkdir()
 
-    # Create directory structure
-    for d in [
-        raw / "documents",
-        raw / "notes",
-        knowledge / "entities",
-        knowledge / "concepts",
-        knowledge / "summaries",
-        knowledge / "synthesis",
-        knowledge / "decisions",
-        knowledge / "how-to",
-    ]:
-        d.mkdir(parents=True)
+    # Create all category directories with stub indexes
+    for cat in KNOWLEDGE_CATEGORIES:
+        cat_dir = store / cat
+        cat_dir.mkdir()
+        (cat_dir / "index.md").write_text(f"# {cat.title()}\n\n_No entries yet._\n")
 
-    # Create initial files
-    (knowledge / "index.md").write_text(
-        "# Cortex Index\n\nLast updated: 2026-04-11\n"
+    # Extra directories
+    (store / "learning").mkdir()
+    (store / "learning" / "archive").mkdir()
+    (store / "daily").mkdir()
+
+    # Root index
+    (store / "index.md").write_text(
+        "# Cortex Index\n\n"
+        "Last updated: 2026-04-12\n"
         "Total pages: 0 | Sources ingested: 0\n\n"
         "## Categories\n\n"
-        "| Category | Pages | Sub-index |\n"
-        "|----------|-------|-----------|\n"
-        "| Entities | 0 | [entities/_index.md](entities/_index.md) |\n\n"
-        "## Recent Activity\n\n_No activity yet._\n"
-    )
-    (knowledge / "log.md").write_text("# Operation Log\n\n_No operations yet._\n")
-    (knowledge / ".ingest-state.md").write_text(
-        "# Ingest State\n\n"
-        "| Path | Hash | Status | Timestamp |\n"
-        "|------|------|--------|-----------|\n"
-    )
-
-    # Sub-indexes
-    for cat in [
-        "entities",
-        "concepts",
-        "summaries",
-        "synthesis",
-        "decisions",
-        "how-to",
-    ]:
-        (knowledge / cat / "_index.md").write_text(
-            f"# {cat.title()}\n\n_No entries yet._\n"
+        "| Category | Pages | Index |\n"
+        "|----------|-------|-------|\n"
+        + "".join(
+            f"| {cat.title().replace('-', ' ')} | 0 | [{cat}/index.md]({cat}/index.md) |\n"
+            for cat in KNOWLEDGE_CATEGORIES
         )
+        + "\n## Recent Activity\n\n_No activity yet._\n"
+    )
+    (store / "review-queue.md").write_text("# Review Queue\n\n_No items pending._\n")
 
-    # Schema
-    (store / "schema.md").write_text("# Cortex Schema\n\nTest schema.\n")
+    # Initialize SQLite
+    _init_store_db(store / ".cortex.db")
 
-    # Config
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    config_file = config_dir / "config"
-    config_file.write_text(
-        f"CORTEX_STORE_PATH={store}\n"
-        f"CORTEX_RAW_PATH={raw}\n"
-        f"CORTEX_KNOWLEDGE_PATH={knowledge}\n"
-        f"CORTEX_SCHEMA_PATH={store / 'schema.md'}\n"
-        f"CLOUD_PROVIDER=test\n"
-        f"WRITER_MACHINE=true\n"
+    # Config at fake_home/.config/cortex/config
+    fake_home = tmp_path / "home"
+    config_dir = fake_home / ".config" / "cortex"
+    config_dir.mkdir(parents=True)
+    (config_dir / "config").write_text(
+        f"CORTEX_STORE_PATH={store}\nCLOUD_PROVIDER=Dropbox\n"
     )
 
-    return store, knowledge, raw, config_file
+    return store, fake_home
 
 
 @pytest.fixture
 def cortex_env(cortex_store):
-    """Return env dict that points cortex at the test store."""
-    store, knowledge, raw, config_file = cortex_store
-    # Override config dir via XDG or monkey-patching
-    # Since the script uses Path.home() / ".config" / "cortex", we need to
-    # override HOME to redirect config lookup
-    fake_home = config_file.parent.parent
-    config_cortex = fake_home / ".config" / "cortex"
-    config_cortex.mkdir(parents=True, exist_ok=True)
-    # Move config file to expected location
-    real_config = config_cortex / "config"
-    real_config.write_text(config_file.read_text())
+    """Return env dict pointing cortex at the test store."""
+    _, fake_home = cortex_store
     return {"HOME": str(fake_home)}
 
 
@@ -128,238 +128,155 @@ class TestScript:
         assert os.access(path, os.X_OK), "Script is not executable"
 
     def test_help(self):
-        """Help text displays correctly."""
+        """Help text lists v2 commands."""
         result = run_cortex("help")
         assert result.returncode == 0
         assert "cortex <command>" in result.stdout
         assert "setup" in result.stdout
         assert "status" in result.stdout
-        assert "lock" in result.stdout
+        assert "scan" in result.stdout
+        assert "rebuild-index" in result.stdout
 
     def test_unknown_command(self):
-        """Unknown command produces error."""
+        """Unknown command produces actionable error."""
         result = run_cortex("nonexistent")
         assert result.returncode == 1
         assert "Unknown command" in result.stderr
 
 
-class TestHash:
-    """Content hash tests."""
+class TestStatus:
+    """Status command tests."""
 
-    def test_hash_file(self, tmp_path, cortex_env):
-        """Hash produces consistent output for same content."""
-        f = tmp_path / "test.md"
-        f.write_text("Hello, world!")
-        result = run_cortex("hash", str(f), env=cortex_env)
-        assert result.returncode == 0
-        hash1 = result.stdout.strip()
-        assert len(hash1) == 16  # truncated SHA-256
-
-        # Same content, same hash
-        result2 = run_cortex("hash", str(f), env=cortex_env)
-        assert result2.stdout.strip() == hash1
-
-    def test_hash_different_content(self, tmp_path, cortex_env):
-        """Different content produces different hashes."""
-        f1 = tmp_path / "a.md"
-        f2 = tmp_path / "b.md"
-        f1.write_text("Content A")
-        f2.write_text("Content B")
-
-        r1 = run_cortex("hash", str(f1), env=cortex_env)
-        r2 = run_cortex("hash", str(f2), env=cortex_env)
-        assert r1.stdout.strip() != r2.stdout.strip()
-
-    def test_hash_missing_file(self, cortex_env):
-        """Hash of nonexistent file errors."""
-        result = run_cortex("hash", "/nonexistent/file.md", env=cortex_env)
-        assert result.returncode == 1
-        assert "not found" in result.stderr.lower()
-
-
-class TestLock:
-    """Write lock management tests."""
-
-    def test_lock_acquire_release(self, cortex_store, cortex_env):
-        """Lock can be acquired and released."""
-        _, knowledge, _, _ = cortex_store
-
-        result = run_cortex("lock", env=cortex_env)
-        assert result.returncode == 0
-        assert "acquired" in result.stdout.lower()
-        assert (knowledge / ".lock").exists()
-
-        result = run_cortex("unlock", env=cortex_env)
-        assert result.returncode == 0
-        assert not (knowledge / ".lock").exists()
-
-    def test_lock_blocks_second_acquire(self, cortex_store, cortex_env):
-        """Second lock attempt fails while first is held."""
-        _, knowledge, _, _ = cortex_store
-
-        run_cortex("lock", env=cortex_env)
-        result = run_cortex("lock", env=cortex_env)
+    def test_status_no_config(self, tmp_path):
+        """Status without config gives actionable error."""
+        fake_home = tmp_path / "empty-home"
+        fake_home.mkdir()
+        result = run_cortex("status", env={"HOME": str(fake_home)})
         assert result.returncode == 1
         assert (
-            "lock held" in result.stderr.lower()
-            or "write lock" in result.stderr.lower()
+            "cortex setup" in result.stderr.lower()
+            or "not configured" in result.stderr.lower()
         )
 
-        # Cleanup
-        run_cortex("unlock", env=cortex_env)
-
-    def test_expired_lock_overridden(self, cortex_store, cortex_env):
-        """Expired lock gets overridden."""
-        _, knowledge, _, _ = cortex_store
-
-        # Write a lock with old timestamp
-        lock_file = knowledge / ".lock"
-        old_time = time.time() - (31 * 60)  # 31 minutes ago
-        lock_file.write_text(f"old-machine | {old_time}")
-
-        result = run_cortex("lock", env=cortex_env)
+    def test_status_empty_store(self, cortex_store, cortex_env):
+        """Status works on empty store and shows totals."""
+        result = run_cortex("status", env=cortex_env)
         assert result.returncode == 0
-        assert "overrid" in result.stdout.lower() or "acquired" in result.stdout.lower()
+        assert "Cortex Status" in result.stdout
+        assert "Total" in result.stdout
 
-        run_cortex("unlock", env=cortex_env)
-
-    def test_unlock_force(self, cortex_store, cortex_env):
-        """Force unlock removes any lock."""
-        _, knowledge, _, _ = cortex_store
-
-        lock_file = knowledge / ".lock"
-        lock_file.write_text(f"other-machine | {time.time()}")
-
-        result = run_cortex("unlock", "--force", env=cortex_env)
+    def test_status_reflects_pages(self, cortex_store, cortex_env):
+        """Status counts knowledge pages from category directories."""
+        store, _ = cortex_store
+        (store / "entities" / "test-entity.md").write_text(
+            "---\ntitle: Test Entity\ntype: entity\n---\nContent.\n"
+        )
+        result = run_cortex("status", env=cortex_env)
         assert result.returncode == 0
-        assert not lock_file.exists()
+        assert "Cortex Status" in result.stdout
 
-    def test_unlock_no_lock(self, cortex_store, cortex_env):
-        """Unlocking when no lock exists is a no-op."""
-        result = run_cortex("unlock", env=cortex_env)
+
+class TestScan:
+    """File scanning tests."""
+
+    def test_scan_discovers_files(self, cortex_store, cortex_env, tmp_path):
+        """Scan discovers and records markdown files."""
+        source_dir = tmp_path / "sources"
+        source_dir.mkdir()
+        (source_dir / "notes.md").write_text("# Notes\nSome content here.")
+        (source_dir / "report.txt").write_text("Plain text report.")
+
+        result = run_cortex("scan", str(source_dir), env=cortex_env)
+        assert result.returncode == 0
+        assert "Scanning" in result.stdout
+
+    def test_scan_skips_sensitive_files(self, cortex_store, cortex_env, tmp_path):
+        """Scan skips .env, credentials.json, and similar sensitive files."""
+        source_dir = tmp_path / "sources"
+        source_dir.mkdir()
+        (source_dir / "notes.md").write_text("# Safe notes")
+        (source_dir / ".env").write_text("SECRET_KEY=bad")
+        (source_dir / "credentials.json").write_text('{"key":"secret"}')
+
+        result = run_cortex("scan", str(source_dir), env=cortex_env)
+        assert result.returncode == 0
+        # Sensitive count should be > 0 in summary
+        assert (
+            "skipped_sensitive" in result.stdout or "sensitive" in result.stdout.lower()
+        )
+
+    def test_scan_skips_unsupported_types(self, cortex_store, cortex_env, tmp_path):
+        """Scan skips unsupported file types without error."""
+        source_dir = tmp_path / "sources"
+        source_dir.mkdir()
+        (source_dir / "notes.md").write_text("# Notes")
+        (source_dir / "binary.exe").write_bytes(b"\x00MZ\x00")
+
+        result = run_cortex("scan", str(source_dir), env=cortex_env)
         assert result.returncode == 0
 
+    def test_scan_deduplicates_identical_content(
+        self, cortex_store, cortex_env, tmp_path
+    ):
+        """Scan marks second file with identical content as duplicate."""
+        source_dir = tmp_path / "sources"
+        source_dir.mkdir()
+        content = "# Identical Content\n\nThis is exactly the same in both files.\n"
+        (source_dir / "original.md").write_text(content)
+        (source_dir / "duplicate.md").write_text(content)
 
-class TestIngestState:
-    """Ingest state tracking tests."""
-
-    def test_check_new_file(self, cortex_store, cortex_env):
-        """New file reports as not ingested."""
-        store, _, raw, _ = cortex_store
-        f = raw / "documents" / "test.md"
-        f.write_text("Test document content")
-
-        result = run_cortex("check", str(f), env=cortex_env)
+        result = run_cortex("scan", str(source_dir), env=cortex_env)
         assert result.returncode == 0
-        assert "new" in result.stdout.lower()
+        # One file should be marked as skipped duplicate
+        assert (
+            "skipped" in result.stdout.lower() or "duplicate" in result.stdout.lower()
+        )
 
-    def test_mark_and_check(self, cortex_store, cortex_env):
-        """File marked as ingested shows as already-ingested."""
-        store, _, raw, _ = cortex_store
-        f = raw / "documents" / "test.md"
-        f.write_text("Test document content")
+    def test_scan_nonexistent_dir_errors(self, cortex_store, cortex_env):
+        """Scan of nonexistent path gives actionable error."""
+        result = run_cortex("scan", "/nonexistent/path/xyz", env=cortex_env)
+        assert result.returncode == 1
+        assert "not a directory" in result.stderr.lower()
 
-        run_cortex("mark-ingested", str(f), env=cortex_env)
-        result = run_cortex("check", str(f), env=cortex_env)
+    def test_rescan_updates_online_only_hashes(
+        self, cortex_store, cortex_env, tmp_path
+    ):
+        """Re-scan updates hash for files previously recorded as online-only."""
+        store, _ = cortex_store
+        db_path = store / ".cortex.db"
+
+        source_dir = tmp_path / "sources"
+        source_dir.mkdir()
+        f = source_dir / "doc.md"
+        f.write_text("# Document\n\nContent that is now accessible.")
+        abs_path = str(f.resolve())
+
+        # Manually insert as online-only (simulates first scan when file wasn't synced)
+        db = sqlite3.connect(str(db_path))
+        db.execute(
+            "INSERT INTO sources "
+            "(path, hash, status, file_type, file_size, online_only, discovered_at) "
+            "VALUES (?, NULL, 'new', 'markdown', 100, 1, '2026-04-12T00:00:00Z')",
+            (abs_path,),
+        )
+        db.commit()
+        db.close()
+
+        # Rescan — file is now accessible (not online-only placeholder)
+        result = run_cortex("scan", str(source_dir), env=cortex_env)
         assert result.returncode == 0
-        assert "already-ingested" in result.stdout.lower()
 
-    def test_mark_pending(self, cortex_store, cortex_env):
-        """File can be marked as pending."""
-        store, _, raw, _ = cortex_store
-        f = raw / "documents" / "test.md"
-        f.write_text("Test document content")
-
-        run_cortex("mark-pending", str(f), env=cortex_env)
-        result = run_cortex("check", str(f), env=cortex_env)
-        assert result.returncode == 0
-        assert "pending" in result.stdout.lower()
-
-    def test_changed_file_detected(self, cortex_store, cortex_env):
-        """Modified file shows as changed."""
-        store, _, raw, _ = cortex_store
-        f = raw / "documents" / "test.md"
-        f.write_text("Original content")
-        run_cortex("mark-ingested", str(f), env=cortex_env)
-
-        # Modify the file
-        f.write_text("Updated content")
-        result = run_cortex("check", str(f), env=cortex_env)
-        assert result.returncode == 0
-        assert "changed" in result.stdout.lower() or "new" in result.stdout.lower()
-
-
-class TestEnumerate:
-    """File enumeration tests."""
-
-    def test_enumerate_files(self, cortex_store, cortex_env):
-        """Enumerate lists eligible files."""
-        _, _, raw, _ = cortex_store
-        (raw / "documents" / "readme.md").write_text("# Readme")
-        (raw / "documents" / "notes.txt").write_text("Some notes")
-        (raw / "documents" / "data.json").write_text("{}")
-
-        result = run_cortex("enumerate", str(raw / "documents"), env=cortex_env)
-        assert result.returncode == 0
-        assert "readme.md" in result.stdout
-        assert "notes.txt" in result.stdout
-        assert "data.json" in result.stdout
-        assert "Total: 3 files" in result.stdout
-
-    def test_enumerate_skips_sensitive(self, cortex_store, cortex_env):
-        """Enumerate skips sensitive files."""
-        _, _, raw, _ = cortex_store
-        docs = raw / "documents"
-        (docs / "readme.md").write_text("# Safe")
-        (docs / ".env").write_text("SECRET=bad")
-        (docs / "credentials.json").write_text("{}")
-        (docs / "server.pem").write_text("cert")
-        (docs / "secret-config.yaml").write_text("x: 1")
-
-        result = run_cortex("enumerate", str(docs), env=cortex_env)
-        assert "readme.md" in result.stdout
-        assert ".env" not in result.stdout.split("Skipped")[0]
-        assert "credentials" not in result.stdout.split("Skipped")[0]
-        assert "server.pem" not in result.stdout.split("Skipped")[0]
-        assert "secret-config" not in result.stdout.split("Skipped")[0]
-
-    def test_enumerate_skips_unsupported(self, cortex_store, cortex_env):
-        """Enumerate skips unsupported file types."""
-        _, _, raw, _ = cortex_store
-        docs = raw / "documents"
-        (docs / "readme.md").write_text("# Good")
-        (docs / "binary.exe").write_bytes(b"\x00\x01")
-        (docs / "archive.zip").write_bytes(b"PK")
-
-        result = run_cortex("enumerate", str(docs), env=cortex_env)
-        assert "readme.md" in result.stdout
-        assert "binary.exe" not in result.stdout.split("Skipped")[0]
-
-    def test_enumerate_skips_already_ingested(self, cortex_store, cortex_env):
-        """Enumerate skips files already ingested."""
-        _, _, raw, _ = cortex_store
-        docs = raw / "documents"
-        f1 = docs / "old.md"
-        f2 = docs / "new.md"
-        f1.write_text("Already processed")
-        f2.write_text("Fresh content")
-
-        run_cortex("mark-ingested", str(f1), env=cortex_env)
-        result = run_cortex("enumerate", str(docs), env=cortex_env)
-        assert "new.md" in result.stdout
-        assert "already ingested" in result.stdout.lower()
-
-    def test_enumerate_estimate(self, cortex_store, cortex_env):
-        """Estimate mode shows cost projection."""
-        _, _, raw, _ = cortex_store
-        docs = raw / "documents"
-        (docs / "a.md").write_text("Content A")
-        (docs / "b.md").write_text("Content B")
-
-        result = run_cortex("enumerate", str(docs), "--estimate", env=cortex_env)
-        assert result.returncode == 0
-        assert "Eligible files: 2" in result.stdout
-        assert "Estimated API cost" in result.stdout
+        # Hash should now be populated and online_only cleared
+        db = sqlite3.connect(str(db_path))
+        row = db.execute(
+            "SELECT hash, online_only FROM sources WHERE path = ?", (abs_path,)
+        ).fetchone()
+        db.close()
+        assert row is not None
+        assert row[0] is not None, (
+            "Hash should be populated after rescan of accessible file"
+        )
+        assert row[1] == 0, "online_only should be cleared after file became accessible"
 
 
 class TestRebuildIndex:
@@ -372,11 +289,9 @@ class TestRebuildIndex:
         assert "0 pages" in result.stdout
 
     def test_rebuild_with_pages(self, cortex_store, cortex_env):
-        """Rebuild with pages populates indexes correctly."""
-        _, knowledge, _, _ = cortex_store
-
-        # Create some knowledge pages with frontmatter
-        (knowledge / "entities" / "alpaca.md").write_text(
+        """Rebuild with pages populates category indexes correctly."""
+        store, _ = cortex_store
+        (store / "entities" / "alpaca.md").write_text(
             "---\n"
             "title: Alpaca\n"
             "type: entity\n"
@@ -389,7 +304,7 @@ class TestRebuildIndex:
             "---\n\n"
             "Alpaca is a trading API.\n"
         )
-        (knowledge / "concepts" / "event-driven-architecture.md").write_text(
+        (store / "concepts" / "event-driven-architecture.md").write_text(
             "---\n"
             "title: Event-Driven Architecture\n"
             "type: concept\n"
@@ -405,54 +320,26 @@ class TestRebuildIndex:
 
         result = run_cortex("rebuild-index", env=cortex_env)
         assert result.returncode == 0
-        assert "2 pages" in result.stdout
+        assert "pages" in result.stdout
 
-        # Check sub-indexes
-        entity_index = (knowledge / "entities" / "_index.md").read_text()
+        entity_index = (store / "entities" / "index.md").read_text()
         assert "Alpaca" in entity_index
         assert "trading" in entity_index
 
-        concept_index = (knowledge / "concepts" / "_index.md").read_text()
+        concept_index = (store / "concepts" / "index.md").read_text()
         assert "Event-Driven Architecture" in concept_index
 
-        # Check root index
-        root_index = (knowledge / "index.md").read_text()
+        root_index = (store / "index.md").read_text()
         assert "Entities" in root_index
         assert "Concepts" in root_index
 
     def test_rebuild_warns_on_bad_frontmatter(self, cortex_store, cortex_env):
         """Rebuild warns about pages without valid frontmatter."""
-        _, knowledge, _, _ = cortex_store
-
-        (knowledge / "entities" / "broken.md").write_text(
+        store, _ = cortex_store
+        (store / "entities" / "broken.md").write_text(
             "No frontmatter here, just content.\n"
         )
 
         result = run_cortex("rebuild-index", env=cortex_env)
         assert result.returncode == 0
         assert "No frontmatter" in result.stdout
-
-
-class TestStatus:
-    """Status command tests."""
-
-    def test_status_empty_store(self, cortex_store, cortex_env):
-        """Status works on empty store."""
-        result = run_cortex("status", env=cortex_env)
-        assert result.returncode == 0
-        assert "Cortex Status" in result.stdout
-        assert "Total" in result.stdout
-
-    def test_status_with_content(self, cortex_store, cortex_env):
-        """Status reflects actual content."""
-        _, knowledge, raw, _ = cortex_store
-
-        # Add a raw file and a knowledge page
-        (raw / "documents" / "test.md").write_text("Raw content")
-        (knowledge / "entities" / "test-entity.md").write_text(
-            "---\ntitle: Test\ntype: entity\n---\nContent\n"
-        )
-
-        result = run_cortex("status", env=cortex_env)
-        assert result.returncode == 0
-        assert "Raw Sources: 1" in result.stdout

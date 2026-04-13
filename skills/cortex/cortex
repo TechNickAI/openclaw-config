@@ -427,8 +427,8 @@ def _deploy_schema(schema_path: Path) -> None:
         )
 
 
-def _setup_symlink(store_path: Path) -> None:
-    """Create symlink from OpenClaw memory to store."""
+def _setup_symlink(store_path: Path) -> bool:
+    """Create symlink from OpenClaw memory to store. Returns True if linked."""
     openclaw_memory = Path.home() / ".openclaw" / "memory"
 
     # Create ~/.openclaw/memory if it doesn't exist
@@ -442,19 +442,20 @@ def _setup_symlink(store_path: Path) -> None:
         current_target = symlink_path.resolve()
         if current_target == store_path.resolve():
             print(f"Symlink already correct: {symlink_path} -> {store_path}")
-            return
+            return True
         print(f"Existing symlink points to: {current_target}")
         confirm = input(f"Update to {store_path}? [y/N]: ").strip().lower()
         if confirm not in ("y", "yes"):
             print("Symlink not updated.")
-            return
+            return False
         symlink_path.unlink()
     elif symlink_path.exists():
         print(f"Warning: {symlink_path} exists and is not a symlink. Skipping.")
-        return
+        return False
 
     symlink_path.symlink_to(store_path)
     print(f"Symlink created: {symlink_path} -> {store_path}")
+    return True
 
     # Create MEMORY.md routing table if it doesn't exist
     memory_md = openclaw_memory / "MEMORY.md"
@@ -596,9 +597,17 @@ def cmd_scan(dir_path: str) -> None:
 
             # Check if already in database
             existing = db.execute(
-                "SELECT hash, status FROM sources WHERE path = ?", (abs_path,)
+                "SELECT hash, status, online_only FROM sources WHERE path = ?", (abs_path,)
             ).fetchone()
             if existing:
+                # Retry hash for previously online-only files that may now be accessible
+                if existing["hash"] is None and existing["online_only"]:
+                    file_hash = compute_hash(fpath)
+                    if file_hash:
+                        db.execute(
+                            "UPDATE sources SET hash = ?, online_only = 0 WHERE path = ?",
+                            (file_hash, abs_path),
+                        )
                 stats["already_known"] += 1
                 continue
 
@@ -657,6 +666,7 @@ def cmd_scan(dir_path: str) -> None:
                     if files_processed % 1000 == 0:
                         print(f"  ...{files_processed} files processed")
                         _insert_sources(db, batch)
+                        db.commit()
                         batch = []
                     continue
 
@@ -673,6 +683,7 @@ def cmd_scan(dir_path: str) -> None:
             if files_processed % 1000 == 0:
                 print(f"  ...{files_processed} files processed")
                 _insert_sources(db, batch)
+                db.commit()
                 batch = []
 
     # Final batch
@@ -833,8 +844,13 @@ def cmd_plan() -> None:
             group = _extract_group(row["path"])
             groups.setdefault(group, []).append(row)
 
+        # Sort groups by their oldest source date (rows already sorted ASC by query)
+        def _group_oldest(name: str) -> str:
+            dates = [r["source_date"] for r in groups[name] if r["source_date"]]
+            return dates[0] if dates else "9999-99-99"
+
         print("## Files to Ingest\n")
-        for group_name in sorted(groups.keys()):
+        for group_name in sorted(groups.keys(), key=_group_oldest):
             group_rows = groups[group_name]
             total_size = sum(r["file_size"] or 0 for r in group_rows)
             dates = [r["source_date"] for r in group_rows if r["source_date"]]
@@ -897,9 +913,9 @@ def cmd_link() -> None:
     ingest would cause constant re-indexing churn.
     """
     store = get_store_path()
-    _setup_symlink(store)
-    print("\nCortex store is now linked to OpenClaw memory.")
-    print("OpenClaw agents can navigate via: Knowledge Base/index.md")
+    if _setup_symlink(store):
+        print("\nCortex store is now linked to OpenClaw memory.")
+        print("OpenClaw agents can navigate via: Knowledge Base/index.md")
 
 
 # --- Rebuild Index ---
