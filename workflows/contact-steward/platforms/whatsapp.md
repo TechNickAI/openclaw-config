@@ -229,8 +229,8 @@ contact is cosmetic normalization where the canonical name tokens are unchanged.
    only -> **unsaved contact, process it** f. No entry at all -> **unknown contact,
    process it**
 7. If saved + no enrichment: skip
-8. If saved + normalization-only difference: you may normalize, or surface it in the
-   batch summary if you want confirmation
+8. If saved + normalization-only difference: spawn the work tier to apply it — scanner
+   never writes
 9. If saved + substantive name difference: do not write automatically, ask the human
 10. If unsaved: cross-reference on other platforms, then spawn the work tier if still
     unresolved

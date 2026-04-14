@@ -266,14 +266,14 @@ Before first scan, check `PRAGMA user_version`:
    and no new messages since last_checked → skip. c. If found with status `error` →
    treat as new, retry (counts toward cap). d. Is the other party a saved contact on
    this platform? Check for enrichment (new messages with contact-relevant info). If the
-   only name difference is light normalization, you may apply it. If the proposed name
-   would add/remove/swap substantive name tokens, do not write it automatically — batch
-   it for human approval. If no new info, update last_checked and skip. e. Not a saved
-   contact? Cross-reference the phone number on other platforms (especially
-   `wacli contacts search <number>`) f. Found info (cross-reference match, profile name,
-   or conversation clues)? Spawn the work tier with everything you gathered. It verifies
-   and writes the contact. g. No match anywhere? Spawn the work tier with full
-   conversation context for detective work.
+   only name difference is light normalization, spawn the work tier to apply it —
+   scanner never writes. If the proposed name would add/remove/swap substantive name
+   tokens, do not write it automatically — batch it for human approval. If no new info,
+   update last_checked and skip. e. Not a saved contact? Cross-reference the phone
+   number on other platforms (especially `wacli contacts search <number>`) f. Found info
+   (cross-reference match, profile name, or conversation clues)? Spawn the work tier
+   with everything you gathered. It verifies and writes the contact. g. No match
+   anywhere? Spawn the work tier with full conversation context for detective work.
 6. After each contact, upsert into processed.db with the outcome status and timestamp
 7. Notify your human with a batch summary of what was added and what needs their input
 8. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
