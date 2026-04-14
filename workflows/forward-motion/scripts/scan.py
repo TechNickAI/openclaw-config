@@ -130,7 +130,7 @@ def _parse_topic_lines(lines: list[str], human_id: int | None) -> list[dict[str,
 def _parse_bot_lines(lines: list[str]) -> list[dict[str, Any]]:
     bots: list[dict[str, Any]] = []
     for line in lines:
-        if any(line.startswith(prefix) for prefix in ["| Bot", "|-----", "|---"]):
+        if any(line.startswith(prefix) for prefix in ["| Bot |", "|-----", "|---"]):
             continue
         parts = [p.strip() for p in line.split("|")[1:-1]]
         try:
@@ -160,7 +160,7 @@ def _parse_bot_lines(lines: list[str]) -> list[dict[str, Any]]:
 def _parse_group_lines(lines: list[str]) -> list[dict[str, Any]]:
     groups: list[dict[str, Any]] = []
     for line in lines:
-        if any(line.startswith(prefix) for prefix in ["| Group", "|-----", "|---"]):
+        if any(line.startswith(prefix) for prefix in ["| Group |", "|-----", "|---"]):
             continue
         parts = [p.strip() for p in line.split("|")[1:-1]]
         try:
