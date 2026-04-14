@@ -61,17 +61,47 @@ end tell'
 ```
 
 **Performance note:** Searching by name is fast. Iterating all contacts to search by
-phone number is extremely slow (large contact lists). Prefer name-based lookups.
+phone number is extremely slow (large contact lists). Prefer name-based lookups for the
+initial saved/not-saved check.
 
 To check by phone number efficiently, cross-reference the number against
 `wacli contacts search "<number>"` first to get a name, then search Apple Contacts by
 that name.
+
+**Before any write, do a phone-number conflict check (mandatory):** if the phone number
+already exists on any Apple Contact under a different name, stop and ask the human. Do
+not add the number to another card and do not auto-merge identities. A wrong phone
+number on the wrong person is worse than a missed add.
+
+Example conflict check:
+
+```bash
+osascript -e '
+tell application "Contacts"
+    set outList to {}
+    repeat with p in every person
+        repeat with ph in phones of p
+            if value of ph is "<+1XXXXXXXXXX>" then
+                set end of outList to name of p
+            end if
+        end repeat
+    end repeat
+    return outList
+end tell'
+```
+
+If this returns any name other than the intended contact, treat it as `ask_human`.
 
 ### Adding Contacts to Apple Contacts
 
 **iMessage contacts ARE Apple Contacts** — this is the correct place to add contacts for
 this platform. Use AppleScript to manage them directly. Do NOT add contacts to WhatsApp
 or Quo from here — cross-referencing for lookup is fine, cross-writing is not.
+
+**Existing-contact rule:** For a contact that is already saved in Apple Contacts, the
+only automatic mutation allowed is cosmetic name normalization where the canonical name
+is unchanged. Do **not** auto-attach a new phone number, email address, or other routing
+identifier to an existing saved contact. That always requires human approval.
 
 **Input sanitization (MANDATORY — security critical):** Names come from WhatsApp
 profiles, conversation text, and other untrusted sources. A malicious profile name like
@@ -139,6 +169,10 @@ tell application "Contacts"
 end tell'
 ```
 
+Only use enrichment writes like email/address updates after explicit human approval for
+that exact existing contact. Do not treat a guessed match as permission to attach new
+identifiers.
+
 You can also add email, address, etc:
 
 ```bash
@@ -205,7 +239,8 @@ iMessage gets more spam than WhatsApp. Common patterns to skip:
 6. Cross-reference (if WhatsApp is configured): `wacli contacts search "<number>"` to
    get a name. If WhatsApp is not available, skip to step 7b.
 7. a. If name found via WhatsApp: check Apple Contacts by name. If missing, spawn the
-   work tier with the name and number to verify and add to Apple Contacts. b. If no name
-   from cross-reference (or WhatsApp not configured): spawn the work tier with the full
-   conversation — it will look for self-introductions, context clues, and check other
-   available platforms.
+   work tier with the name and number to verify and add to Apple Contacts. Before any
+   eventual write, the work tier must run the phone-number conflict check above. b. If
+   no name from cross-reference (or WhatsApp not configured): spawn the work tier with
+   the full conversation — it will look for self-introductions, context clues, and check
+   other available platforms.

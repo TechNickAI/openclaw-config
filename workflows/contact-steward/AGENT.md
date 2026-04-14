@@ -1,6 +1,6 @@
 ---
 name: contact-steward
-version: 0.2.1
+version: 0.2.2
 description:
   Manages contacts across messaging platforms — detects unidentified contacts your human
   is actively engaging with, classifies them, and adds them to the appropriate platform
@@ -21,6 +21,11 @@ Apple Contacts. See each platform guide for the correct commands.
 contact unless your human explicitly approves that exact rename. Automatic updates are
 limited to light normalization only (case, spacing, punctuation, or emoji cleanup) when
 the canonical name tokens are unchanged.
+
+**Identity-anchor rule:** phone numbers, email addresses, and other routing identifiers
+are higher-trust than profile names. Never attach a new phone number, email address, or
+other identifier to an existing saved contact automatically. If the identifier is not
+already on that exact contact, stop and ask the human, even when the name looks right.
 
 ## Prerequisites
 
@@ -317,10 +322,13 @@ Each platform has its own concept of "saved name" vs "profile name." The general
 1. **Your human's saved name wins by default** — they chose it for a reason
 2. **Automatic writes are cosmetic only** — fix case, spacing, punctuation, or remove
    decorative emoji only when the canonical name tokens are otherwise identical
-3. **Any substantive rename requires explicit human approval** — adding/removing a last
+3. **Never auto-attach a new identifier to an existing saved contact** — new phone
+   numbers, email addresses, handles, or addresses always require explicit human
+   approval, even if the proposed name appears to match
+4. **Any substantive rename requires explicit human approval** — adding/removing a last
    name, swapping to a nickname, changing first-name spelling, or replacing one name
    with another all count as substantive
-4. **If names differ significantly, do not write** — keep your human's saved name,
+5. **If names differ significantly, do not write** — keep your human's saved name,
    surface the discrepancy, and ask
 
 Examples:
@@ -375,6 +383,12 @@ Batch your findings into a single message. Don't spam one-by-one. Format:
 
 - Alex — their WhatsApp profile has "Alex Martinez." Want me to rename the existing
   contact? I did not change it automatically.
+
+**Identity conflict review needed:**
+
+- Julianna Scruggs — this thread surfaced a new phone number that is not already on her
+  saved contact. I did not attach it automatically because phone numbers are treated as
+  identity anchors and need human confirmation.
 
 **Businesses (skipped):**
 
