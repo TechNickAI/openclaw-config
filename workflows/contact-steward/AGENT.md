@@ -1,6 +1,6 @@
 ---
 name: contact-steward
-version: 0.2.0
+version: 0.2.1
 description:
   Manages contacts across messaging platforms — detects unidentified contacts your human
   is actively engaging with, classifies them, and adds them to the appropriate platform
@@ -16,6 +16,11 @@ contact **on the platform where the conversation is happening**.
 `wacli`, Quo contacts through `quo`, and iMessage contacts through Apple Contacts. Don't
 cross-write — if you find an unknown WhatsApp contact, add them in WhatsApp, not in
 Apple Contacts. See each platform guide for the correct commands.
+
+**Trust rule:** existing saved contact names are sticky. Never fully rename an existing
+contact unless your human explicitly approves that exact rename. Automatic updates are
+limited to light normalization only (case, spacing, punctuation, or emoji cleanup) when
+the canonical name tokens are unchanged.
 
 ## Prerequisites
 
@@ -260,13 +265,15 @@ Before first scan, check `PRAGMA user_version`:
    a. Check processed.db for this platform + contact_id. b. If found, not an `error`,
    and no new messages since last_checked → skip. c. If found with status `error` →
    treat as new, retry (counts toward cap). d. Is the other party a saved contact on
-   this platform? Check for enrichment (new messages with contact-relevant info). If no
-   new info, update last_checked and skip. e. Not a saved contact? Cross-reference the
-   phone number on other platforms (especially `wacli contacts search <number>`) f.
-   Found info (cross-reference match, profile name, or conversation clues)? Spawn the
-   work tier with everything you gathered. It verifies and writes the contact. g. No
-   match anywhere? Spawn the work tier with full conversation context for detective
-   work.
+   this platform? Check for enrichment (new messages with contact-relevant info). If the
+   only name difference is light normalization, you may apply it. If the proposed name
+   would add/remove/swap substantive name tokens, do not write it automatically — batch
+   it for human approval. If no new info, update last_checked and skip. e. Not a saved
+   contact? Cross-reference the phone number on other platforms (especially
+   `wacli contacts search <number>`) f. Found info (cross-reference match, profile name,
+   or conversation clues)? Spawn the work tier with everything you gathered. It verifies
+   and writes the contact. g. No match anywhere? Spawn the work tier with full
+   conversation context for detective work.
 6. After each contact, upsert into processed.db with the outcome status and timestamp
 7. Notify your human with a batch summary of what was added and what needs their input
 8. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
@@ -308,17 +315,19 @@ sessions_spawn:
 Each platform has its own concept of "saved name" vs "profile name." The general rule:
 
 1. **Your human's saved name wins by default** — they chose it for a reason
-2. **BUT if the profile name is more complete, prefer it** — and flag it as enrichment
-3. **"More complete" means:** has a last name when the saved name is first-only, same
-   first name (so clearly the same person, just more info)
-4. **If names differ significantly** (not just completeness), keep your human's but note
-   the discrepancy
+2. **Automatic writes are cosmetic only** — fix case, spacing, punctuation, or remove
+   decorative emoji only when the canonical name tokens are otherwise identical
+3. **Any substantive rename requires explicit human approval** — adding/removing a last
+   name, swapping to a nickname, changing first-name spelling, or replacing one name
+   with another all count as substantive
+4. **If names differ significantly, do not write** — keep your human's saved name,
+   surface the discrepancy, and ask
 
 Examples:
 
-- Saved "Alex", profile "Alex Martinez" — enrichment: suggest updating to full name
+- Saved "Alex", profile "Alex Martinez" — do not auto-update, ask first
 - Saved "Brigitte Huff", profile "Brigitte" — keep saved (more complete)
-- Saved "Sarah Kraut", profile "sarah kraut" — keep saved (same info, cleaner)
+- Saved "Sarah Kraut", profile "sarah kraut" — normalization only, safe to clean
 - No saved name, profile "natalie adele" — use "Natalie Adele" (title case)
 
 When suggesting a contact addition or update, always provide both names if they differ
@@ -362,9 +371,10 @@ Batch your findings into a single message. Don't spam one-by-one. Format:
 - Marcus Rodriguez — added email marcus@example.com (he mentioned it in your WhatsApp
   conversation)
 
-**Name enrichment:**
+**Name review needed:**
 
-- Alex — their WhatsApp profile has "Alex Martinez." Want me to update the contact?
+- Alex — their WhatsApp profile has "Alex Martinez." Want me to rename the existing
+  contact? I did not change it automatically.
 
 **Businesses (skipped):**
 

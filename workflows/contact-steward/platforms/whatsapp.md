@@ -146,12 +146,18 @@ notifications, or suggesting contact additions), use this priority:
 ### For Saved Contacts (full_name exists)
 
 1. **Default to `full_name`** — this is what your human chose to save
-2. **BUT if `push_name` is more complete, prefer it:**
-   - `full_name` is one word, `push_name` has two+ words with the same first name
-   - Example: `full_name` = "Alex", `push_name` = "Alex Martinez" -> use "Alex Martinez"
-   - This is an **enrichment opportunity** — suggest updating the contact
-3. **If they differ significantly** (different names entirely), use `full_name` but note
-   the discrepancy — your human may have intentionally named them differently
+2. **Automatic updates are cosmetic only:**
+   - Safe examples: case cleanup, spacing cleanup, punctuation cleanup, decorative emoji
+     removal
+   - The canonical name tokens must remain the same after normalization
+   - Example: `full_name` = "Sarah Kraut", `push_name` = "sarah kraut" -> safe
+     normalization
+3. **Any substantive rename requires explicit human approval:**
+   - Adding/removing a last name, switching to a nickname, changing first-name spelling,
+     or replacing one name with another all count as substantive
+   - Example: `full_name` = "Alex", `push_name` = "Alex Martinez" -> ask first
+4. **If they differ significantly**, use `full_name`, note the discrepancy, and do not
+   write automatically
 
 ### For Unsaved Contacts (no full_name)
 
@@ -167,20 +173,20 @@ notifications, or suggesting contact additions), use this priority:
 2. Flag as business -> skip per workflow rules
 3. Log in `processed.db` with any human contact name found in conversation
 
-### "More Complete" Check
+### Normalization vs. Rename Check
 
-A name A is more complete than name B when:
-
-- A has more name parts (first + last vs. first only)
-- A's first name/word matches B (so it's the same person, just more detail)
-- After stripping emoji and normalizing case
+Treat a change as **normalization-only** when the name is the same person string after
+stripping emoji, normalizing case, and collapsing whitespace/punctuation differences. If
+the token set changes, it is a rename and needs approval.
 
 Example comparisons:
 
-- "Alex Martinez" > "Alex" (more complete, same person) -> enrichment
-- "Seth Gordon" vs "Seth" (more complete) -> use Seth Gordon
-- "natalie adele" vs "Natalie" -> push_name is more complete
-- "Brigitte" vs "Brigitte Huff" -> full_name is more complete (keep it)
+- "Sarah Kraut" vs "sarah kraut" -> normalization-only
+- "Oaxana Sri" vs "✨ Oaxana Sri ✨" -> normalization-only
+- "Alex Martinez" vs "Alex" -> rename, ask first
+- "Seth Gordon" vs "Seth" -> rename, ask first
+- "Thomas Owen" vs "Julianna Scruggs" -> different identity, never auto-write
+- "Brigitte" vs "Brigitte Huff" -> rename, ask first
 
 ---
 
@@ -199,6 +205,9 @@ wacli contacts tags add "<JID>" "<tag>"
 
 Setting an alias effectively "saves" the contact in WhatsApp with the name you choose.
 This is the correct action for unknown contacts — set their alias to the resolved name.
+Do **not** use alias writes to fully rename an already-saved contact unless your human
+explicitly approved that rename. The only safe automatic write for an existing saved
+contact is cosmetic normalization where the canonical name tokens are unchanged.
 
 ---
 
@@ -220,9 +229,11 @@ This is the correct action for unknown contacts — set their alias to the resol
    only -> **unsaved contact, process it** f. No entry at all -> **unknown contact,
    process it**
 7. If saved + no enrichment: skip
-8. If saved + enrichment (push_name more complete than full_name): flag for update
-9. If unsaved: cross-reference on other platforms, then spawn the work tier if still
-   unresolved
+8. If saved + normalization-only difference: you may normalize, or surface it in the
+   batch summary if you want confirmation
+9. If saved + substantive name difference: do not write automatically, ask the human
+10. If unsaved: cross-reference on other platforms, then spawn the work tier if still
+    unresolved
 
 ### Batch SQL for Efficiency
 

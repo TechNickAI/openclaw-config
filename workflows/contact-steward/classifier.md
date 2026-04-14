@@ -92,10 +92,14 @@ Pull everything you can:
 
 Use the name resolution rules from the platform guide:
 
-- If they have a profile/push name, that's what they want to be known as — prefer it
+- If they have a profile/push name, that's what they want to be known as for **new**
+  contacts
 - Strip decorative emoji for the formal contact name, but note the original
-- If your human has already saved them with a different name, keep theirs unless the
-  profile name is more complete (adds a last name to a first-name-only entry)
+- If your human has already saved them with a different name, do **not** fully rename
+  the contact unless the human explicitly approves it
+- The only automatic update allowed for an existing saved contact is light
+  normalization, where the canonical name tokens stay the same and you are only fixing
+  case, spacing, punctuation, or decorative emoji
 - Title-case names that come in all-lowercase or all-caps
 
 ### Add the Contact
@@ -105,6 +109,10 @@ platform manages its own contacts — WhatsApp via `wacli`, Quo via `quo`, iMess
 Apple Contacts. Read the relevant platform guide in `platforms/` for the correct
 commands.
 
+For an **existing saved** contact, a substantive rename is approval-gated. If the new
+name changes the canonical tokens (for example Alex -> Alex Martinez, Sarah -> Sally, or
+Thomas -> Julianna), do not write it. Return `ask_human` instead.
+
 **Do NOT cross-update.** If you find an unknown WhatsApp contact and discover their name
 via Apple Contacts or Quo, use that info to add them in WhatsApp — but don't touch the
 other platforms' contact databases. Cross-referencing for lookup is fine; cross-writing
@@ -113,11 +121,19 @@ is not.
 ### Handle Uncertainty
 
 **High confidence** (they said their name, clear context, or profile name is a
-recognizable full name): — Add the contact. Report what you added.
+recognizable full name):
+
+- If this is a **new** contact, add it and report what you added.
+- If this is an **existing saved** contact and the change is normalization-only, update
+  it.
+- If this is an **existing saved** contact and the change is a substantive rename, do
+  not write. Ask the human.
 
 **Medium confidence** (profile name exists but could be a nickname, or name comes from a
-group chat mention): — Add the contact with what you have. Note the uncertainty: "Added
-Marcus Rodriguez based on WhatsApp profile name. Let me know if the name is different."
+group chat mention):
+
+- For a **new** contact, add it with what you have and note the uncertainty.
+- For an **existing saved** contact, do not rename it. Ask the human.
 
 **Low confidence** (no name anywhere, only contextual clues): — Don't add. Report:
 "You've been texting +1-555-1234 — they mentioned [clue]. Do you know who this is?"
