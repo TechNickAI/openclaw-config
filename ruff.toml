@@ -1,6 +1,6 @@
 exclude = ["**/migrations", "**/node_modules"]
 line-length = 88
-target-version = "py311"
+target-version = "py313"
 
 [lint]
 extend-ignore = [
