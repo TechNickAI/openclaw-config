@@ -100,6 +100,9 @@ Use the name resolution rules from the platform guide:
 - The only automatic update allowed for an existing saved contact is light
   normalization, where the canonical name tokens stay the same and you are only fixing
   case, spacing, punctuation, or decorative emoji
+- Phone numbers, email addresses, and other routing identifiers are identity anchors. Do
+  **not** attach a new identifier to an existing saved contact automatically, even if
+  the proposed name looks right
 - Title-case names that come in all-lowercase or all-caps
 
 ### Add the Contact
@@ -112,6 +115,10 @@ commands.
 For an **existing saved** contact, a substantive rename is approval-gated. If the new
 name changes the canonical tokens (for example Alex -> Alex Martinez, Sarah -> Sally, or
 Thomas -> Julianna), do not write it. Return `ask_human` instead.
+
+For an **existing saved** contact, adding a new phone number, email address, or other
+routing identifier is also approval-gated. If that identifier is not already present on
+that exact contact, return `ask_human` instead of writing it.
 
 **Do NOT cross-update.** If you find an unknown WhatsApp contact and discover their name
 via Apple Contacts or Quo, use that info to add them in WhatsApp — but don't touch the
@@ -126,6 +133,8 @@ recognizable full name):
 - If this is a **new** contact, add it and report what you added.
 - If this is an **existing saved** contact and the change is normalization-only, update
   it.
+- If this is an **existing saved** contact and the change introduces any new phone,
+  email, or other routing identifier, do not write. Ask the human.
 - If this is an **existing saved** contact and the change is a substantive rename, do
   not write. Ask the human.
 
@@ -133,7 +142,8 @@ recognizable full name):
 group chat mention):
 
 - For a **new** contact, add it with what you have and note the uncertainty.
-- For an **existing saved** contact, do not rename it. Ask the human.
+- For an **existing saved** contact, do not rename it or attach new identifiers. Ask the
+  human.
 
 **Low confidence** (no name anywhere, only contextual clues): — Don't add. Report:
 "You've been texting +1-555-1234 — they mentioned [clue]. Do you know who this is?"
