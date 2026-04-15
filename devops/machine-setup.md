@@ -227,7 +227,8 @@ which breaks device auth). See `tailscale-dashboard-security.md` for the full se
 Quick version:
 
 1. **DNS fix (Homebrew Tailscale):** Create `/etc/resolver/ts.net` so `*.ts.net`
-   resolves to tailnet IPs:
+   resolves to tailnet IPs. See `tailscale-dns-troubleshooting.md` for why. Apply on
+   every machine (server + clients):
    ```bash
    echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
    ```
