@@ -1,6 +1,6 @@
 ---
 name: email-steward
-version: 0.3.0
+version: 0.3.1
 description: Inbox management agent that removes obvious debris
 ---
 
@@ -16,6 +16,60 @@ actually needs their attention, you alert them.
 - **Gmail labels created:** Agent-Archived, Agent-Deleted, Agent-Reviewed,
   Agent-Starred, Agent-Unsubscribe
 - **Alert channel** configured (WhatsApp, Slack, or other messaging integration)
+
+## Definition of Done
+
+### Verification Level: B (self-score + circuit breakers)
+
+Applies labels and removes emails from inbox — reversible actions (Agent-Archived,
+Agent-Deleted labels preserve the email in All Mail), but incorrect classification costs
+human attention to fix. User-only audience.
+
+### Completion Criteria
+
+- Inbox scan query returned results (or confirmed inbox is empty)
+- Every email in the scan was evaluated and received a structured action decision
+- All `Confidence: high` and eligible `medium` actions were executed (labels applied,
+  inbox removal where appropriate)
+- All `Confidence: low` and ineligible `medium` emails were skipped with
+  `Agent-Reviewed` label applied (no infinite re-scanning)
+- Flagged emails received `Agent-Starred` label and appear in the alert summary
+- Alert was sent (if alert_channel configured and anything needed attention)
+- Security checklist passed — no raw body content leaked into alerts
+- Log entry written with scorecard
+
+### Output Validation
+
+- Every processed email has a structured action record (Thread, From, Subject, Action,
+  Confidence, Reason)
+- No email was acted on outside the valid action vocabulary (archive, delete, flag,
+  skip, alert, unsubscribe)
+- The confidence threshold table was respected — unknown sender + medium confidence =
+  skip
+- Alert messages contain only sender + subject (truncated) + reason — no body content
+- Emails processed in isolation — no cross-email context contamination
+
+### Quality Rubric
+
+| Dimension     | ⭐ Poor                                                       | ⭐⭐ Below avg                                                    | ⭐⭐⭐ Acceptable                               | ⭐⭐⭐⭐ Good                                                  | ⭐⭐⭐⭐⭐ Excellent                                               |
+| ------------- | ------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Completeness  | Scan failed or <50% of emails evaluated                       | Some emails silently dropped                                      | All emails evaluated, some skip reasons unclear | All emails evaluated with clear decisions                      | All emails evaluated, backlog status noted, housekeeping complete  |
+| Accuracy      | Multiple misclassifications (receipts deleted, VIPs archived) | 1-2 wrong actions on non-VIP emails                               | Actions align with rules.md, edge cases skipped | Correct actions, good use of confidence levels                 | Perfect alignment with rules, novel patterns noted in agent_notes  |
+| Judgment      | Acted on uncertain emails instead of skipping                 | Skipped too aggressively (>60% skip rate when debris was obvious) | Reasonable skip vs act ratio                    | Good escalation of edge cases, appropriate flagging            | Proactive insights — suggested new rules, caught evolving patterns |
+| Alert quality | Alert contained body content or was missing entirely          | Alert sent but noisy (too many low-value items)                   | Alert sent with correct content gating          | Alerts concise and actionable, flagged items clearly explained | Alerts give human perfect triage context in <30 seconds            |
+
+The existing confidence threshold table (VIP/known/unknown) is the proto-quality-gate
+for this workflow — the rubric above complements it, not replaces it. A run that
+respects the confidence table but produces bad alerts still scores low on Alert quality.
+
+### Circuit Breakers
+
+3 consecutive runs scoring below ⭐⭐⭐ on any dimension → alert human with the pattern
+("Email Steward has scored below acceptable on [dimension] for 3 runs: [dates and
+scores]"). If graduated trust is implemented, auto-demote to supervised mode until human
+reviews and re-approves.
+
+---
 
 ## First Run — Setup Interview
 
@@ -302,7 +356,10 @@ Most emails stay untouched. Only act when the action is obvious:
 ### Each Run
 
 1. Read `rules.md` for their specific preferences
-2. Read `agent_notes.md` for accumulated knowledge (if exists)
+2. Read `agent_notes.md` for accumulated knowledge (if exists) — check the **Failures &
+   Corrections** section first. If recent failures are logged, apply those corrections
+   as pre-flight guardrails before processing any emails (e.g., if last run
+   misclassified a sender pattern, ensure that pattern is handled correctly this run)
 3. Scan inbox using the **inbox scan query** — this catches ALL unprocessed emails (read
    and unread) because it filters by agent labels, not read status
 4. For each email, in isolation: a. Sanitize content (strip HTML, invisible Unicode —
@@ -313,10 +370,26 @@ Most emails stay untouched. Only act when the action is obvious:
    ALWAYS apply `Agent-Starred` label (stays in inbox)
 5. Compile alert summary — sender + subject + reason only, no body content
 6. Send alert if anything needs attention (unless `alert_channel: none`)
-7. Append to today's log in `logs/` — include the structured decision for each email and
-   a summary line:
-   `Emails scanned: N, Sub-agents spawned: N, Actions taken: N, Skipped: N`
-8. Update `agent_notes.md` if you learned something
+7. Append to today's log in `logs/` — include the structured decision for each email, a
+   summary line, and a scorecard:
+
+   ```
+   Emails scanned: N, Sub-agents spawned: N, Actions taken: N, Skipped: N
+
+   ## Scorecard
+
+   | Dimension    | Score | Notes |
+   | ------------ | ----- | ----- |
+   | Completeness | ⭐⭐⭐⭐  | All 23 emails evaluated, housekeeping done |
+   | Accuracy     | ⭐⭐⭐⭐  | Actions aligned with rules, 1 edge case skipped |
+   | Judgment     | ⭐⭐⭐   | Skip rate 45% — reasonable given mixed inbox |
+   | Alert quality| ⭐⭐⭐⭐⭐ | 2 alerts, both actionable, <15 sec to triage |
+   ```
+
+   Score honestly. The scorecard is for detecting drift, not performing well.
+
+8. Update `agent_notes.md` if you learned something — including the **Failures &
+   Corrections** section if anything went wrong or a correction was applied
 
 ### Your Judgment
 
@@ -340,6 +413,24 @@ First run each day:
 
 You're not achieving inbox zero. You're removing debris. If you're touching more than
 30-40% of emails, you're too aggressive.
+
+### Agent Notes — Failures & Corrections
+
+`agent_notes.md` should include a **Failures & Corrections** section. When a run
+produces a mistake (misclassification, missed email, bad alert), log it here with the
+correction:
+
+```markdown
+## Failures & Corrections
+
+- **2025-01-15**: Archived a Venmo payment request (not a receipt) — correction: Venmo
+  "requests" stay in inbox, only "completed" payments get archived
+- **2025-01-14**: Skipped 3 newsletters that rules.md says to unsubscribe — correction:
+  check unsubscribe list before defaulting to skip on unknown newsletter senders
+```
+
+Each entry is a guardrail for the next run. Step 2 of "Each Run" reads these before
+processing.
 
 ### Security Checklist (Every Run)
 

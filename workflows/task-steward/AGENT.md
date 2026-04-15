@@ -1,6 +1,6 @@
 ---
 name: task-steward
-version: 0.1.0
+version: 0.1.1
 description: AI-powered task management with quality verification
 ---
 
@@ -14,6 +14,53 @@ quality delivery.
 - **Asana MCP** configured (see `skills/asana/SKILL.md`)
 - **Asana project** set up with sections (see TOOLS.md for IDs)
 - **Tags** created for workflow states
+
+## Definition of Done
+
+### Verification Level: B (self-score + circuit breakers)
+
+Creates and modifies tasks in Asana, spawns work and QA sub-agents, delivers results to
+human. Incorrect task creation is low-cost to fix (edit/delete in Asana), but incorrect
+work execution wastes time and erodes trust. User-only audience.
+
+### Completion Criteria
+
+- Incoming message was classified correctly (Q&A vs Task)
+- Tasks were created in the correct Asana section with clear name and success criteria
+- Work execution produced deliverables that match the original request
+- QA agent reviewed work before delivery (for tasks routed through READY FOR REVIEW)
+- Delivery notification included summary, deliverables, and Asana link
+- Periodic review checked for stuck/blocked tasks (if running as scheduled)
+- Log entry written with scorecard
+
+### Output Validation
+
+- Task descriptions include the original request (quoted), success criteria, and context
+- Work comments show incremental progress (not just start and finish)
+- QA review checked completeness, accuracy, and quality before approving
+- Delivery message is scannable — human can decide in <30 seconds whether to act on it
+- Blocked tasks are tagged and moved to WAITING with a clear explanation
+
+### Quality Rubric
+
+| Dimension               | ⭐ Poor                                                  | ⭐⭐ Below avg                                                | ⭐⭐⭐ Acceptable                                        | ⭐⭐⭐⭐ Good                                                  | ⭐⭐⭐⭐⭐ Excellent                                                    |
+| ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Classification accuracy | Q&A treated as Task or vice versa, causing delays        | Borderline cases misrouted occasionally                       | Clear cases routed correctly, borderline cases escalated | Nuanced classification using conversation signals              | Proactive — anticipated multi-step needs before human asked             |
+| Execution quality       | Work delivered incomplete or incorrect                   | Minor gaps in deliverables, missing edge cases                | Work matches request, basic quality met                  | Thorough work with good commentary and alternatives considered | Exceptional output that exceeds the brief, well-documented reasoning    |
+| QA pass rate            | QA rejected >50% of work, delivery delayed significantly | QA caught multiple issues per task                            | QA mostly approves, catches 1-2 minor issues             | QA approves clean work, feedback is polish-level               | QA adds value beyond checking — suggests improvements human appreciates |
+| Delivery clarity        | Delivery message is confusing or missing context         | Summary exists but requires re-reading the task to understand | Clear summary with deliverables listed                   | Summary + key findings + Asana link, scannable in <30 sec      | Human can act immediately — no follow-up questions needed               |
+
+The existing QA agent (think model) is the proto-quality-gate for this workflow — the
+rubric above complements it by scoring the end-to-end flow, not just the QA step.
+
+### Circuit Breakers
+
+3 consecutive runs scoring below ⭐⭐⭐ on any dimension → alert human with the pattern
+("Task Steward has scored below acceptable on [dimension] for 3 runs: [dates and
+scores]"). If graduated trust is implemented, auto-demote to supervised mode (all task
+executions require human approval before delivery) until human reviews and re-approves.
+
+---
 
 ## Core Concepts
 
@@ -41,6 +88,16 @@ quality delivery.
 ---
 
 ## The Flow
+
+### 0. Pre-Flight
+
+Before processing any messages or tasks:
+
+1. Read `rules.md` for preferences and IDs
+2. Read `agent_notes.md` (if exists) — check the **Failures & Corrections** section
+   first. If recent failures are logged, apply those corrections as guardrails before
+   proceeding (e.g., if last run misclassified a research request as Q&A, ensure similar
+   requests are routed as Tasks this run)
 
 ### 1. Task Classification
 
@@ -296,6 +353,70 @@ Local preferences for this installation:
 - If blocked >24 hours: alert human
 - VIP tasks (from NOW/TODAY): alert on any blocker immediately
 ```
+
+---
+
+## Log Format
+
+Each run appends to `logs/<YYYY-MM-DD>.md`. Include:
+
+```markdown
+# Task Steward Run
+
+Date: <timestamp>
+
+## Summary
+
+- Messages processed: <N>
+- Classified as Q&A: <N>
+- Classified as Task: <N>
+- Tasks created: <N>
+- Tasks completed and delivered: <N>
+- QA reviews: <N> (passed: <N>, rejected: <N>)
+- Blocked tasks found: <N>
+- Periodic review actions: <N>
+
+## Scorecard
+
+| Dimension               | Score      | Notes                                   |
+| ----------------------- | ---------- | --------------------------------------- |
+| Classification accuracy | ⭐⭐⭐⭐   | 3 tasks, 2 Q&A — all clearly routed     |
+| Execution quality       | ⭐⭐⭐     | 1 task needed revision after QA         |
+| QA pass rate            | ⭐⭐⭐⭐   | 2/3 passed first time, 1 minor revision |
+| Delivery clarity        | ⭐⭐⭐⭐⭐ | Human acted on all 3 without follow-up  |
+
+## Actions
+
+[For each task/Q&A: classification, action taken, outcome]
+
+## Errors
+
+[Any Asana API failures, sub-agent errors, or blocked task details]
+```
+
+Score honestly. The scorecard is for detecting drift, not performing well.
+
+---
+
+## Agent Notes — Failures & Corrections
+
+`agent_notes.md` should include a **Failures & Corrections** section. When a run
+produces a mistake (misclassification, bad task creation, QA miss), log it here with the
+correction:
+
+```markdown
+## Failures & Corrections
+
+- **2025-01-15**: Classified "research competitor pricing" as Q&A and gave a shallow
+  answer — should have been a Task with depth. Correction: any request involving
+  "research" + a topic that needs multiple sources → classify as Task
+- **2025-01-14**: QA approved a task where the deliverable was missing the requested
+  format (human wanted a table, got prose). Correction: QA must check deliverable format
+  against success criteria, not just content accuracy
+```
+
+Each entry is a guardrail for the next run. Step 0 (Pre-Flight) reads these before
+processing.
 
 ---
 

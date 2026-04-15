@@ -1,6 +1,6 @@
 ---
 name: learning-loop
-version: 0.1.0
+version: 0.1.1
 description:
   Self-improvement system that captures corrections, detects patterns, and promotes
   validated learnings
@@ -43,6 +43,37 @@ logged to          grouped into     evidence get      archived,
 corrections.md     pattern          promoted to       preventing
                    candidates       permanent home    bloat
 ```
+
+## Definition of Done
+
+### Verification Level: A (log only)
+
+Internal pattern management — all state changes are append-only markdown writes to files
+the human can review. Promotions to workflow-specific agent_notes are low-risk and
+easily reversed. Fundamental operating changes are gated on human approval. This
+workflow already has its own verification pipeline (evidence chains, occurrence
+thresholds, constitutional validation) that exceeds Level A requirements.
+
+### Completion Criteria
+
+- **Capture:** Corrections written as positive-framed rules with pipeline metadata
+- **Detection:** Corrections grouped by similarity, pattern threshold applied,
+  candidates written to `patterns.md` with occurrence counts and confidence levels
+- **Validation:** Candidates with sufficient evidence checked against the validation
+  checklist (evidence quality, consistency, specificity, reversibility, scope) and
+  promoted to the correct destination or flagged for human review
+- **Decay:** Entries past their retention window archived to quarterly rollups,
+  corrections.md and patterns.md pruned of stale entries
+
+### Output Validation
+
+- Each phase logs its results (corrections reviewed, patterns detected/updated,
+  promotions made, entries archived)
+- Promoted patterns include the full evidence chain in HTML comment metadata (status,
+  promoted_to, promoted_on, occurrences, sources, confidence, date)
+- No pattern was promoted without meeting the occurrence threshold from `rules.md`
+- No fundamental operating change was promoted without `status: pending-human-review`
+- Archive summaries include counts by type and domain
 
 ---
 

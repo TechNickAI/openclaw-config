@@ -1,6 +1,6 @@
 ---
 name: llm-usage-report
-version: 0.1.0
+version: 0.1.1
 description:
   Daily LLM spend digest — previous day's cost broken down by session and model,
   delivered at noon
@@ -23,6 +23,40 @@ seconds over lunch.
 3. **Empathy pass** — Review your own draft: Is this useful? Is it alarming when it
    shouldn't be? Would someone want to read this at lunch?
 4. **Deliver** — Post the polished digest to Telegram
+
+## Definition of Done
+
+### Verification Level: A (log only)
+
+Pure reporting workflow — reads session data and delivers a digest. No mutations, no
+budget enforcement, no automated remediation. If the report is wrong, the human sees it
+and corrects.
+
+### Completion Criteria
+
+- Session and cron run data was gathered for the previous calendar day
+  (midnight-to-midnight CT)
+- Cost totals were computed with zero-cost sessions excluded
+- Top spenders were identified with model and description
+- Cost-by-model breakdown was calculated
+- Trend comparison (vs. day before) was computed
+- Anomaly checks were applied ($0.50 single session, $2.00 daily total, unusual models)
+- Empathy pass was performed — report tone matches the data (not alarming for normal
+  spend)
+- Digest was delivered to the Automation topic via Telegram
+- Log file was written to `logs/YYYY-MM-DD.md`
+
+### Output Validation
+
+- Report is under 15 lines
+- Total spend figure is present and non-negative
+- Session count is present
+- At least one top spender is listed (unless zero-spend day, which gets the quiet-day
+  message)
+- Trend direction (up/down/flat) is stated with percentage
+- Report reads as friendly and lunch-scannable, not robotic
+
+---
 
 ## Gathering Data
 

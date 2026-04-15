@@ -1,6 +1,6 @@
 ---
 name: contact-steward
-version: 0.2.1
+version: 0.2.2
 description:
   Manages contacts across messaging platforms — detects unidentified contacts your human
   is actively engaging with, classifies them, and adds them to the appropriate platform
@@ -33,6 +33,56 @@ already on that exact contact, stop and ask the human, even when the name looks 
   via `imsg`, or Quo via `quo` CLI)
 - **Alert channel** configured (WhatsApp, Telegram, Slack, or other messaging
   integration)
+
+## Definition of Done
+
+### Verification Level: B (self-score + circuit breakers)
+
+Creates and modifies contacts across messaging platforms — writes are persistent and
+visible to the human on their phone. Incorrect contact creation requires manual cleanup
+across platforms. User-only audience.
+
+### Completion Criteria
+
+- All configured platforms were scanned for recent conversations (up to 90 days back)
+- Every conversation where human replied to a non-contact was evaluated
+- New contacts were added to the correct platform (not cross-written)
+- Input validation passed on all written contact data (phone, email, name charset, field
+  lengths)
+- Dedup check was performed before every write — no duplicate contacts created
+- Processed.db was updated for every evaluated contact (classified, skipped, or error)
+- Notification was sent with batch summary (or silent if nothing found)
+- 10-per-run cap was respected, with backlog count noted if exceeded
+- Log entry written with scorecard
+
+### Output Validation
+
+- Every contact write used validated data (phone regex, email format, name charset
+  rules)
+- No raw message content appeared in notifications
+- Work-tier spawns included the security preamble and untrusted data delimiters
+- Platform-specific commands were used correctly (wacli for WhatsApp, imsg for iMessage,
+  quo for Quo)
+- Name resolution followed the sticky-name rule — no substantive renames without human
+  approval
+
+### Quality Rubric
+
+| Dimension         | ⭐ Poor                                   | ⭐⭐ Below avg                                                 | ⭐⭐⭐ Acceptable                              | ⭐⭐⭐⭐ Good                                                       | ⭐⭐⭐⭐⭐ Excellent                                                    |
+| ----------------- | ----------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Completeness      | Scan failed or major platform skipped     | Some conversations missed, backlog not tracked                 | All conversations evaluated, backlog noted     | Full scan with enrichment checks on existing contacts               | Full scan, enrichment applied, memory file suggestions for key contacts |
+| Accuracy          | Wrong name or number written to a contact | Minor info error (wrong company, incomplete name)              | Correct core info, some optional fields missed | All available info captured and verified via cross-platform         | Perfect contact records, cross-platform corroboration used              |
+| Dedup quality     | Duplicate contacts created                | Near-duplicate not caught (same person, slight name variation) | No duplicates, but didn't check all platforms  | Cross-platform dedup performed, no duplicates                       | Proactive dedup — caught existing contacts with variant info            |
+| Platform coverage | Wrote contact to wrong platform           | Correct platform but missed enrichment on others               | Correct platform, basic cross-reference done   | Full cross-reference, best available info pulled from all platforms | Cross-platform intelligence surfaced context human didn't know          |
+
+### Circuit Breakers
+
+3 consecutive runs scoring below ⭐⭐⭐ on any dimension → alert human with the pattern
+("Contact Steward has scored below acceptable on [dimension] for 3 runs: [dates and
+scores]"). If graduated trust is implemented, auto-demote to supervised mode (work-tier
+writes require human confirmation before executing) until human reviews and re-approves.
+
+---
 
 ## First Run — Setup Interview
 
@@ -261,11 +311,15 @@ Before first scan, check `PRAGMA user_version`:
 ## Each Run
 
 1. Read `preferences.md` — know which platforms to scan and how to notify
-2. Ensure database is ready (see Database section above)
-3. Read the platform-specific file from `platforms/` for your assigned platform
-4. Pull conversations from the last 90 days (platform-specific commands — use date
+2. Read `agent_notes.md` (if exists) — check the **Failures & Corrections** section
+   first. If recent failures are logged, apply those corrections as pre-flight
+   guardrails before scanning (e.g., if last run created a duplicate because of a number
+   format mismatch, ensure that format is handled correctly this run)
+3. Ensure database is ready (see Database section above)
+4. Read the platform-specific file from `platforms/` for your assigned platform
+5. Pull conversations from the last 90 days (platform-specific commands — use date
    filters or larger `--limit` values to reach older threads)
-5. For each conversation where your human replied (oldest unprocessed first, max 10
+6. For each conversation where your human replied (oldest unprocessed first, max 10
    work-tier spawns per run — enrichment checks and skips don't count toward the cap):
    a. Check processed.db for this platform + contact_id. b. If found, not an `error`,
    and no new messages since last_checked → skip. c. If found with status `error` →
@@ -279,10 +333,12 @@ Before first scan, check `PRAGMA user_version`:
    (cross-reference match, profile name, or conversation clues)? Spawn the work tier
    with everything you gathered. It verifies and writes the contact. g. No match
    anywhere? Spawn the work tier with full conversation context for detective work.
-6. After each contact, upsert into processed.db with the outcome status and timestamp
-7. Notify your human with a batch summary of what was added and what needs their input
-8. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
-9. Append to today's log in `logs/` (see Log Format below)
+7. After each contact, upsert into processed.db with the outcome status and timestamp
+8. Notify your human with a batch summary of what was added and what needs their input
+9. If unprocessed contacts remain beyond the 10-per-run cap, note the count in the log
+10. Append to today's log in `logs/` (see Log Format below)
+11. Update `agent_notes.md` if you learned something — including the **Failures &
+    Corrections** section if anything went wrong or a correction was applied
 
 ## Spawning the Work Tier
 
@@ -443,6 +499,15 @@ Date: <timestamp>
 - Skipped: <N>
 - Errors: <N>
 
+## Scorecard
+
+| Dimension         | Score      | Notes                                              |
+| ----------------- | ---------- | -------------------------------------------------- |
+| Completeness      | ⭐⭐⭐⭐   | All 3 platforms scanned, 2 backlog remain          |
+| Accuracy          | ⭐⭐⭐⭐⭐ | Cross-platform corroboration on all writes         |
+| Dedup quality     | ⭐⭐⭐     | Caught 1 near-duplicate, missed format variant     |
+| Platform coverage | ⭐⭐⭐⭐   | Full cross-ref, WhatsApp profile enriched iMessage |
+
 ## Actions
 
 [For each contact processed, one entry with: identifier, action, reason, and for
@@ -452,6 +517,8 @@ work-tier spawns, the Classification Result block from the sub-agent]
 
 [Any CLI failures, timeouts, or sub-agent errors with command and stderr]
 ```
+
+Score honestly. The scorecard is for detecting drift, not performing well.
 
 ## State
 
@@ -497,6 +564,26 @@ specific platform name.
 This file (`AGENT.md`) and the workflow logic files (`classifier.md`, `platforms/`) are
 maintained upstream and update on deploy. User-specific configuration lives in
 `preferences.md` and `processed.db`, which are **never overwritten** by updates.
+
+## Agent Notes — Failures & Corrections
+
+`agent_notes.md` should include a **Failures & Corrections** section. When a run
+produces a mistake (wrong contact info, duplicate created, platform mismatch), log it
+here with the correction:
+
+```markdown
+## Failures & Corrections
+
+- **2025-01-15**: Created duplicate "Alex Martinez" on WhatsApp — number was stored as
+  +15551234567 but scanned as 15551234567 without + prefix. Correction: normalize all
+  numbers to E.164 format before dedup check
+- **2025-01-14**: Wrote contact to iMessage when conversation was on WhatsApp — platform
+  parameter wasn't passed to work tier. Correction: always verify platform in work-tier
+  spawn matches the source conversation
+```
+
+Each entry is a guardrail for the next run. Step 2 of "Each Run" reads these before
+scanning.
 
 ## Security Checklist (Every Run)
 

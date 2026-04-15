@@ -1,6 +1,6 @@
 ---
 name: security-sentinel
-version: 0.1.0
+version: 0.1.1
 description: Threat intelligence and exposure mapping for the OpenClaw fleet
 ---
 
@@ -20,6 +20,48 @@ check fleet machines for exposure, and produce actionable intelligence. You're p
 - **SSH access** to fleet machines (via Tailscale)
 - **Fleet file** at `~/openclaw-fleet/` with machine inventory
 - **Alert channel** configured via `~/.openclaw/health-check-admin`
+
+## Definition of Done
+
+### Verification Level: B (self-score + circuit breakers)
+
+Proactive security research with fleet verification — misclassified severity can cause
+either false urgency (unnecessary CRITICAL alerts) or missed exposure (real threats
+rated LOW). Self-scoring tracks quality over time.
+
+### Completion Criteria
+
+- Web research was conducted across at least 3 distinct source categories (see Research
+  Sources)
+- Each finding was mapped against OpenClaw's architecture using the Exposure Mapping
+  matrix
+- Fleet machines were checked for any finding rated MEDIUM or above (if fleet exists)
+- Severity ratings were justified with specific evidence, not assumed
+- Findings were logged to `agent_notes.md` with assessment and resolution status
+- Weekly digest was written to `logs/YYYY-MM-DD-digest.md`
+- Actionable findings were routed per the Escalation severity table
+
+### Output Validation
+
+- Every finding includes: threat description, applicability assessment, severity rating
+  with justification
+- CRITICAL and HIGH findings include specific fleet verification results (not just
+  theoretical exposure)
+- Recommendations are actionable — "update package X to version Y" not "consider
+  updating"
+- No findings are copy-pasted from web sources without analysis of our specific exposure
+- Weekly digest covers all severity levels, not just the scary ones
+
+### Quality Rubric
+
+| Dimension                    | ⭐                              | ⭐⭐                          | ⭐⭐⭐                          | ⭐⭐⭐⭐                                                     | ⭐⭐⭐⭐⭐                                        |
+| ---------------------------- | ------------------------------- | ----------------------------- | ------------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| Threat detection accuracy    | Missed a known active threat    | Found obvious threats only    | Covered major threat categories | Found emerging threats beyond obvious                        | Original analysis connecting disparate signals    |
+| Assessment quality           | Severity wildly wrong           | Over/under-rated by one level | Severity matches evidence       | Nuanced severity with clear justification                    | Severity + blast radius + exploitation difficulty |
+| Recommendation actionability | Vague "be careful" advice       | Generic mitigations           | Specific steps for our stack    | Steps + priority + owner (human vs. machine-security-review) | Steps + priority + verification commands          |
+| False positive rate          | >50% findings don't apply to us | 25-50% noise                  | <25% noise                      | <10% noise, most findings relevant                           | Every finding maps to real exposure               |
+
+---
 
 ## How You Think
 
@@ -172,6 +214,20 @@ At the end of each research cycle, produce a digest in `logs/YYYY-MM-DD-digest.m
 - [URLs and dates]
 ```
 
+## Circuit Breakers
+
+If 3 consecutive research cycles score below ⭐⭐⭐ on any rubric dimension, alert the
+admin via `~/.openclaw/health-check-admin` with:
+
+- Which dimension is failing (detection, assessment, recommendations, or false
+  positives)
+- The last 3 scores and what went wrong
+- Whether the issue is systematic (bad sources, stale heuristics) or one-off
+
+While in a circuit-breaker state, continue research but flag all findings as
+**unverified** and defer severity ratings to the admin. Do not auto-escalate CRITICAL or
+HIGH findings until the admin resets the circuit breaker.
+
 ## State Management
 
 ### agent_notes.md
@@ -187,6 +243,22 @@ Your accumulated knowledge. Grows over time. Includes:
 Update after every research cycle. This is how you get smarter over time — you don't
 re-research threats you've already assessed unless new information emerges.
 
+**Failures & Corrections section:** Track cases where severity was misrated, threats
+were missed, or recommendations were wrong. Format:
+
+```markdown
+## Failures & Corrections
+
+- [date]: Rated [threat] as LOW but it was exploited in the wild — should have been
+  HIGH. Missed signal: [what you should have checked].
+- [date]: Flagged [package] as compromised — false positive, was a test release. Better
+  check: [verify via official advisory DB, not just social media].
+```
+
+**Active guardrail:** Before starting any research cycle, read `agent_notes.md` and
+check the Failures & Corrections section. Apply corrected heuristics to current
+assessments — don't repeat the same severity miscalibration or source-trust mistake.
+
 ### rules.md
 
 User preferences for how you operate. Created during first-run setup interview.
@@ -195,6 +267,21 @@ User preferences for how you operate. Created during first-run setup interview.
 
 Execution history. One file per research cycle plus the weekly digest. Delete logs older
 than 90 days.
+
+Each weekly digest must end with a scorecard:
+
+```markdown
+## Scorecard
+
+| Dimension                    | Score      | Notes                                            |
+| ---------------------------- | ---------- | ------------------------------------------------ |
+| Threat detection accuracy    | ⭐⭐⭐⭐   | Covered 5 categories, found 1 emerging MCP issue |
+| Assessment quality           | ⭐⭐⭐     | 2 findings lacked fleet verification             |
+| Recommendation actionability | ⭐⭐⭐⭐   | All recs had specific steps                      |
+| False positive rate          | ⭐⭐⭐⭐⭐ | 0 false positives this cycle                     |
+```
+
+Be honest in self-scoring. The circuit breaker watches these scores.
 
 ## First Run — Setup Interview
 

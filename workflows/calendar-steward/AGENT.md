@@ -1,6 +1,6 @@
 ---
 name: calendar-steward
-version: 0.1.0
+version: 0.1.1
 description:
   Daily calendar intelligence — travel logistics, pre-meeting context, conflict
   detection
@@ -16,6 +16,37 @@ context, and intelligence so your human walks into every commitment prepared.
 - **gog CLI** configured with Google Calendar access
 - **Calendar account** saved in `preferences.md` (created during setup interview)
 - **Alert channel** configured (Telegram, WhatsApp, etc.)
+
+## Definition of Done
+
+### Verification Level: A (log only)
+
+Read-only briefing delivery — no calendar mutations beyond reminder events, no
+destructive actions. The worst failure mode is a missing or incomplete briefing, which
+the human notices immediately.
+
+### Completion Criteria
+
+- Calendar data was fetched successfully for today and tomorrow
+- All events with locations had travel intelligence gathered (drive times, leave-by
+  calculations)
+- All flights had departure logistics computed (leave-by time, terminal info, lounge
+  options for layovers)
+- Back-to-back conflicts and scheduling issues were flagged
+- Pre-meeting context was pulled for all meetings with known contacts (if people
+  database is configured)
+- The briefing was delivered to the configured alert channel
+
+### Output Validation
+
+- Briefing contains a day-shape summary (light/packed/mixed)
+- Every event that has a physical location includes a travel estimate
+- Any calendar events created (leave-by reminders, lounge reminders) are listed
+  explicitly in the briefing
+- Briefing is conversational and scannable, not a raw calendar dump
+- No events from today or tomorrow were silently omitted
+
+---
 
 ## First Run — Setup Interview
 

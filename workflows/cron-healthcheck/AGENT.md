@@ -1,6 +1,6 @@
 ---
 name: cron-healthcheck
-version: 0.1.0
+version: 0.1.1
 description: Automated cron job health monitor with detection and auto-remediation
 ---
 
@@ -19,6 +19,43 @@ When everything is healthy, you produce zero output.
 - **Cron tool** available (action=list, action=run)
 - **Sub-agent spawning** capability (for escalation to expensive model)
 - **Alert channel** configured via `~/.openclaw/health-check-admin`
+
+## Definition of Done
+
+### Verification Level: B (self-score + circuit breakers)
+
+Automated remediation workflow — detects broken cron jobs and auto-fixes common issues
+via sub-agent. Misdiagnosis can lead to incorrect timeout bumps, missed escalations, or
+unnecessary human pages. Self-scoring catches quality drift.
+
+### Completion Criteria
+
+- All cron jobs were listed (including disabled ones)
+- Every enabled job was evaluated against the `consecutiveErrors >= 3` threshold
+- Broken jobs were correctly identified and delegated to the sub-agent
+- Sub-agent diagnosed root cause before attempting remediation
+- Remediated jobs were verified with a test run
+- Unfixable jobs were escalated to admin with actionable context
+- `agent_notes.md` was updated with any new patterns or corrections
+- Log file was written to `logs/YYYY-MM-DD-remediation.md`
+
+### Output Validation
+
+- Healthy runs produce exactly `HEARTBEAT_OK` and zero notifications
+- Broken job reports include: job name, root cause, remediation attempted, test result
+- Escalation messages include: job name, error details, what was already tried
+- No false escalations (job actually has `consecutiveErrors >= 3`)
+- No silent failures (every broken job is either fixed or escalated)
+
+### Quality Rubric
+
+| Dimension                  | ⭐                     | ⭐⭐            | ⭐⭐⭐                 | ⭐⭐⭐⭐                        | ⭐⭐⭐⭐⭐                                   |
+| -------------------------- | ---------------------- | --------------- | ---------------------- | ------------------------------- | -------------------------------------------- |
+| Detection accuracy         | Missed broken jobs     | Found some      | Found all broken jobs  | Found all, zero false positives | Found all, noted emerging patterns           |
+| Remediation quality        | Fix made things worse  | Fix didn't help | Fix resolved the issue | Fix + verified with test run    | Fix + root cause documented                  |
+| Escalation appropriateness | Escalated healthy jobs | Over-escalated  | Right jobs escalated   | Clear actionable escalation     | Escalation included prior attempts + context |
+
+---
 
 ## How You Think
 
@@ -105,6 +142,21 @@ and what you already tried.
 - **No threshold changes** — Persistent failures (`consecutiveErrors >= 3`) trigger
   escalation.
 
+## Circuit Breakers
+
+The per-job `consecutiveErrors >= 3` threshold handles individual job failures. This
+section covers workflow-level quality drift.
+
+If 3 consecutive healthcheck runs score below ⭐⭐⭐ on any rubric dimension, alert the
+admin via `~/.openclaw/health-check-admin` with:
+
+- Which dimension is failing
+- The last 3 scores and what went wrong
+- Whether the issue is in detection, remediation, or escalation
+
+Do not continue auto-remediating while in a circuit-breaker state. Switch to
+detect-and-report only until the admin acknowledges.
+
 ## State Management
 
 ### agent_notes.md
@@ -117,6 +169,21 @@ each remediation cycle with:
 - Patterns in failure timing (e.g., always breaks during peak hours)
 - Jobs that needed human intervention and why
 
+**Failures & Corrections section:** Track cases where remediation was wrong or unhelpful
+— timeout bumps that didn't fix the issue, misdiagnosed root causes, unnecessary
+escalations. Format:
+
+```markdown
+## Failures & Corrections
+
+- [date]: [job name] — bumped timeout but real cause was [X]. Next time check [Y] first.
+- [date]: [job name] — escalated unnecessarily, was actually [transient API outage].
+```
+
+**Active guardrail:** Before processing any broken jobs, read `agent_notes.md` and check
+the Failures & Corrections section. If a current broken job matches a previously
+corrected pattern, apply the corrected approach instead of repeating the mistake.
+
 ### rules.md
 
 User preferences for how the healthcheck operates. Created during first-run setup.
@@ -125,6 +192,20 @@ User preferences for how the healthcheck operates. Created during first-run setu
 
 Execution history. The sub-agent writes one file per remediation event:
 `logs/YYYY-MM-DD-remediation.md`. Delete logs older than 30 days.
+
+Each log file must end with a scorecard:
+
+```markdown
+## Scorecard
+
+| Dimension                  | Score      | Notes                                      |
+| -------------------------- | ---------- | ------------------------------------------ |
+| Detection accuracy         | ⭐⭐⭐⭐   | Found all 2 broken jobs                    |
+| Remediation quality        | ⭐⭐⭐     | Timeout fix worked, API issue unresolvable |
+| Escalation appropriateness | ⭐⭐⭐⭐⭐ | Only escalated the unresolvable job        |
+```
+
+Be honest in self-scoring. The circuit breaker watches these scores.
 
 ## First Run — Setup Interview
 

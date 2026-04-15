@@ -1,6 +1,6 @@
 ---
 name: bridge-health
-version: 0.1.0
+version: 0.1.1
 description: Health and update monitoring for stateful local bridge CLIs
 ---
 
@@ -26,6 +26,43 @@ You run in one of two modes based on the triggering message:
    meaningful drift
 
 Be fast, autonomous, and quiet when things are fine.
+
+## Definition of Done
+
+### Verification Level: B (self-score + circuit breakers)
+
+Infrastructure monitoring with alerting and lightweight remediation — false negatives
+miss real outages, false positives page the admin unnecessarily, and poor dedup floods
+the channel with repeat alerts. Self-scoring catches quality drift across runs.
+
+### Completion Criteria
+
+- All configured bridges on this host were checked independently
+- Each bridge status was normalized to healthy/degraded/down with severity
+- Failure signatures were compared against `CLAUDE.local.md` for dedup
+- Only genuinely new or changed incidents triggered alerts
+- Healthy hosts produced exactly `HEARTBEAT_OK` and zero notifications
+- `CLAUDE.local.md` was updated with current incident fingerprints
+- Log file was written (healthcheck mode: `logs/YYYY-MM-DD-healthcheck.md`, update-check
+  mode: `logs/YYYY-MM-DD-update-check.md`)
+
+### Output Validation
+
+- Every alert includes: bridge name, severity, concise diagnosis, suggested next action
+- No duplicate alerts for unchanged incidents (dedup working)
+- No alerts for bridges not configured on this host
+- Suggested actions match the failure signature (not generic advice)
+- `HEARTBEAT_OK` is only returned when ALL configured bridges are truly healthy
+
+### Quality Rubric
+
+| Dimension          | ⭐                             | ⭐⭐                        | ⭐⭐⭐                         | ⭐⭐⭐⭐                                 | ⭐⭐⭐⭐⭐                              |
+| ------------------ | ------------------------------ | --------------------------- | ------------------------------ | ---------------------------------------- | --------------------------------------- |
+| Detection coverage | Skipped a configured bridge    | Checked some bridges        | All configured bridges checked | All checked with correct status          | All checked + caught subtle degradation |
+| Alert accuracy     | Alerted on healthy bridges     | Some false positives        | Alerts match real issues       | Zero false positives, zero missed issues | Accurate + actionable suggested fix     |
+| Dedup quality      | No dedup, repeated every alert | Some dedup but inconsistent | Dedup works for exact matches  | Dedup handles signature evolution        | Dedup + clears resolved incidents       |
+
+---
 
 ## EXEC RULES (CRITICAL)
 
@@ -58,6 +95,23 @@ Keep `CLAUDE.local.md` factual and machine-specific. It is gitignored and may co
 - active incident fingerprints to avoid duplicate alerts
 
 Do **not** put secrets, raw logs, or personal IDs in `CLAUDE.local.md`.
+
+**Failures & Corrections section:** Track cases where alerts were wrong, dedup failed,
+or status was misclassified. Include this section in `CLAUDE.local.md`:
+
+```markdown
+## Failures & Corrections
+
+- [date]: Alerted wacli down but was actually a transient disconnect. Next time: retry
+  after 30s before alerting.
+- [date]: Missed tgcli degraded state — store was stale but reads still worked. Next
+  time: check mtime on store file.
+```
+
+**Active guardrail:** Before checking any bridges, read `CLAUDE.local.md` and check the
+Failures & Corrections section. If a current bridge status matches a previously
+corrected pattern, apply the corrected diagnostic approach instead of repeating the
+mistake.
 
 ## Notification Routing
 
@@ -276,6 +330,19 @@ Track and recognize these common patterns:
 Update `CLAUDE.local.md` with the current incident fingerprint and clear it when
 resolved.
 
+## Circuit Breakers
+
+If 3 consecutive healthcheck runs score below ⭐⭐⭐ on any rubric dimension, alert the
+admin via `~/.openclaw/health-check-admin` with:
+
+- Which dimension is failing (detection, alerts, or dedup)
+- The last 3 scores and what went wrong
+- Whether the issue is host-specific (bridge changed behavior) or workflow-level
+
+While in a circuit-breaker state, continue checking bridges but do not attempt any
+lightweight remediation (process restarts, log rotation). Report-only mode until the
+admin acknowledges.
+
 ## Recovery Order
 
 Healthcheck mode may do **lightweight, safe** remediation only when clearly reversible:
@@ -293,6 +360,25 @@ Do **not**:
 
 If a bridge needs interactive auth, manual upgrade, or uncertain recovery, alert and
 stop.
+
+## Logs
+
+Write one log per run: `logs/YYYY-MM-DD-healthcheck.md` or
+`logs/YYYY-MM-DD-update-check.md`. Delete logs older than 30 days.
+
+Each log file must end with a scorecard:
+
+```markdown
+## Scorecard
+
+| Dimension          | Score      | Notes                                      |
+| ------------------ | ---------- | ------------------------------------------ |
+| Detection coverage | ⭐⭐⭐⭐⭐ | All 3 configured bridges checked           |
+| Alert accuracy     | ⭐⭐⭐⭐   | Correct P2 alert for stale tgcli           |
+| Dedup quality      | ⭐⭐⭐⭐⭐ | Suppressed repeat wacli-sync-missing alert |
+```
+
+Be honest in self-scoring. The circuit breaker watches these scores.
 
 ## Output Discipline
 

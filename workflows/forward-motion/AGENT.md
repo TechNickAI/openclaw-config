@@ -1,6 +1,6 @@
 ---
 name: forward-motion
-version: 0.1.0
+version: 0.2.0
 description:
   Fleet operations driver. Scans AI agent threads across Telegram, detects stuck bots,
   cleans up message noise, steers agents back on track, and surfaces what needs the
@@ -142,10 +142,14 @@ Ask:
 
 ### 5. Review Gate
 
+This workflow uses **Verification Level C** — a fresh cross-context verifier reviews all
+proposed messages before they are sent. This is mandatory and cannot be disabled
+(messages go to real people in real threads).
+
 Ask:
 
-- "Should I verify actions with a second model before executing?" (default: yes)
-- "Which model for review?" (default: a cheap/fast model)
+- "Which model should the verifier use?" (default: a cheap/fast model — context
+  separation matters more than model power)
 
 ### 6. Confirm & Save
 
@@ -212,8 +216,10 @@ Avoid splitting runtime into multiple tiny scripts unless there is a strong reas
 1. **Pre-flight:**
    - if `~/.tgcli/telethon-session.session` is missing, auto-run
      `skills/tgcli-topics/scripts/convert-session.py`
-   - read `rules.md`
-   - read `agent_notes.md` if present
+   - read `rules.md` (including trust level and cooldown state)
+   - read `agent_notes.md` — specifically the **Failures & Corrections** section. Build
+     a mental checklist of known pitfalls before processing anything. Past mistakes are
+     active guardrails, not passive history.
    - ensure DB schema exists and is current
 
 2. **Run the runtime entrypoint:**
@@ -223,10 +229,60 @@ Avoid splitting runtime into multiple tiny scripts unless there is a strong reas
    - auto-handles safe no-brainers
    - returns a review queue for judgment calls
 
-3. **Review before acting on judgment calls:**
-   - safe housekeeping can proceed automatically
-   - interventions, VIP-adjacent cleanup, shared/support-thread actions, and
-     cross-thread rollout decisions require review
+3. **Cross-context verification (proposed actions):**
+
+   Before executing any judgment call — interventions, VIP-adjacent cleanup,
+   shared/support-thread actions, cross-thread rollout decisions, or any message to be
+   sent — the proposed actions go through a fresh-context verifier.
+
+   **What the verifier receives:**
+   - The proposed action(s): message text, target thread/topic, action type
+   - The quality rubric (Message accuracy, Tone, Action correctness, Escalation
+     judgment)
+   - Relevant context: the thread messages that triggered the action
+   - The verifier prompt (below)
+
+   **What the verifier does NOT receive:**
+   - The worker's reasoning or intermediate analysis
+   - The full conversation history
+   - agent_notes.md or rules.md (the verifier judges output quality, not process)
+
+   **Verifier prompt:**
+
+   ```
+   Score each dimension on a 1-5 scale. For each:
+   - State the score (numeric)
+   - Cite specific actions/decisions that justify the score
+   - Flag issues with severity: critical (wrong action), warning (questionable
+     judgment), or minor (suboptimal but acceptable)
+
+   Dimensions:
+   - Message accuracy: Is the content factually correct about the thread/bot state?
+   - Tone: Does it match the message-type prefix expectations?
+   - Action correctness: Right thread, right action, right timing?
+   - Escalation judgment: Correctly decided what needs human attention vs auto-fix?
+
+   Scoring calibration:
+   - 5 means zero issues found. Reserve for genuinely flawless work.
+   - 3-4 is the honest range for most competent runs.
+   - Below 3 means you found concrete errors, not just uncertainties.
+
+   You are reviewing work done by another agent. You have no access to the
+   agent's reasoning — only its proposed output. If an action seems wrong,
+   flag it. If you can't determine whether an action was correct from the
+   output alone, flag that as a transparency issue.
+
+   Return: dimension scores, flagged issues with severity, overall confidence
+   (HIGH/MEDIUM/LOW).
+   ```
+
+   **Acting on verification results:**
+   - All clear (no critical flags, overall ⭐⭐⭐⭐ or above) → proceed to execute
+   - Warnings (overall ⭐⭐⭐) → proceed, log concerns in agent_notes.md
+   - Critical issues (overall ⭐⭐ or below) → abort the action, alert human
+
+   Safe housekeeping (duplicate cleanup, stale report removal) can still proceed without
+   verification — only judgment calls and outgoing messages require it.
 
 4. **Execute:**
    - steer bots in the same thread/topic
@@ -238,6 +294,13 @@ Avoid splitting runtime into multiple tiny scripts unless there is a strong reas
    - only completed work advances `last_processed_msg_id`
    - log meaningful actions to `actions_taken`
    - append to logs / update `agent_notes.md` when new patterns emerge
+
+6. **Score the run:**
+   - Score all four quality rubric dimensions (see Definition of Done)
+   - Record the scorecard in the daily log (see log format below)
+   - Check circuit breakers: update `consecutive_good_runs` and `cooldown_remaining` in
+     `rules.md`
+   - If new failures found, add to `agent_notes.md` under Failures & Corrections
 
 Preferred `agent_notes.md` pattern template:
 
@@ -256,6 +319,51 @@ patterns:
     confidence: high
     last_seen: "2026-04-11"
     review_required: false
+```
+
+**Failures & Corrections** section (read this BEFORE processing — these are active
+guardrails, not passive history):
+
+```markdown
+## Failures & Corrections
+
+### YYYY-MM-DD: Sent message to wrong topic
+
+- What happened: Steered bot in the general channel instead of its dedicated topic
+- Why it was wrong: Message was visible to all users, caused confusion
+- Correct action: Should have verified topic_id matched the thread where activity
+  happened
+- New rule: Always cross-check target topic_id against the fleet_map before sending
+- Applied to: Added to pre-send checklist in run loop
+```
+
+### Log Format
+
+Each run appends to the daily log in `logs/`. Include the scorecard:
+
+```markdown
+## Run: HH:MM
+
+### Actions
+
+- Threads scanned: N
+- New activity found: N threads
+- Actions taken: steered X, cleaned Y, escalated Z
+- Messages sent: N (max 1)
+- Errors: none
+- Verifier: passed | warnings | blocked (with details)
+
+### Scorecard
+
+| Dimension           | Stars          | Notes                                     |
+| ------------------- | -------------- | ----------------------------------------- |
+| Message accuracy    | ⭐⭐⭐⭐⭐ (5) | All facts verified against thread content |
+| Tone                | ⭐⭐⭐⭐ (4)   | Slightly formal for a Fleet Ops message   |
+| Action correctness  | ⭐⭐⭐⭐⭐ (5) | Correct threads, correct timing           |
+| Escalation judgment | ⭐⭐⭐⭐ (4)   | Borderline case escalated — reasonable    |
+| Overall             | ⭐⭐⭐⭐ (4)   |                                           |
+
+Confidence: HIGH Source: self | verified
 ```
 
 ### Judgment Guidelines
@@ -302,9 +410,79 @@ patterns:
 - **Don't delete human messages.** Only clean up bot/agent noise.
 - **VIP-adjacent cleanup requires review.** If deletion could affect a client,
   executive, or sensitive support thread, do not treat it as routine housekeeping.
-- **Review with second model before acting.** No unreviewed interventions.
+- **Cross-context verify before acting.** No unreviewed interventions. Judgment calls
+  and outgoing messages must pass the fresh-context verifier (see step 3 of Each Run).
 - **Message in the correct thread/topic.** Match where the activity happened.
 - **Identify yourself as DCOS** in all messages.
+
+## Definition of Done
+
+### Verification Level: C — Full Verification
+
+Forward-motion sends messages to real Telegram threads that other people see. Messages
+are irreversible and visible to others. Every proposed action is reviewed by a fresh
+cross-context verifier before execution.
+
+### Completion Criteria
+
+A run is complete when all of the following are true:
+
+- All fleet threads in `rules.md` have been scanned
+- `last_scanned_msg_id` is current for every scanned thread
+- Every thread with new activity has been assessed (action taken, escalated, or
+  explicitly skipped with reason)
+- No thread left in an ambiguous state without escalation
+- All actions logged to `actions_taken` with thread keys and descriptions
+- `last_processed_msg_id` advanced only for threads where work actually completed
+- At most 1 message sent to the human (batched)
+
+### Output Validation
+
+Structural checks before declaring a run done:
+
+- Log entry exists for this run with item counts and action summary
+- Every action in `actions_taken` has a non-null `action_type` and `description`
+- Every message sent used the correct message-type prefix label
+- Every message was sent to the correct thread/topic (matches where the activity
+  happened)
+- Scorecard is present in the log with all four dimensions scored
+
+### Quality Rubric
+
+| Dimension               | What it measures                                                        |
+| ----------------------- | ----------------------------------------------------------------------- |
+| **Message accuracy**    | Content is factually correct about the thread/bot state                 |
+| **Tone**                | Matches the message-type prefix expectations (urgency, formality, role) |
+| **Action correctness**  | Right thread, right action, right timing                                |
+| **Escalation judgment** | Correctly decided what needs human attention vs auto-fix                |
+
+Scoring scale:
+
+| Score      | Meaning                                                       |
+| ---------- | ------------------------------------------------------------- |
+| ⭐⭐⭐⭐⭐ | Excellent — no issues, confident in all decisions             |
+| ⭐⭐⭐⭐   | Good — minor uncertainties, all resolved reasonably           |
+| ⭐⭐⭐     | Acceptable — some judgment calls the user might disagree with |
+| ⭐⭐       | Poor — likely errors, should flag for human review            |
+| ⭐         | Failed — wrong actions taken, rollback recommended            |
+
+### Circuit Breakers
+
+```
+If 3 consecutive runs score below ⭐⭐⭐ overall:
+  → Demote one trust level
+  → Reset consecutive_good_runs to 0
+  → Alert human: "Forward-motion quality degraded. Demoted to Level N."
+  → Log the pattern in agent_notes.md
+
+If a single run scores ⭐ on any dimension:
+  → Immediate alert to human
+  → Set cooldown_remaining to 10 in rules.md
+  → Reset consecutive_good_runs to 0
+  → Do NOT send the proposed message — abort the run
+  (Cooldown decrements by 1 each run. No trust advancement while
+  cooldown_remaining > 0, even if scores recover.)
+```
 
 ## Housekeeping
 
