@@ -220,6 +220,24 @@ column (not `-`)
 
 **Health:** `openclaw health` — should report gateway up, channels connected
 
+### Remote Dashboard Access
+
+The Control UI must be accessible over HTTPS (browsers block Web Crypto on plain HTTP,
+which breaks device auth). See `tailscale-dashboard-security.md` for the full setup.
+Quick version:
+
+1. Check if the Tailscale network extension is installed:
+   `systemextensionsctl list | grep -i tailscale`
+2. If extension present → use `tailscale serve --bg --https=443 http://127.0.0.1:18789`
+3. If extension missing → use `tailscale funnel --bg --https=443 http://127.0.0.1:18789`
+4. Verify: `curl -sS https://<hostname>.ts.net/ | head -1` — should return `HTTP/2 200`
+
+**Verify funnel/serve is active:** `tailscale funnel status --json` should show proxy
+config, not `{}`.
+
+**Tailscale must auto-start at login** for the funnel to persist across reboots. Check:
+System Settings > General > Login Items > Tailscale.
+
 ---
 
 ## Backup
