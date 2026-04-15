@@ -1,6 +1,6 @@
 ---
 name: asana
-version: 0.1.0
+version: 0.1.1
 description: Manage Asana tasks, projects, and workspaces via MCP
 triggers:
   - asana

@@ -1,6 +1,6 @@
 ---
 name: cortex
-version: 0.2.0
+version: 0.2.1
 description: >
   Personal knowledge compiler and memory system. Ingests raw sources (documents, notes,
   transcripts, captures) into a structured, interlinked knowledge base. Maintains living

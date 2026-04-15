@@ -1,6 +1,6 @@
 ---
 name: quo
-version: 0.6.0
+version: 0.6.1
 description:
   Quo (formerly OpenPhone) business phone system — check calls, texts, voicemails,
   missed calls, send SMS/texts, manage contacts, read call transcripts and summaries,

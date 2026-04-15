@@ -1,6 +1,6 @@
 ---
 name: agentmail
-version: 0.1.0
+version: 0.1.1
 description:
   Email inboxes for AI agents - create addresses, send and receive email, manage threads
 triggers:

@@ -1,6 +1,6 @@
 ---
 name: fathom
-version: 0.1.0
+version: 0.1.1
 # prettier-ignore
 description: Query Fathom AI meeting recordings — transcripts, summaries, action items, and searchable meeting history
 triggers:
