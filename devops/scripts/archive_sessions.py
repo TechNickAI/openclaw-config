@@ -266,9 +266,6 @@ def run_archive(
         if source:
             sources_to_delete.append(source)
 
-    (temp_dir / "manifest.jsonl").write_text(
-        "".join(json.dumps(m) + "\n" for m in manifests)
-    )
     atomic_json_write(temp_dir / "summary.json", summary)
 
     new_store = {k: v for k, v in kept}
@@ -278,6 +275,21 @@ def run_archive(
     if final_dir.exists():
         raise ArchiveError(f"Archive destination already exists: {final_dir}")
     temp_dir.rename(final_dir)
+
+    # Fix archivedTranscript paths: they were recorded relative to temp_dir,
+    # which no longer exists after the rename. Update to final_dir paths.
+    temp_prefix = str(temp_dir)
+    final_prefix = str(final_dir)
+    for m in manifests:
+        if m.get("archivedTranscript") and str(m["archivedTranscript"]).startswith(
+            temp_prefix
+        ):
+            m["archivedTranscript"] = str(m["archivedTranscript"]).replace(
+                temp_prefix, final_prefix, 1
+            )
+    (final_dir / "manifest.jsonl").write_text(
+        "".join(json.dumps(m) + "\n" for m in manifests)
+    )
 
     delete_failures = delete_sources(sources_to_delete)
     summary["runDir"] = str(final_dir)
