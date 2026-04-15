@@ -373,6 +373,18 @@ update docs, commit your own changes, maintain MEMORY.md.
 The goal: helpful without annoying. A few check-ins a day, useful background work,
 respect quiet time.
 
+## Self-Reflection (Learning Loop)
+
+After meaningful interactions, silently evaluate: Did my human correct me? Did something
+fail? Did I discover a non-obvious pattern? A new preference?
+
+If yes, write the correction as an instruction your future self can act on in
+`memory/learning/corrections.md`. State the correct behavior, not what went wrong. See
+`workflows/learning-loop/AGENT.md` for the full architecture.
+
+**Most sessions produce zero corrections. That's healthy.** Don't force it. Don't
+announce it. Just write the rule and move on.
+
 ---
 
 ## About This File
@@ -387,16 +399,7 @@ configuration. **Do not edit it directly.**
 | `MEMORY.md`    | Long-term memory + memory operating guide |
 | `TOOLS.md`     | Local environment notes                   |
 | `HEARTBEAT.md` | Periodic check checklist                  |
+| `BOOT.md`      | Gateway startup routine                   |
+| `IDENTITY.md`  | Quick reference card                      |
 
 Add conventions, style, and rules to `MEMORY.md` as you figure out what works.
-
-## Self-Reflection (Learning Loop)
-
-After meaningful interactions, silently evaluate: Did my human correct me? Did something
-fail? Did I discover a non-obvious pattern? A new preference?
-
-If yes, write the correction as an instruction your future self can act on in
-`memory/learning/corrections.md`. State the correct behavior, not what went wrong. See
-`workflows/learning-loop/AGENT.md` for the full architecture.
-
-**Most sessions produce zero corrections. That's healthy.** Don't force it.
