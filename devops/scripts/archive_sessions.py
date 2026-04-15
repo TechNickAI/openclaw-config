@@ -16,15 +16,19 @@ from collections.abc import Iterable
 
 KEEP_COUNT_DEFAULT = 500
 KEEP_DAYS_DEFAULT = 14
-PROTECT_PREFIXES = (
-    "agent:main:main",
-    "agent:main:telegram:",
-    "agent:main:slack:",
-    "agent:main:imessage:",
-    "agent:main:whatsapp:",
-    "agent:main:discord:",
-)
 ARCHIVE_VERSION = 2
+
+
+def build_protect_prefixes(agent_id: str) -> tuple[str, ...]:
+    """Build protection prefixes dynamically based on agent_id."""
+    return (
+        f"agent:{agent_id}:main",
+        f"agent:{agent_id}:telegram:",
+        f"agent:{agent_id}:slack:",
+        f"agent:{agent_id}:imessage:",
+        f"agent:{agent_id}:whatsapp:",
+        f"agent:{agent_id}:discord:",
+    )
 
 
 class ArchiveError(Exception):
@@ -78,9 +82,9 @@ def atomic_json_write(path: Path, obj: Any) -> None:
     tmp_path = Path(tmp_name)
     try:
         with os.fdopen(fd, "w") as f:
+            # Pretty-print all JSON files with consistent formatting
             indent = 2 if path.suffix == ".json" else None
-            separators = (",", ":") if path.name == "sessions.json" else None
-            json.dump(obj, f, indent=indent, separators=separators)
+            json.dump(obj, f, indent=indent)
             f.flush()
             os.fsync(f.fileno())
         tmp_path.chmod(0o600)
@@ -225,8 +229,9 @@ def run_archive(
     sessions_dir = state_dir / "agents" / agent_id / "sessions"
     store_path = sessions_dir / "sessions.json"
     latest_link = archive_root / agent_id / "latest"
+    protect_prefixes = build_protect_prefixes(agent_id)
     store = load_store(store_path)
-    kept, archived = collect_candidates(store, keep_count, keep_days, PROTECT_PREFIXES)
+    kept, archived = collect_candidates(store, keep_count, keep_days, protect_prefixes)
 
     by_kind: dict[str, int] = {}
     for key, _entry in archived:
@@ -268,16 +273,13 @@ def run_archive(
 
     atomic_json_write(temp_dir / "summary.json", summary)
 
-    new_store = {k: v for k, v in kept}
-    atomic_json_write(store_path, new_store)
-
+    # Finalize archive directory BEFORE pruning sessions.json to avoid data loss window
     ensure_parent(final_dir)
     if final_dir.exists():
         raise ArchiveError(f"Archive destination already exists: {final_dir}")
     temp_dir.rename(final_dir)
 
-    # Fix archivedTranscript paths: they were recorded relative to temp_dir,
-    # which no longer exists after the rename. Update to final_dir paths.
+    # Fix archivedTranscript paths in both manifest.jsonl AND individual entry files
     temp_prefix = str(temp_dir)
     final_prefix = str(final_dir)
     for m in manifests:
@@ -287,9 +289,23 @@ def run_archive(
             m["archivedTranscript"] = str(m["archivedTranscript"]).replace(
                 temp_prefix, final_prefix, 1
             )
+
+    # Write updated manifest.jsonl
     (final_dir / "manifest.jsonl").write_text(
         "".join(json.dumps(m) + "\n" for m in manifests)
     )
+
+    # Rewrite individual entry files with corrected paths
+    entries_dir = final_dir / "entries"
+    for m in manifests:
+        key = m["sessionKey"]
+        safe_name = key.replace("/", "_").replace(":", "__")
+        entry_path = entries_dir / f"{safe_name}.json"
+        entry_path.write_text(json.dumps(m, indent=2))
+
+    # Now that archive is safely finalized, prune sessions.json
+    new_store = {k: v for k, v in kept}
+    atomic_json_write(store_path, new_store)
 
     delete_failures = delete_sources(sources_to_delete)
     summary["runDir"] = str(final_dir)
