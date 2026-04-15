@@ -245,7 +245,12 @@ Avoid splitting runtime into multiple tiny scripts unless there is a strong reas
    **What the verifier does NOT receive:**
    - The worker's reasoning or intermediate analysis
    - The full conversation history
-   - agent_notes.md or rules.md (the verifier judges output quality, not process)
+   - agent_notes.md (learned patterns — not needed to judge output)
+
+   **What the verifier also receives (routing context):**
+   - The fleet topic map from rules.md (thread names, topic IDs, intended purpose of
+     each thread) — required to validate "Action correctness: right thread, right topic"
+   - Without this, the verifier cannot assess whether the action was routed correctly
 
    **Verifier prompt:**
 

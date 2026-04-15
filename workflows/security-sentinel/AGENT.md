@@ -225,8 +225,10 @@ admin via `~/.openclaw/health-check-admin` with:
 - Whether the issue is systematic (bad sources, stale heuristics) or one-off
 
 While in a circuit-breaker state, continue research but flag all findings as
-**unverified** and defer severity ratings to the admin. Do not auto-escalate CRITICAL or
-HIGH findings until the admin resets the circuit breaker.
+**unverified** and note that confidence is degraded. CRITICAL and HIGH findings still
+escalate immediately — but prefix them with "UNVERIFIED:" so the admin knows quality is
+degraded. Never suppress urgent security alerts, even when the workflow is struggling.
+Only LOW and MEDIUM findings are deferred pending admin reset.
 
 ## State Management
 
