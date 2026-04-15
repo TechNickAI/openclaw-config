@@ -33,11 +33,11 @@ sudo killall -HUP mDNSResponder 2>/dev/null || true
 
 ```bash
 # System resolver (NOT dig or nslookup — they bypass the system resolver)
-python3 -c "import socket; print(socket.getaddrinfo('your-host.tailae0f4b.ts.net', 443)[0][4][0])"
+python3 -c "import socket; print(socket.getaddrinfo('your-host.your-tailnet.ts.net', 443)[0][4][0])"
 # Should print: 100.x.x.x
 
 # Or use curl
-curl -sS --max-time 5 https://your-host.tailae0f4b.ts.net/ -o /dev/null -w "%{remote_ip}\n"
+curl -sS --max-time 5 https://your-host.your-tailnet.ts.net/ -o /dev/null -w "%{remote_ip}\n"
 # Should print: 100.x.x.x
 ```
 
