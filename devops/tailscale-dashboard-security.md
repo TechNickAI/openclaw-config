@@ -2,173 +2,143 @@
 
 ## Overview
 
-Two approaches to expose the OpenClaw Control UI over HTTPS on Tailscale. Choose the one
-that matches your machine's state.
+Expose the OpenClaw Control UI over HTTPS on Tailscale with tailnet-only access. No
+public internet exposure.
 
-| Approach        | When to use                                          | Access scope |
-| --------------- | ---------------------------------------------------- | ------------ |
-| **Serve + TLS** | Tailscale network extension is installed and working | Tailnet only |
-| **Funnel**      | Network extension missing or DNS resolution broken   | Public\*     |
+This solves the core problem: browsers block `window.crypto.subtle` (Web Crypto API) on
+non-secure contexts. Without HTTPS, the Control UI can't complete device identity checks
+and gets stuck at the login page.
 
-\* Funnel is public, but gateway password auth still protects access.
-
-Both approaches solve the same underlying problem: browsers block `window.crypto.subtle`
-(Web Crypto API) on non-secure contexts. Without HTTPS, the Control UI can't complete
-device identity checks and gets stuck at the login page.
+**Architecture:** Gateway binds to loopback → Tailscale Serve proxies HTTPS on port 443
+to `127.0.0.1:18789` → Tailscale's DNS resolves MagicDNS hostnames to 100.x IPs.
 
 ---
 
-## Approach 1: Serve + TLS (Preferred)
+## Step 1: DNS Setup (Required for Homebrew-installed Tailscale)
 
-Requires the Tailscale **network extension** to be installed and active. This intercepts
-MagicDNS queries so `*.ts.net` hostnames resolve to the local Tailscale IP (100.x)
-instead of public ingress IPs.
+The Homebrew `tailscale` formula uses the `utun` interface (no system/network
+extension). This means Tailscale can't intercept DNS queries at the OS level. Without
+intervention, `*.ts.net` hostnames resolve to Tailscale's public ingress IPs (209.x)
+instead of tailnet IPs (100.x), and `tailscale serve` silently fails.
 
-### Prerequisites
-
-1. Network extension installed and loaded:
+**Fix:** Create a macOS resolver file that routes `*.ts.net` queries to Tailscale's DNS:
 
 ```bash
-systemextensionsctl list | grep -i tailscale
-# Should show at least 1 Tailscale extension
+echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder 2>/dev/null || true
 ```
 
-2. MagicDNS resolves to 100.x:
+**Verify:**
 
 ```bash
-dig +short <your-machine>.<tailnet>.ts.net
-# Should return 100.x.x.x, not 209.x.x.x
+# System resolver (NOT dig or nslookup — they bypass the system resolver)
+python3 -c "import socket; print(socket.getaddrinfo('your-host.tailae0f4b.ts.net', 443)[0][4][0])"
+# Should print: 100.x.x.x
+
+# Or use curl
+curl -sS --max-time 5 https://your-host.tailae0f4b.ts.net/ -o /dev/null -w "%{remote_ip}\n"
+# Should print: 100.x.x.x
 ```
 
-If either check fails, use **Approach 2 (Funnel)** instead.
+> **Note:** `dig` and `nslookup` bypass the macOS system resolver and won't show the
+> correct IP. Use `python3`, `curl`, or Node.js to test — these use the system resolver.
 
-### Steps
+**Persistence:** This file survives reboots. Deploy it as part of machine setup.
+
+---
+
+## Step 2: Set Up Tailscale Serve
 
 ```bash
-# Generate Tailscale TLS certs
-MAGICDNS="<your-machine>.<tailnet>.ts.net"
-mkdir -p ~/.openclaw/tls
-cd ~/.openclaw/tls
-tailscale cert "$MAGICDNS"
-mv "$MAGICDNS.crt" server.crt
-mv "$MAGICDNS.key" server.key
+# Clean any existing config
+tailscale funnel reset 2>/dev/null || true
+tailscale serve reset 2>/dev/null || true
 
-# Set up tailscale serve (proxy to loopback gateway)
+# Set up serve (tailnet-only)
 tailscale serve --bg --https=443 http://127.0.0.1:18789
 ```
 
-### Gateway Config
-
-```json5
-"gateway": {
-  "bind": "loopback",
-  "auth": {
-    "mode": "password",
-    "password": "<choose-password>"
-  },
-  "tls": {
-    "enabled": true,
-    "certPath": "/Users/<user>/.openclaw/tls/server.crt",
-    "keyPath": "/Users/<user>/.openclaw/tls/server.key"
-  },
-  "tailscale": {
-    "mode": "off",
-    "resetOnExit": false
-  },
-  "controlUi": {
-    "enabled": true,
-    "allowedOrigins": [
-      "https://<your-machine>.<tailnet>.ts.net"
-    ]
-  }
-}
-```
-
-### Verify
+**Verify:**
 
 ```bash
-tailscale serve status --json   # should show proxy config
-curl -sS https://<your-machine>.<tailnet>.ts.net/ | head -5  # HTTP 200
+tailscale serve status --json
+# Should show HTTPS on 443, proxy to http://127.0.0.1:18789
+# Should NOT have AllowFunnel key
 ```
+
+**Persistence:** `tailscale serve --bg` persists in Tailscale's state. Survives gateway
+restarts and reboots (Tailscale starts at login).
 
 ---
 
-## Approach 2: Funnel (When Network Extension Is Missing)
+## Step 3: Gateway Config
 
-Uses Tailscale's public proxy servers instead of local DNS interception. No network
-extension required.
+```json5
+{
+  gateway: {
+    port: 18789,
+    mode: "local",
+    bind: "loopback",
+    auth: {
+      mode: "token",
+      token: "<generate-with: openssl rand -hex 32>",
+      password: "<fallback-password>",
+    },
+    tailscale: {
+      mode: "off",
+      resetOnExit: true,
+    },
+    controlUi: {
+      enabled: true,
+      dangerouslyDisableDeviceAuth: false,
+      allowedOrigins: ["https://<your-machine>.<tailnet>.ts.net"],
+    },
+  },
+}
+```
 
-**Why network extensions go missing:** On macOS, the Tailscale app may be installed
-without the system extension (e.g. Mac App Store version, or the extension was removed
-in Privacy & Security settings). Without it, MagicDNS queries for `*.ts.net` fall
-through to the local resolver and return Tailscale's public ingress IPs (209.x) instead
-of the tailnet IP (100.x). `tailscale serve` can't intercept traffic that never reaches
-the local machine.
+Key points:
 
-**Check:** `systemextensionsctl list` — if it shows 0 Tailscale extensions, use this
-approach.
+- **`bind: loopback`** — gateway only on 127.0.0.1. Tailscale is the only way in.
+- **`auth.mode: token`** — strong shared secret required for each connection. Set both
+  `token` and `password` for two-factor auth (token + password).
+- **`dangerouslyDisableDeviceAuth: false`** — device identity checks are active. HTTPS
+  from Tailscale Serve provides the secure context needed for Web Crypto.
+- **`allowedOrigins`** — restricted to the MagicDNS hostname over HTTPS.
 
-### Steps
+### Access
+
+Open in browser:
+
+```
+https://<your-machine>.<tailnet>.ts.net/
+```
+
+The Control UI connects via WebSocket. Enter:
+
+1. **Gateway Token** — the `openssl rand -hex 32` value from config
+2. **Password** — the fallback password from config
+
+---
+
+## Alternative: Funnel (Public Internet — Use Only If Serve Doesn't Work)
+
+If the DNS fix in Step 1 doesn't work (e.g. on a Linux machine without `/etc/resolver`),
+use `tailscale funnel` as a fallback. This exposes the dashboard to the **public
+internet** via Tailscale's proxy servers, but gateway auth still protects it.
 
 ```bash
-# Set up funnel (proxies through Tailscale's public servers)
 tailscale funnel --bg --https=443 http://127.0.0.1:18789
 ```
 
-### Gateway Config
+Security implications:
 
-```json5
-"gateway": {
-  "bind": "loopback",
-  "auth": {
-    "mode": "password",
-    "password": "<choose-password>"
-  },
-  "tailscale": {
-    "mode": "off",
-    "resetOnExit": false
-  },
-  "controlUi": {
-    "enabled": true,
-    "dangerouslyDisableDeviceAuth": true,
-    "allowedOrigins": [
-      "https://<your-machine>.<tailnet>.ts.net"
-    ]
-  }
-}
-```
-
-### Verify
-
-```bash
-tailscale funnel status --json   # should show AllowFunnel config
-curl -sS https://<your-machine>.<tailnet>.ts.net/ | head -5  # HTTP 200
-```
-
----
-
-## Persistence Across Restarts
-
-`tailscale funnel --bg` persists in Tailscale's state and survives gateway restarts. It
-also survives reboots because Tailscale itself starts at login.
-
-No additional launchd agents are needed — Tailscale manages the funnel config
-internally.
-
-### Tailscale App Auto-Start
-
-Make sure Tailscale launches at login:
-
-```bash
-# Verify Tailscale is set to open at login
-osascript -e 'tell application "System Events" to get the name of every login item' | grep -i tailscale
-```
-
-If missing, add it via System Settings > General > Login Items, or:
-
-```bash
-osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Tailscale.app", hidden:false}'
-```
+- Anyone on the internet who discovers the URL can attempt authentication
+- Password-only auth (device auth is auto-approved for loopback connections)
+- Tailscale's proxy servers see unencrypted HTTP traffic between their edge and your
+  machine
+- Use a **strong** password if funnel is required
 
 ---
 
@@ -177,55 +147,53 @@ osascript -e 'tell application "System Events" to make login item at end with pr
 ### Serve config disappears immediately
 
 **Symptom:** `tailscale serve --bg` reports success, but `tailscale serve status --json`
-returns `{}` right after.
+returns `{}`.
 
-**Cause:** Tailscale network extension is not installed. The serve config needs the
-network extension to route traffic through WireGuard. Without it, the daemon discards
-the config.
+**Cause:** DNS not intercepting `*.ts.net` queries. Without the resolver file, the
+system resolves the hostname to public IPs, and Tailscale's daemon discards the serve
+config.
 
-**Fix:** Use `tailscale funnel` instead (Approach 2), or install the network extension.
+**Fix:** Apply Step 1 (DNS setup).
 
 ### Etag mismatch errors
 
-**Symptom:** `tailscale funnel` or `tailscale serve` returns "Another client is changing
-the serve config" or "preconditions failed: etag mismatch."
+**Symptom:** "Another client is changing the serve config" or "preconditions failed:
+etag mismatch."
 
-**Cause:** Race condition between multiple Tailscale processes (CLI, app UI).
+**Cause:** Race condition between multiple Tailscale processes.
 
 **Fix:**
 
 ```bash
-tailscale funnel reset
-tailscale serve reset
+tailscale funnel reset 2>/dev/null; tailscale serve reset 2>/dev/null
 sleep 2
-tailscale funnel --bg --https=443 http://127.0.0.1:18789
+tailscale serve --bg --https=443 http://127.0.0.1:18789
 ```
 
 ### DNS resolves to 209.x instead of 100.x
 
-**Symptom:** `dig +short <hostname>.ts.net` returns 209.177.x.x addresses.
+**Symptom:** curl or browser gets `SSL_ERROR_SYSCALL` or connection refused.
 
-**Cause:** Tailscale network extension not intercepting DNS for `*.ts.net`.
+**Cause:** `/etc/resolver/ts.net` missing or Tailscale not running.
 
 **Diagnose:**
 
 ```bash
-# Check DNS config
-scutil --dns | grep -A3 tailscale
-# If "reach: 0x00000000 (Not Reachable)" — extension not loaded
+# Check resolver file exists
+cat /etc/resolver/ts.net  # should show: nameserver 100.100.100.100
 
-# Check Tailscale's DNS directly
+# Check Tailscale DNS directly
 nslookup <hostname>.ts.net 100.100.100.100
-# If this returns 100.x — Tailscale DNS works, but macOS isn't using it
-```
 
-**Fix:** Use funnel (Approach 2), or install the network extension.
+# Check system resolver
+python3 -c "import socket; print(socket.getaddrinfo('<hostname>.ts.net', 443)[0][4][0])"
+```
 
 ### Gateway bind:loopback still listens on all interfaces
 
-**Symptom:** `lsof -Pn -i :18789` shows `*:18789` instead of `127.0.0.1:18789`.
+**Symptom:** `lsof -Pn -i :18789` shows `*:18789`.
 
-**Cause:** Gateway may need a full restart (not just SIGUSR1 reload) to rebind.
+**Cause:** Gateway needs full restart to rebind.
 
 **Fix:**
 
@@ -233,19 +201,23 @@ nslookup <hostname>.ts.net 100.100.100.100
 openclaw gateway restart
 sleep 3
 lsof -Pn -i :18789 | grep LISTEN
-# Should show 127.0.0.1:18789
+# Should show: 127.0.0.1:18789
 ```
 
 ---
 
-## Security Notes
+## Security Summary
 
-- **Loopback bind is mandatory.** Always bind the gateway to `loopback` so Tailscale is
-  the only way in. Never bind to `lan` or `tailnet` when using funnel.
-- **Password auth protects funnel access.** Even though funnel is public, the gateway
-  password (`million1` or stronger) is required.
-- **`dangerouslyDisableDeviceAuth`** is needed with funnel because the device identity
-  check relies on Web Crypto APIs that require a secure context with loopback bind. Keep
-  this true when using funnel; turn it off when using Approach 1 (Serve + TLS).
-- **Upgrade path:** When the Tailscale network extension is available, switch to
-  Approach 1 (Serve + TLS) and remove `dangerouslyDisableDeviceAuth`.
+| Layer     | What protects you                                 |
+| --------- | ------------------------------------------------- |
+| Network   | Tailnet only — not reachable from public internet |
+| Transport | HTTPS via Tailscale Serve (Let's Encrypt certs)   |
+| Auth      | Gateway token (shared secret) + password          |
+| Device    | Browser-bound device identity via Web Crypto      |
+| Origin    | Only `https://<hostname>.ts.net` accepted         |
+
+**Do not set `dangerouslyDisableDeviceAuth: true`** unless in a break-glass emergency.
+The HTTPS context from Tailscale Serve makes device auth work without issues.
+
+**Do not use `bind: lan` or `bind: tailnet`** with serve — always use `bind: loopback`
+so Tailscale is the only ingress path.

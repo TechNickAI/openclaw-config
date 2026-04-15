@@ -226,17 +226,23 @@ The Control UI must be accessible over HTTPS (browsers block Web Crypto on plain
 which breaks device auth). See `tailscale-dashboard-security.md` for the full setup.
 Quick version:
 
-1. Check if the Tailscale network extension is installed:
-   `systemextensionsctl list | grep -i tailscale`
-2. If extension present → use `tailscale serve --bg --https=443 http://127.0.0.1:18789`
-3. If extension missing → use `tailscale funnel --bg --https=443 http://127.0.0.1:18789`
-4. Verify: `curl -sS https://<hostname>.ts.net/ | head -1` — should return `HTTP/2 200`
+1. **DNS fix (Homebrew Tailscale):** Create `/etc/resolver/ts.net` so `*.ts.net`
+   resolves to tailnet IPs:
+   ```bash
+   echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
+   ```
+2. **Set up Tailscale Serve:** `tailscale serve --bg --https=443 http://127.0.0.1:18789`
+3. **Verify:** `curl -sS https://<hostname>.ts.net/ | head -1` — should return
+   `HTTP/2 200`
 
-**Verify funnel/serve is active:** `tailscale funnel status --json` should show proxy
-config, not `{}`.
+**Verify serve is active:** `tailscale serve status --json` should show proxy config,
+not `{}`. If it returns `{}`, the DNS fix is missing.
 
-**Tailscale must auto-start at login** for the funnel to persist across reboots. Check:
+**Tailscale must auto-start at login** for serve to persist across reboots. Check:
 System Settings > General > Login Items > Tailscale.
+
+**Do NOT use `tailscale funnel`** unless serve is impossible — funnel exposes the
+dashboard to the public internet.
 
 ---
 
