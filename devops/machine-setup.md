@@ -220,6 +220,32 @@ column (not `-`)
 
 **Health:** `openclaw health` — should report gateway up, channels connected
 
+### Remote Dashboard Access
+
+The Control UI must be accessible over HTTPS (browsers block Web Crypto on plain HTTP,
+which breaks device auth). See `tailscale-dashboard-security.md` for the full setup.
+Quick version:
+
+1. **DNS fix (Homebrew Tailscale):** Create `/etc/resolver/ts.net` so `*.ts.net`
+   resolves to tailnet IPs. See `tailscale-dns-troubleshooting.md` for why. Apply on
+   every machine (server + clients):
+   ```bash
+   sudo mkdir -p /etc/resolver
+   echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
+   ```
+2. **Set up Tailscale Serve:** `tailscale serve --bg --https=443 http://127.0.0.1:18789`
+3. **Verify:** `curl -sS -o /dev/null -w "%{http_code}" https://<hostname>.ts.net/` —
+   should return `200`
+
+**Verify serve is active:** `tailscale serve status --json` should show proxy config,
+not `{}`. If it returns `{}`, the DNS fix is missing.
+
+**Tailscale must auto-start at login** for serve to persist across reboots. Check:
+System Settings > General > Login Items > Tailscale.
+
+**Do NOT use `tailscale funnel`** unless serve is impossible — funnel exposes the
+dashboard to the public internet.
+
 ---
 
 ## Backup
