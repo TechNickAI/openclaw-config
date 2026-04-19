@@ -27,17 +27,11 @@ triggers:
   - gather
   - who is this number
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📞",
-        "apiKey":
-          {
-            "env": "QUO_API_KEY",
-            "getFrom": "https://app.openphone.com/settings/api-keys",
-          },
-      },
-  }
+  openclaw:
+    emoji: "📞"
+    apiKey:
+      env: QUO_API_KEY
+      getFrom: https://app.openphone.com/settings/api-keys
 ---
 
 # Quo 📞
