@@ -49,9 +49,9 @@ npm install -g 9router
 
 This launches the daemon and opens the dashboard at `http://localhost:20128/dashboard`.
 
-### Option B — From source (Nick's current machine)
+### Option B — From source
 
-The repo lives at `~/src/9router`. This is how it's installed on the Mac Studio:
+Clone into `~/src/9router`:
 
 ```bash
 cd ~/src
@@ -80,17 +80,17 @@ Create `~/Library/LaunchAgents/com.<you>.9router.plist`:
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.nick.9router</string>
+  <string>com.<USER>.9router</string>
 
   <key>ProgramArguments</key>
   <array>
     <!-- Adjust node path to match your installation -->
-    <string>/Users/nick/.nvm/versions/node/v24.13.0/bin/node</string>
-    <string>/Users/nick/src/9router/.next/standalone/server.js</string>
+    <string>/Users/<USER>/.nvm/versions/node/v24.13.0/bin/node</string>
+    <string>/Users/<USER>/src/9router/.next/standalone/server.js</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/nick/src/9router</string>
+  <string>/Users/<USER>/src/9router</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -107,7 +107,7 @@ Create `~/Library/LaunchAgents/com.<you>.9router.plist`:
     <key>NEXT_PUBLIC_BASE_URL</key>
     <string>http://127.0.0.1:20128</string>
     <key>DATA_DIR</key>
-    <string>/Users/nick/.local/share/9router</string>
+    <string>/Users/<USER>/.local/share/9router</string>
     <key>NODE_ENV</key>
     <string>production</string>
   </dict>
@@ -118,9 +118,9 @@ Create `~/Library/LaunchAgents/com.<you>.9router.plist`:
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/Users/nick/.local/share/9router/launchd.out.log</string>
+  <string>/Users/<USER>/.local/share/9router/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/nick/.local/share/9router/launchd.err.log</string>
+  <string>/Users/<USER>/.local/share/9router/launchd.err.log</string>
 </dict>
 </plist>
 ```
@@ -137,7 +137,7 @@ Notes:
 Load and start:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.nick.9router.plist
+launchctl load ~/Library/LaunchAgents/com.<USER>.9router.plist
 launchctl list | grep 9router   # verify it's running
 ```
 
@@ -391,9 +391,14 @@ Claude Code subscription is near reset. Fallbacks kick in automatically.
 - `log.txt` — application log
 - `launchd.{out,err}.log` — daemon stdout/stderr
 
-**Backing up to a new machine:** Copy the LaunchAgent plist, reinstall 9Router (npm or
-source), then copy `~/.local/share/9router/db.json` over. All OAuth connections and API
-keys will come with it.
+**Migrating to a new machine:** Copy the LaunchAgent plist (updating paths for the new
+`$HOME`) and reinstall 9Router (npm or source). Do **not** rely on copying
+`~/.local/share/9router/db.json` to port OAuth connections — providers bind OAuth tokens
+to the originating device and will typically reject or invalidate them when replayed
+from another machine. Plan on re-running the OAuth flow for each provider on the new
+machine. API-key connections (e.g. OpenRouter) in `db.json` do copy cleanly, so if you
+want to migrate only those, export them from the dashboard instead of shipping the whole
+DB.
 
 **Why not just use OpenRouter directly?** OpenRouter charges per-token. 9Router lets you
 use your existing Claude Code / Codex / Gemini CLI subscriptions first, and only falls
@@ -406,9 +411,9 @@ significant cost saver.
 
 1. **Port 20128 must be free.** If another process uses it, 9Router silently fails to
    bind. Check `lsof -iTCP:20128 -sTCP:LISTEN`.
-2. **OAuth connections bind to the machine that did the login.** You can't literally
-   copy OAuth tokens to a different machine without re-authenticating — the provider may
-   invalidate them. API-key connections copy fine.
+2. **OAuth connections bind to the machine that did the login.** Re-authenticate each
+   OAuth provider on the new machine; don't try to migrate OAuth tokens by copying
+   `db.json`. API-key connections (OpenRouter, direct provider keys) do copy fine.
 3. **Don't commit `db.json`.** It contains OAuth refresh tokens and API keys in
    plaintext.
 4. **Claude models via OpenAI-compat path will leak thinking.** Always route Claude
@@ -424,6 +429,6 @@ significant cost saver.
 
 - 9Router repo: `~/src/9router` (fork of https://github.com/decolua/9router)
 - 9Router dashboard: http://localhost:20128/dashboard
-- LaunchAgent: `~/Library/LaunchAgents/com.nick.9router.plist`
+- LaunchAgent: `~/Library/LaunchAgents/com.<USER>.9router.plist`
 - Data directory: `~/.local/share/9router/`
 - OpenClaw config: `~/.openclaw/openclaw.json`
