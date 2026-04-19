@@ -17,7 +17,12 @@ import pytest
 
 SKILL_PATH = Path(__file__).parent / ".." / "skills" / "apple-photos" / "apple-photos"
 
-# Pre-register a mock osxphotos so the import doesn't fail on non-macOS/CI
+# Check real package availability BEFORE injecting the mock — find_spec doesn't import.
+HAS_OSXPHOTOS = importlib.util.find_spec("osxphotos") is not None
+HAS_PHOTOS_LIBRARY = HAS_OSXPHOTOS and sys.platform == "darwin"
+
+# Pre-register a mock so the skill script can be imported on non-macOS/CI.
+# setdefault preserves the real package if it's already been imported.
 _mock_osxphotos = MagicMock()
 _mock_osxphotos.QueryOptions = MagicMock
 sys.modules.setdefault("osxphotos", _mock_osxphotos)
@@ -27,15 +32,6 @@ _loader = importlib.machinery.SourceFileLoader("apple_photos", str(SKILL_PATH))
 spec = importlib.util.spec_from_loader("apple_photos", _loader)
 apple_photos = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(apple_photos)
-
-try:
-    import osxphotos as _real_osxphotos  # noqa: F401
-
-    HAS_OSXPHOTOS = True
-except ImportError:
-    HAS_OSXPHOTOS = False
-
-HAS_PHOTOS_LIBRARY = HAS_OSXPHOTOS and sys.platform == "darwin"
 
 requires_osxphotos = pytest.mark.skipif(
     not HAS_OSXPHOTOS,
