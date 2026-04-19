@@ -637,7 +637,7 @@ def main() -> None:
         "raw": cmd_raw,
     }
 
-    if command == "help":
+    if command in ("help", "--help", "-h"):
         cmd_help()
     elif command in commands:
         commands[command](args[1:])
