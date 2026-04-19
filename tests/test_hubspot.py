@@ -89,7 +89,9 @@ class TestValidation:
         assert "unknown command" in result.stderr.lower()
 
     def test_limit_must_be_numeric(self):
-        result = run_skill("contacts", "--limit", "abc", env={"HUBSPOT_API_KEY": "fake"})
+        result = run_skill(
+            "contacts", "--limit", "abc", env={"HUBSPOT_API_KEY": "fake"}
+        )
         assert result.returncode != 0
         assert "numeric" in result.stderr.lower()
 
@@ -99,7 +101,9 @@ class TestValidation:
         assert "1" in result.stderr
 
     def test_limit_max_enforced(self):
-        result = run_skill("contacts", "--limit", "200", env={"HUBSPOT_API_KEY": "fake"})
+        result = run_skill(
+            "contacts", "--limit", "200", env={"HUBSPOT_API_KEY": "fake"}
+        )
         assert result.returncode != 0
         assert "100" in result.stderr
 
