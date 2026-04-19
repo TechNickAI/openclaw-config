@@ -3,7 +3,7 @@
 ## Tools
 
 Quo (formerly OpenPhone) access is through the `quo` CLI at
-`~/.openclaw-config/skills/quo/quo`. Requires `QUO_API_KEY` environment variable
+`~/src/openclaw-config/skills/quo/quo`. Requires `QUO_API_KEY` environment variable
 (injected by OpenClaw automatically).
 
 ### Listing Conversations
