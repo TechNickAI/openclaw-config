@@ -29,7 +29,7 @@ Manages your openclaw-config installation.
 
 Do these steps in order:
 
-1. **Clone repo** to `~/.openclaw-config`
+1. **Clone repo** to `~/src/openclaw-config`
 
 2. **Copy templates** to workspace root (don't overwrite existing): AGENTS.md, SOUL.md,
    USER.md, TOOLS.md, HEARTBEAT.md, IDENTITY.md
@@ -40,10 +40,10 @@ Do these steps in order:
 4. **Copy skills** to `skills/`
 
 5. **Optional: Add workflows** — Ask if they want any workflows. List available
-   workflows from `~/.openclaw-config/workflows/`.
+   workflows from `~/src/openclaw-config/workflows/`.
 
    If yes for a workflow:
-   - Copy all upstream-owned files from `~/.openclaw-config/workflows/<name>/` to
+   - Copy all upstream-owned files from `~/src/openclaw-config/workflows/<name>/` to
      `workflows/<name>/`, preserving directory structure (e.g., `platforms/` subdirs)
    - **Never copy user-owned files:** `rules.md`, `agent_notes.md`, `preferences.md`,
      `processed.md`, `logs/`
@@ -86,7 +86,7 @@ Do these steps in order:
    - Resolve the claude CLI path with `which claude` — use the full path in the cron job
    - Install the cron job (substitute CLAUDE_PATH with the resolved path):
      ```
-     0 0,7-23 * * * test -f "$HOME/.openclaw-config/devops/health-check.md" && flock -n "$HOME/.openclaw/health-check.lock" CLAUDE_PATH -p "Run health check" --model simple --append-system-prompt-file "$HOME/.openclaw-config/devops/health-check.md" --dangerously-skip-permissions --max-budget-usd 5.00 >> "$HOME/.openclaw/health-check.log" 2>&1
+     0 0,7-23 * * * test -f "$HOME/src/openclaw-config/devops/health-check.md" && flock -n "$HOME/.openclaw/health-check.lock" CLAUDE_PATH -p "Run health check" --model simple --append-system-prompt-file "$HOME/src/openclaw-config/devops/health-check.md" --dangerously-skip-permissions --max-budget-usd 5.00 >> "$HOME/.openclaw/health-check.log" 2>&1
      ```
    - Verify: `crontab -l | grep health-check`
    - Do a test run: execute the claude command once and verify it produces output
@@ -106,7 +106,7 @@ Do these steps in order:
 
 # Update
 
-Compare `.openclaw/installed-version` with `~/.openclaw-config/VERSION`.
+Compare `.openclaw/installed-version` with `~/src/openclaw-config/VERSION`.
 
 If newer: pull, update skills (safe to overwrite), update templates only if user hasn't
 modified them, update version file, report changes.

@@ -331,7 +331,7 @@ skill can do anything the user can do.
 Skills run from two locations that must both be checked:
 
 1. **Config repo** (find it via `CLAUDE.local.md` or by searching for a directory
-   containing `skills/` with a `VERSION` file — commonly `~/.openclaw-config/` or
+   containing `skills/` with a `VERSION` file — commonly `~/src/openclaw-config/` or
    wherever the user cloned the repo): Run `git diff HEAD -- skills/` — any local
    modifications are findings.
 2. **Deployed workspace copies** (the actual executables that run): The openclaw
