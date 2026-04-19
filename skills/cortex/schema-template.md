@@ -12,7 +12,7 @@ set. Read it before every ingest or lint operation.
 ~/.openclaw/memory/                  <- Cortex primary store root
   schema.md                            <- This file. Your operating rules.
   index.md                             <- Root navigation hub
-  .cortex.db                           <- SQLite state (gitignored)
+  cortex.db                            <- SQLite state (gitignored)
   .log                                 <- Operation log (not .md to avoid indexing)
   review-queue.md                      <- Items needing human review
   .gitignore
@@ -47,11 +47,11 @@ The knowledge base lives directly in the OpenClaw memory root.
 Back it up separately to a Dropbox path such as:
 
 ```
-~/Dropbox/Knowledge Base - Hex/
+~/Dropbox/Knowledge Base - <agentname>/
 ```
 
-Agents navigate: `index.md` -> category `index.md` -> specific pages. Two
-hops, bounded context.
+Agents navigate: `index.md` -> category `index.md` -> specific pages. Two hops, bounded
+context.
 
 ## Page Types
 

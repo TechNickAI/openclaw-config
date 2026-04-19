@@ -33,7 +33,8 @@ cortex: diverse inputs come in, coherent understanding comes out.
 
 ## What Cortex Is
 
-A knowledge compiler and memory system stored as plain markdown in local OpenClaw memory, with optional Dropbox backup:
+A knowledge compiler and memory system stored as plain markdown in local OpenClaw
+memory, with optional Dropbox backup:
 
 - **Sources** — Documents, notes, transcripts, captures anywhere on disk. You read but
   never modify them.
@@ -42,7 +43,8 @@ A knowledge compiler and memory system stored as plain markdown in local OpenCla
 - **Schema** (`schema.md`) — Your operating rules. Read it before every ingest or lint.
 - **MEMORY.md** — A ~30-line routing table at `~/.openclaw/memory/MEMORY.md`, always
   loaded into agent context.
-- **Backup** — Copy the local knowledge base to Dropbox periodically, for example every 3 hours.
+- **Backup** — Copy the local knowledge base to Dropbox periodically, for example every
+  3 hours.
 
 ## Store Layout
 
@@ -50,7 +52,7 @@ A knowledge compiler and memory system stored as plain markdown in local OpenCla
 ~/.openclaw/memory/                  <- Cortex primary store root
   schema.md                            <- LLM instruction set
   index.md                             <- Root navigation hub
-  .cortex.db                           <- SQLite state (gitignored)
+  cortex.db                            <- SQLite state (gitignored)
   .log                                 <- Operation log
   review-queue.md                      <- Items needing human review
   entities/                            <- People, companies, tools, projects
@@ -67,12 +69,13 @@ A knowledge compiler and memory system stored as plain markdown in local OpenCla
 
 Stored directly in `~/.openclaw/memory/`, with no Cortex subfolder.
 
-If off-machine backup is desired, copy the memory root to `~/Dropbox/Knowledge Base - <agentname>/` on a schedule instead of using a symlink.
+If off-machine backup is desired, copy the memory root to
+`~/Dropbox/Knowledge Base - <agentname>/` on a schedule instead of using a symlink.
 
 ## How Agents Access Cortex
 
-Navigate: `<link-name>/index.md` -> category `index.md` -> specific pages. Two hops,
-bounded context.
+Navigate: `~/.openclaw/memory/index.md` -> category `index.md` -> specific pages. Two
+hops, bounded context.
 
 ## Operations
 
@@ -169,7 +172,8 @@ For processing large numbers of files:
    captures
 6. After all batches, run a full lint to stitch cross-references
 7. Review `review-queue.md` for items needing human attention
-8. Set up backup copy to Dropbox after initial ingest, for example with a 3-hour sync job
+8. Set up backup copy to Dropbox after initial ingest, for example with a 3-hour sync
+   job
 
 ### Resumption
 

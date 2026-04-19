@@ -107,7 +107,7 @@ def get_store_path() -> Path:
 
 def get_db_path() -> Path:
     """Get the SQLite database path."""
-    return get_store_path() / ".cortex.db"
+    return get_store_path() / "cortex.db"
 
 
 def get_db() -> sqlite3.Connection:
@@ -322,11 +322,11 @@ def cmd_setup() -> None:
     # Create .gitignore
     gitignore = store_path / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text(".obsidian/\n.cortex.db\n.cortex.db-wal\n.cortex.db-shm\n*.log\n")
+        gitignore.write_text(".obsidian/\ncortex.db\ncortex.db-wal\ncortex.db-shm\n*.log\n")
         print("Created .gitignore")
 
     # Initialize SQLite
-    db_path = store_path / ".cortex.db"
+    db_path = store_path / "cortex.db"
     if not db_path.exists():
         init_db(db_path)
         print("Initialized SQLite database")
