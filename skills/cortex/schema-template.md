@@ -9,7 +9,7 @@ set. Read it before every ingest or lint operation.
 ### Store Layout
 
 ```
-~/Dropbox/Knowledge Base/              <- Cortex store (Dropbox-synced)
+~/.openclaw/memory/                  <- Cortex primary store root
   schema.md                            <- This file. Your operating rules.
   index.md                             <- Root navigation hub
   .cortex.db                           <- SQLite state (gitignored)
@@ -42,13 +42,15 @@ absolute path to each original source. Sources are immutable — you never modif
 
 ### Access via OpenClaw
 
-The store is symlinked into the OpenClaw memory path:
+The knowledge base lives directly in the OpenClaw memory root.
+
+Back it up separately to a Dropbox path such as:
 
 ```
-~/.openclaw/memory/Knowledge Base/ -> ~/Dropbox/Knowledge Base/
+~/Dropbox/Knowledge Base - Hex/
 ```
 
-Agents navigate: `Knowledge Base/index.md` -> category `index.md` -> specific pages. Two
+Agents navigate: `index.md` -> category `index.md` -> specific pages. Two
 hops, bounded context.
 
 ## Page Types
@@ -601,9 +603,9 @@ agents. This is always loaded into conversation context.
 
 ## Quick Links
 
-- [Recent Decisions](Knowledge Base/decisions/)
-- [All Entities](Knowledge Base/entities/index.md)
-- [Knowledge Base Index](Knowledge Base/index.md)
+- [Recent Decisions](decisions/)
+- [All Entities](entities/index.md)
+- [Knowledge Base Index](index.md)
 ```
 
 ### Daily Journal Files
