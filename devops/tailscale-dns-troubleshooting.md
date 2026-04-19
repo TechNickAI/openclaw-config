@@ -32,6 +32,7 @@ Create a macOS resolver file that tells the system DNS to use Tailscale's namese
 `*.ts.net` queries:
 
 ```bash
+sudo mkdir -p /etc/resolver
 echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
 ```
 
@@ -69,8 +70,8 @@ python3 -c "import socket; print(socket.getaddrinfo('<hostname>.ts.net', 443)[0]
 # curl (uses system resolver)
 curl -sS --max-time 5 https://<hostname>.ts.net/ -o /dev/null -w "%{remote_ip}\n"
 
-# Node.js (uses system resolver)
-node -e "require('dns').resolve4('<hostname>.ts.net', (e,a) => console.log(a))"
+# Node.js (uses system resolver via getaddrinfo)
+node -e "require('dns').lookup('<hostname>.ts.net', (e,addr) => console.log(addr))"
 ```
 
 Expected: `100.x.x.x` (tailnet IP)

@@ -230,11 +230,12 @@ Quick version:
    resolves to tailnet IPs. See `tailscale-dns-troubleshooting.md` for why. Apply on
    every machine (server + clients):
    ```bash
+   sudo mkdir -p /etc/resolver
    echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
    ```
 2. **Set up Tailscale Serve:** `tailscale serve --bg --https=443 http://127.0.0.1:18789`
-3. **Verify:** `curl -sS https://<hostname>.ts.net/ | head -1` — should return
-   `HTTP/2 200`
+3. **Verify:** `curl -sS -o /dev/null -w "%{http_code}" https://<hostname>.ts.net/` —
+   should return `200`
 
 **Verify serve is active:** `tailscale serve status --json` should show proxy config,
 not `{}`. If it returns `{}`, the DNS fix is missing.
