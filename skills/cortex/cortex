@@ -107,7 +107,7 @@ def get_store_path() -> Path:
 
 def get_db_path() -> Path:
     """Get the SQLite database path."""
-    return get_store_path() / ".cortex.db"
+    return get_store_path() / "cortex.db"
 
 
 def get_db() -> sqlite3.Connection:
@@ -322,11 +322,11 @@ def cmd_setup() -> None:
     # Create .gitignore
     gitignore = store_path / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text(".obsidian/\n.cortex.db\n.cortex.db-wal\n.cortex.db-shm\n*.log\n")
+        gitignore.write_text(".obsidian/\ncortex.db\ncortex.db-wal\ncortex.db-shm\n*.log\n")
         print("Created .gitignore")
 
     # Initialize SQLite
-    db_path = store_path / ".cortex.db"
+    db_path = store_path / "cortex.db"
     if not db_path.exists():
         init_db(db_path)
         print("Initialized SQLite database")
@@ -441,20 +441,21 @@ def _setup_symlink(store_path: Path) -> bool:
         current_target = symlink_path.resolve()
         if current_target == store_path.resolve():
             print(f"Symlink already correct: {symlink_path} -> {store_path}")
-            return True
-        print(f"Existing symlink points to: {current_target}")
-        confirm = input(f"Update to {store_path}? [y/N]: ").strip().lower()
-        if confirm not in ("y", "yes"):
-            print("Symlink not updated.")
-            return False
-        symlink_path.unlink()
+        else:
+            print(f"Existing symlink points to: {current_target}")
+            confirm = input(f"Update to {store_path}? [y/N]: ").strip().lower()
+            if confirm not in ("y", "yes"):
+                print("Symlink not updated.")
+                return False
+            symlink_path.unlink()
+            symlink_path.symlink_to(store_path)
+            print(f"Symlink created: {symlink_path} -> {store_path}")
     elif symlink_path.exists():
         print(f"Warning: {symlink_path} exists and is not a symlink. Skipping.")
         return False
-
-    symlink_path.symlink_to(store_path)
-    print(f"Symlink created: {symlink_path} -> {store_path}")
-    return True
+    else:
+        symlink_path.symlink_to(store_path)
+        print(f"Symlink created: {symlink_path} -> {store_path}")
 
     # Create MEMORY.md routing table if it doesn't exist
     memory_md = openclaw_memory / "MEMORY.md"
@@ -473,6 +474,8 @@ def _setup_symlink(store_path: Path) -> bool:
             content = content.rstrip() + "\n- [Knowledge Base Index](Knowledge Base/index.md)\n"
             memory_md.write_text(content)
             print("Added Knowledge Base entry to MEMORY.md")
+
+    return True
 
 
 # --- Status ---

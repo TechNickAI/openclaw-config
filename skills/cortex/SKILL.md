@@ -33,23 +33,26 @@ cortex: diverse inputs come in, coherent understanding comes out.
 
 ## What Cortex Is
 
-A knowledge compiler and memory system stored as plain markdown in cloud storage:
+A knowledge compiler and memory system stored as plain markdown in local OpenClaw
+memory, with optional Dropbox backup:
 
 - **Sources** — Documents, notes, transcripts, captures anywhere on disk. You read but
   never modify them.
 - **Knowledge Base** — You own this. Structured, interlinked pages with YAML frontmatter
-  in `~/Dropbox/Knowledge Base/`.
+  directly under `~/.openclaw/memory/`.
 - **Schema** (`schema.md`) — Your operating rules. Read it before every ingest or lint.
 - **MEMORY.md** — A ~30-line routing table at `~/.openclaw/memory/MEMORY.md`, always
   loaded into agent context.
+- **Backup** — Copy the local knowledge base to Dropbox periodically, for example every
+  3 hours.
 
 ## Store Layout
 
 ```
-~/Dropbox/Knowledge Base/              <- Cortex store (Dropbox-synced)
+~/.openclaw/memory/                  <- Cortex primary store root
   schema.md                            <- LLM instruction set
   index.md                             <- Root navigation hub
-  .cortex.db                           <- SQLite state (gitignored)
+  cortex.db                            <- SQLite state (gitignored)
   .log                                 <- Operation log
   review-queue.md                      <- Items needing human review
   entities/                            <- People, companies, tools, projects
@@ -61,16 +64,18 @@ A knowledge compiler and memory system stored as plain markdown in cloud storage
   learning/                            <- Self-improvement loop
     archive/                           <- Archived corrections
   daily/                               <- Conversation journals
+  MEMORY.md                            <- Routing table / quick links
 ```
 
-Accessed via symlink after ingest: `~/.openclaw/memory/Knowledge Base/` (Run
-`cortex link` after bulk ingest is complete — linking during ingest causes re-index
-churn.)
+Stored directly in `~/.openclaw/memory/`, with no Cortex subfolder.
+
+If off-machine backup is desired, copy the memory root to
+`~/Dropbox/Knowledge Base - <agentname>/` on a schedule instead of using a symlink.
 
 ## How Agents Access Cortex
 
-Navigate: `Knowledge Base/index.md` -> category `index.md` -> specific pages. Two hops,
-bounded context.
+Navigate: `~/.openclaw/memory/index.md` -> category `index.md` -> specific pages. Two
+hops, bounded context.
 
 ## Operations
 
@@ -94,7 +99,7 @@ For bulk ingest, run `cortex scan <dir>` then `cortex plan` to see prioritized b
 
 When answering a question from compiled knowledge:
 
-1. Read `Knowledge Base/index.md` to identify relevant categories
+1. Read `~/.openclaw/memory/index.md` to identify relevant categories
 2. Read the relevant category `index.md`
 3. Read matched pages (cap at 10 per query)
 4. Synthesize answer with citations to sources
@@ -149,7 +154,7 @@ cortex scan <dir>                     # Discover files, classify, hash, store in
 cortex triage                         # Pre-filter low-value files
 cortex plan                           # Show files grouped by directory, sorted oldest-first
 cortex rebuild-index                  # Regenerate indexes from page frontmatter
-cortex link                           # Symlink store into OpenClaw memory (AFTER ingest)
+cortex link                           # Deprecated in this rollout pattern, prefer local store plus backup copy
 ```
 
 For document extraction (PDF, DOCX, PPTX, etc.), use docling directly:
@@ -167,7 +172,8 @@ For processing large numbers of files:
    captures
 6. After all batches, run a full lint to stitch cross-references
 7. Review `review-queue.md` for items needing human attention
-8. `cortex link` — symlink store into OpenClaw memory (triggers re-index, so do last)
+8. Set up backup copy to Dropbox after initial ingest, for example with a 3-hour sync
+   job
 
 ### Resumption
 
@@ -192,3 +198,5 @@ index. The operator decides which model to use based on the source quality and c
 - Entity pages for people are living documents — update to current state with inline
   history for changed facts
 - This skill replaces the librarian — all memory maintenance is now handled by Cortex
+- Treat `~/.openclaw/memory` as the source of truth, not Dropbox
+- Back up the memory root to `~/Dropbox/Knowledge Base - <agentname>/`

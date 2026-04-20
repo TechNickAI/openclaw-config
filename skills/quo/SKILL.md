@@ -26,7 +26,12 @@ triggers:
   - unknown callers
   - gather
   - who is this number
-metadata: { "openclaw": { "emoji": "📞", "primaryEnv": "QUO_API_KEY" } }
+metadata:
+  openclaw:
+    emoji: "📞"
+    apiKey:
+      env: QUO_API_KEY
+      getFrom: https://app.openphone.com/settings/api-keys
 ---
 
 # Quo 📞

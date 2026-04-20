@@ -24,6 +24,7 @@ instead of tailnet IPs (100.x), and `tailscale serve` silently fails.
 **Fix:** Create a macOS resolver file that routes `*.ts.net` queries to Tailscale's DNS:
 
 ```bash
+sudo mkdir -p /etc/resolver
 echo "nameserver 100.100.100.100" | sudo tee /etc/resolver/ts.net
 sudo dscacheutil -flushcache
 sudo killall -HUP mDNSResponder 2>/dev/null || true

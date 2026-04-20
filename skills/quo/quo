@@ -1122,7 +1122,9 @@ def main() -> None:
     args = sys.argv[1:]
     command = args[0] if args else "help"
 
-    if command in COMMAND_MAP:
+    if command in ("help", "--help", "-h"):
+        cmd_help()
+    elif command in COMMAND_MAP:
         COMMAND_MAP[command](args[1:])
     else:
         error(f"Unknown command: {command}", "Run 'quo help' for available commands")

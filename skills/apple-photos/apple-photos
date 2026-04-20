@@ -1,0 +1,256 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["osxphotos>=0.68"]
+# ///
+"""
+Apple Photos CLI - Query, inspect, and export photos from the macOS Photos library.
+
+Subcommands:
+  people   List face clusters / people with photo counts
+  query    Search photos by person, album, keyword, date range
+  export   Copy matched photos to a destination folder
+"""
+
+import argparse
+import datetime as dt
+import json
+import pathlib
+import shutil
+import sys
+
+from osxphotos import PhotosDB, QueryOptions
+
+DEFAULT_LIMIT = 50
+
+
+def parse_date(value: str | None) -> dt.datetime | None:
+    """Parse ISO date string (YYYY-MM-DD or full ISO) to datetime."""
+    if not value:
+        return None
+    return dt.datetime.fromisoformat(value)
+
+
+def get_db(library_path: str | None = None) -> PhotosDB:
+    """Open the Photos database, optionally at a specific library path."""
+    try:
+        return PhotosDB(library_path=library_path) if library_path else PhotosDB()
+    except Exception as exc:
+        path_hint = library_path or "default system library"
+        print(
+            f"ERROR: Could not open Photos library ({path_hint}): {exc}\n"
+            "Ensure Photos.app has been opened at least once on this Mac.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def sanitize_filename(name: str) -> str:
+    """Remove characters that are unsafe in filenames."""
+    return "".join(
+        c if c.isalnum() or c in (" ", "-", "_", ".", "(", ")") else "_"
+        for c in name
+    ).strip()
+
+
+def unique_path(dest: pathlib.Path, name: str) -> pathlib.Path:
+    """Return a non-colliding path, appending _1, _2, etc. if needed."""
+    candidate = dest / name
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    counter = 1
+    while candidate.exists():
+        candidate = dest / f"{stem}_{counter}{suffix}"
+        counter += 1
+    return candidate
+
+
+def photo_to_dict(photo) -> dict:
+    """Convert a PhotoInfo object to a JSON-serializable dict."""
+    return {
+        "uuid": photo.uuid,
+        "filename": photo.filename,
+        "original_filename": photo.original_filename,
+        "date": photo.date.isoformat() if photo.date else None,
+        "original_path": photo.path,
+        "edited_path": photo.path_edited,
+        "persons": sorted(set(photo.persons or [])),
+        "albums": sorted(set(photo.albums or [])),
+        "favorite": bool(getattr(photo, "favorite", False)),
+        "hasadjustments": bool(getattr(photo, "hasadjustments", False)),
+        "ismissing": bool(getattr(photo, "ismissing", False)),
+    }
+
+
+# -- Subcommand: people -------------------------------------------------------
+
+
+def cmd_people(args: argparse.Namespace) -> None:
+    """List people / face clusters with photo counts."""
+    db = get_db(args.library)
+    people = []
+    counts = db.persons_as_dict
+    for name in db.persons:
+        if not args.include_unknown and name == "_UNKNOWN_":
+            continue
+        count_or_list = counts.get(name, [])
+        count = len(count_or_list) if isinstance(count_or_list, (list, tuple, set)) else int(count_or_list)
+        people.append((name, count))
+
+    people.sort(key=lambda x: (-x[1], x[0].lower()))
+    for name, count in people[: args.limit]:
+        print(f"{count}\t{name}")
+
+
+# -- Shared query builder -----------------------------------------------------
+
+
+def build_query_options(args: argparse.Namespace) -> QueryOptions:
+    """Build QueryOptions from parsed CLI arguments."""
+    return QueryOptions(
+        person=args.person or None,
+        album=args.album or None,
+        keyword=args.keyword or None,
+        from_date=parse_date(args.after),
+        to_date=parse_date(args.before),
+        favorite=True if getattr(args, "favorite", False) else None,
+        edited=True if getattr(args, "edited", False) else None,
+        photos=True,
+        movies=getattr(args, "movies", False),
+        newest_first=getattr(args, "newest_first", False),
+    )
+
+
+# -- Subcommand: query --------------------------------------------------------
+
+
+def cmd_query(args: argparse.Namespace) -> None:
+    """Query photos with filters and output results."""
+    db = get_db(args.library)
+    photos = db.query(build_query_options(args))
+    if args.limit:
+        photos = photos[: args.limit]
+
+    rows = [photo_to_dict(p) for p in photos]
+
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        for item in rows:
+            path = item["edited_path"] or item["original_path"]
+            print(f"{item['date']}\t{item['original_filename']}\t{path}")
+
+
+# -- Subcommand: export -------------------------------------------------------
+
+
+def cmd_export(args: argparse.Namespace) -> None:
+    """Export matched photos to a destination directory."""
+    db = get_db(args.library)
+    photos = db.query(build_query_options(args))
+    if args.limit:
+        photos = photos[: args.limit]
+
+    dest = pathlib.Path(args.dest).expanduser()
+    dest.mkdir(parents=True, exist_ok=True)
+
+    count = 0
+    skipped = 0
+    for photo in photos:
+        src = photo.path_edited if args.edited and photo.path_edited else photo.path
+        if not src:
+            continue
+        src_path = pathlib.Path(src)
+        if not src_path.exists():
+            continue
+        stamp = photo.date.strftime("%Y-%m-%d_%H%M%S") if photo.date else "undated"
+        out_name = sanitize_filename(f"{stamp}_{photo.original_filename}")
+        out_path = unique_path(dest, out_name)
+        if args.dry_run:
+            print(f"DRYRUN\t{src_path}\t{out_path}")
+        else:
+            try:
+                shutil.copy2(src_path, out_path)
+                print(f"COPIED\t{out_path}")
+            except OSError as exc:
+                print(f"SKIP\t{src_path}\t{exc}", file=sys.stderr)
+                skipped += 1
+                continue
+        count += 1
+
+    summary = f"Exported {count} item(s) to {dest}"
+    if skipped:
+        summary += f" ({skipped} skipped due to errors)"
+    print(summary)
+
+
+# -- Argument parser -----------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the top-level argument parser with subcommands."""
+    parser = argparse.ArgumentParser(
+        prog="apple-photos",
+        description="Query, inspect, and export photos from Apple Photos",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # -- people --
+    p_people = sub.add_parser("people", help="List people / face clusters")
+    p_people.add_argument("--library", help="Path to Photos library")
+    p_people.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    p_people.add_argument("--include-unknown", action="store_true")
+
+    # -- query --
+    p_query = sub.add_parser("query", help="Query photos with filters")
+    p_query.add_argument("--library", help="Path to Photos library")
+    p_query.add_argument("--person", action="append", default=[], help="Person name (repeatable)")
+    p_query.add_argument("--album", action="append", default=[], help="Album name (repeatable)")
+    p_query.add_argument("--keyword", action="append", default=[], help="Keyword (repeatable)")
+    p_query.add_argument("--after", help="Photos on/after this date (YYYY-MM-DD)")
+    p_query.add_argument("--before", help="Photos before this date (YYYY-MM-DD)")
+    p_query.add_argument("--favorite", action="store_true")
+    p_query.add_argument("--edited", action="store_true")
+    p_query.add_argument("--movies", action="store_true", help="Include movies")
+    p_query.add_argument("--newest-first", action="store_true")
+    p_query.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    p_query.add_argument("--json", action="store_true")
+
+    # -- export --
+    p_export = sub.add_parser("export", help="Export matched photos to a folder")
+    p_export.add_argument("dest", help="Destination directory")
+    p_export.add_argument("--library", help="Path to Photos library")
+    p_export.add_argument("--person", action="append", default=[], help="Person name (repeatable)")
+    p_export.add_argument("--album", action="append", default=[], help="Album name (repeatable)")
+    p_export.add_argument("--keyword", action="append", default=[], help="Keyword (repeatable)")
+    p_export.add_argument("--after", help="Photos on/after this date (YYYY-MM-DD)")
+    p_export.add_argument("--before", help="Photos before this date (YYYY-MM-DD)")
+    p_export.add_argument("--edited", action="store_true", help="Prefer edited versions")
+    p_export.add_argument("--movies", action="store_true", default=True, help="Include movies (default: on)")
+    p_export.add_argument("--newest-first", action="store_true", default=True, help="Sort newest first (default: on)")
+    p_export.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    p_export.add_argument("--dry-run", action="store_true")
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    commands = {
+        "people": cmd_people,
+        "query": cmd_query,
+        "export": cmd_export,
+    }
+    commands[args.command](args)
+
+
+if __name__ == "__main__":
+    main()

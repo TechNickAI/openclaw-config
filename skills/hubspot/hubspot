@@ -1,0 +1,411 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.13"
+# dependencies = ["httpx>=0.28"]
+# ///
+"""HubSpot CLI, read contacts, deals, and deal stage metadata."""
+
+import json
+import os
+import sys
+from typing import Any, NoReturn
+from urllib.parse import urlencode
+
+import httpx
+
+BASE_URL = "https://api.hubapi.com"
+DEFAULT_LIMIT = 10
+MAX_LIMIT = 100
+CONTACT_PROPERTIES = [
+    "firstname",
+    "lastname",
+    "email",
+    "phone",
+    "company",
+    "createdate",
+    "lastmodifieddate",
+]
+DEAL_PROPERTIES = [
+    "dealname",
+    "amount",
+    "dealstage",
+    "pipeline",
+    "closedate",
+    "createdate",
+    "hubspot_owner_id",
+    "hs_lastmodifieddate",
+]
+
+
+# --- Helpers ---
+
+
+def get_api_key() -> str | None:
+    """Get API key from environment."""
+    return os.environ.get("HUBSPOT_API_KEY", "").strip() or None
+
+
+def error(message: str, hint: str | None = None) -> NoReturn:
+    """Print error message to stderr and exit."""
+    print(f"Error: {message}", file=sys.stderr)
+    if hint:
+        print(hint, file=sys.stderr)
+    sys.exit(1)
+
+
+def api(
+    method: str,
+    path: str,
+    *,
+    json_body: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Call the HubSpot API with bearer auth and consistent errors."""
+    api_key = get_api_key()
+    if not api_key:
+        error(
+            "HUBSPOT_API_KEY not set",
+            "Get your token from: https://app.hubspot.com/private-apps",
+        )
+
+    url = f"{BASE_URL}{path}"
+    if params:
+        url += "?" + urlencode({k: v for k, v in params.items() if v is not None}, doseq=True)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = httpx.request(
+            method,
+            url,
+            json=json_body,
+            headers=headers,
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            error(
+                "Authentication failed",
+                "Check HUBSPOT_API_KEY or create a new private app token.",
+            )
+        if e.response.status_code == 403:
+            error(
+                "Permission denied",
+                "The token is missing required HubSpot scopes for this endpoint.",
+            )
+        if e.response.status_code == 429:
+            retry = e.response.headers.get("Retry-After", "a few")
+            error("Rate limited by HubSpot", f"Retry after {retry} seconds.")
+        try:
+            body = e.response.json()
+            msg = body.get("message") or body.get("error") or str(body)
+        except Exception:
+            msg = e.response.text or str(e)
+        error(f"API returned HTTP {e.response.status_code}", str(msg))
+    except httpx.RequestError as e:
+        error("Failed to reach HubSpot API", str(e))
+    except json.JSONDecodeError:
+        error("API returned invalid JSON", f"Response: {response.text[:200]}")
+
+
+def parse_limit(args: list[str], default: int = DEFAULT_LIMIT) -> tuple[int, list[str]]:
+    """Parse --limit from args and return (limit, remaining_args)."""
+    remaining: list[str] = []
+    limit = default
+    i = 0
+    while i < len(args):
+        if args[i] == "--limit":
+            if i + 1 >= len(args):
+                error("--limit requires a number")
+            try:
+                limit = int(args[i + 1])
+            except ValueError:
+                error(f"--limit must be numeric, got '{args[i + 1]}'")
+            if limit < 1 or limit > MAX_LIMIT:
+                error(f"Limit must be between 1 and {MAX_LIMIT}, got {limit}")
+            i += 2
+        else:
+            remaining.append(args[i])
+            i += 1
+    return limit, remaining
+
+
+def fmt_money(value: str | None) -> str:
+    """Format HubSpot amount strings."""
+    if not value:
+        return ""
+    try:
+        num = float(value)
+    except ValueError:
+        return value
+    if num.is_integer():
+        return f"${int(num):,}"
+    return f"${num:,.2f}"
+
+
+def stage_maps() -> tuple[dict[str, str], dict[str, str]]:
+    """Return (stage_id -> label, pipeline_id -> label)."""
+    data = api("GET", "/crm/v3/pipelines/deals")
+    stages: dict[str, str] = {}
+    pipelines: dict[str, str] = {}
+    for pipeline in data.get("results", []):
+        pipeline_id = pipeline.get("id", "")
+        pipeline_label = pipeline.get("label", pipeline_id or "Unknown pipeline")
+        if pipeline_id:
+            pipelines[pipeline_id] = pipeline_label
+        for stage in pipeline.get("stages", []):
+            sid = stage.get("id", "")
+            label = stage.get("label", sid or "Unknown stage")
+            if sid:
+                stages[sid] = label
+    return stages, pipelines
+
+
+def contact_name(props: dict[str, Any]) -> str:
+    """Build a readable contact name."""
+    first = props.get("firstname") or ""
+    last = props.get("lastname") or ""
+    name = f"{first} {last}".strip()
+    return name or props.get("email") or "Unnamed contact"
+
+
+# --- Formatters ---
+
+
+def format_contacts(data: dict[str, Any]) -> str:
+    """Format contact search results as markdown."""
+    results = data.get("results", [])
+    total = data.get("total", len(results))
+    if not results:
+        return "No contacts found."
+
+    noun = "contact" if total == 1 else "contacts"
+    lines = [f"**{total} {noun} found**", ""]
+    for item in results:
+        props = item.get("properties", {})
+        lines.append(f"### {contact_name(props)} (ID: {item.get('id', '?')})")
+        if props.get("email"):
+            lines.append(f"**Email:** {props['email']}")
+        if props.get("phone"):
+            lines.append(f"**Phone:** {props['phone']}")
+        if props.get("company"):
+            lines.append(f"**Company:** {props['company']}")
+        if props.get("createdate"):
+            lines.append(f"**Created:** {props['createdate']}")
+        if props.get("lastmodifieddate"):
+            lines.append(f"**Updated:** {props['lastmodifieddate']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def format_contact(data: dict[str, Any]) -> str:
+    """Format a single contact record as markdown."""
+    props = data.get("properties", {})
+    lines = [f"## {contact_name(props)} (ID: {data.get('id', '?')})", ""]
+    if props.get("email"):
+        lines.append(f"**Email:** {props['email']}")
+    if props.get("phone"):
+        lines.append(f"**Phone:** {props['phone']}")
+    if props.get("company"):
+        lines.append(f"**Company:** {props['company']}")
+    if props.get("createdate"):
+        lines.append(f"**Created:** {props['createdate']}")
+    if props.get("lastmodifieddate"):
+        lines.append(f"**Updated:** {props['lastmodifieddate']}")
+    return "\n".join(lines)
+
+
+def format_deals(
+    data: dict[str, Any], stage_lookup: dict[str, str], pipeline_lookup: dict[str, str],
+) -> str:
+    """Format deal search results as markdown."""
+    results = data.get("results", [])
+    total = data.get("total", len(results))
+    if not results:
+        return "No deals found."
+
+    noun = "deal" if total == 1 else "deals"
+    lines = [f"**{total} {noun} found**", ""]
+    for item in results:
+        props = item.get("properties", {})
+        deal_name = props.get("dealname") or "Untitled deal"
+        stage_id = props.get("dealstage") or ""
+        pipeline_id = props.get("pipeline") or ""
+        stage = stage_lookup.get(stage_id, stage_id or "Unknown")
+        pipeline = pipeline_lookup.get(pipeline_id, pipeline_id or "Unknown")
+
+        lines.append(f"### {deal_name} (ID: {item.get('id', '?')})")
+        lines.append(f"**Stage:** {stage}")
+        lines.append(f"**Pipeline:** {pipeline}")
+        if props.get("amount"):
+            lines.append(f"**Amount:** {fmt_money(props.get('amount'))}")
+        if props.get("closedate"):
+            lines.append(f"**Close date:** {props['closedate']}")
+        if props.get("hubspot_owner_id"):
+            lines.append(f"**Owner ID:** {props['hubspot_owner_id']}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def format_deal(
+    data: dict[str, Any], stage_lookup: dict[str, str], pipeline_lookup: dict[str, str],
+) -> str:
+    """Format a single deal as markdown."""
+    props = data.get("properties", {})
+    deal_name = props.get("dealname") or "Untitled deal"
+    stage_id = props.get("dealstage") or ""
+    pipeline_id = props.get("pipeline") or ""
+    stage = stage_lookup.get(stage_id, stage_id or "Unknown")
+    pipeline = pipeline_lookup.get(pipeline_id, pipeline_id or "Unknown")
+
+    lines = [f"## {deal_name} (ID: {data.get('id', '?')})", ""]
+    lines.append(f"**Stage:** {stage}")
+    lines.append(f"**Pipeline:** {pipeline}")
+    if props.get("amount"):
+        lines.append(f"**Amount:** {fmt_money(props.get('amount'))}")
+    if props.get("closedate"):
+        lines.append(f"**Close date:** {props['closedate']}")
+    if props.get("createdate"):
+        lines.append(f"**Created:** {props['createdate']}")
+    if props.get("hs_lastmodifieddate"):
+        lines.append(f"**Updated:** {props['hs_lastmodifieddate']}")
+    if props.get("hubspot_owner_id"):
+        lines.append(f"**Owner ID:** {props['hubspot_owner_id']}")
+    return "\n".join(lines)
+
+
+def format_stages(data: dict[str, Any]) -> str:
+    """Format pipelines and stages as markdown."""
+    pipelines = data.get("results", [])
+    if not pipelines:
+        return "No deal pipelines found."
+
+    lines: list[str] = []
+    for pipeline in pipelines:
+        lines.append(f"## {pipeline.get('label', 'Unnamed pipeline')} ({pipeline.get('id', '?')})")
+        lines.append("")
+        for stage in pipeline.get("stages", []):
+            lines.append(f"- {stage.get('label', 'Unnamed stage')} (`{stage.get('id', '?')}`)")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+# --- Commands ---
+
+
+def cmd_contacts(args: list[str]) -> None:
+    """Search contacts by free text."""
+    limit, remaining = parse_limit(args)
+    query = " ".join(remaining).strip()
+    payload: dict[str, Any] = {"limit": limit, "properties": CONTACT_PROPERTIES}
+    if query:
+        payload["query"] = query
+    result = api("POST", "/crm/v3/objects/contacts/search", json_body=payload)
+    print(format_contacts(result))
+
+
+def cmd_contact(args: list[str]) -> None:
+    """Fetch a single contact by ID."""
+    if not args:
+        error("Contact ID required", "Usage: hubspot contact <contact_id>")
+    contact_id = args[0]
+    result = api(
+        "GET",
+        f"/crm/v3/objects/contacts/{contact_id}",
+        params={"properties": CONTACT_PROPERTIES},
+    )
+    print(format_contact(result))
+
+
+def cmd_deals(args: list[str]) -> None:
+    """Search deals by free text."""
+    limit, remaining = parse_limit(args)
+    query = " ".join(remaining).strip()
+    payload: dict[str, Any] = {"limit": limit, "properties": DEAL_PROPERTIES}
+    if query:
+        payload["query"] = query
+    result = api("POST", "/crm/v3/objects/deals/search", json_body=payload)
+    stage_lookup, pipeline_lookup = stage_maps()
+    print(format_deals(result, stage_lookup, pipeline_lookup))
+
+
+def cmd_deal(args: list[str]) -> None:
+    """Fetch a single deal by ID."""
+    if not args:
+        error("Deal ID required", "Usage: hubspot deal <deal_id>")
+    deal_id = args[0]
+    result = api(
+        "GET",
+        f"/crm/v3/objects/deals/{deal_id}",
+        params={"properties": DEAL_PROPERTIES},
+    )
+    stage_lookup, pipeline_lookup = stage_maps()
+    print(format_deal(result, stage_lookup, pipeline_lookup))
+
+
+def cmd_stages(args: list[str]) -> None:
+    """List deal pipelines and stages."""
+    if args:
+        error("stages takes no arguments", "Usage: hubspot stages")
+    result = api("GET", "/crm/v3/pipelines/deals")
+    print(format_stages(result))
+
+
+def cmd_help() -> None:
+    """Show help."""
+    print(
+        """hubspot CLI, read contacts, deals, and stages from HubSpot
+
+Commands:
+  contacts [query] [--limit N]   Search contacts
+  contact <contact_id>           Get one contact by ID
+  deals [query] [--limit N]      Search deals
+  deal <deal_id>                 Get one deal by ID
+  stages                         List deal pipelines and stage IDs
+  help                           Show this help
+
+Environment:
+  HUBSPOT_API_KEY                Required, HubSpot private app token
+
+Examples:
+  hubspot contacts ali --limit 5
+  hubspot contact 127568830163
+  hubspot deals scheduled --limit 5
+  hubspot deal 190912686837
+  hubspot stages
+
+Get your token: https://app.hubspot.com/private-apps"""
+    )
+
+
+# --- Entry point ---
+
+
+def main() -> None:
+    """Main entry point."""
+    args = sys.argv[1:]
+    command = args[0] if args else "help"
+
+    commands = {
+        "contacts": cmd_contacts,
+        "contact": cmd_contact,
+        "deals": cmd_deals,
+        "deal": cmd_deal,
+        "stages": cmd_stages,
+    }
+
+    if command in ("help", "--help", "-h"):
+        cmd_help()
+    elif command in commands:
+        commands[command](args[1:])
+    else:
+        error(f"Unknown command: {command}", "Run 'hubspot help' for available commands")
+
+
+if __name__ == "__main__":
+    main()

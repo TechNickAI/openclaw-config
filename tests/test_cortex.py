@@ -98,7 +98,7 @@ def cortex_store(tmp_path):
     (store / "review-queue.md").write_text("# Review Queue\n\n_No items pending._\n")
 
     # Initialize SQLite
-    _init_store_db(store / ".cortex.db")
+    _init_store_db(store / "cortex.db")
 
     # Config at fake_home/.config/cortex/config
     fake_home = tmp_path / "home"
@@ -243,7 +243,7 @@ class TestScan:
     ):
         """Re-scan updates hash for files previously recorded as online-only."""
         store, _ = cortex_store
-        db_path = store / ".cortex.db"
+        db_path = store / "cortex.db"
 
         source_dir = tmp_path / "sources"
         source_dir.mkdir()
