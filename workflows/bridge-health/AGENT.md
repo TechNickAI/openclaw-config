@@ -25,7 +25,31 @@ You run in one of two modes based on the triggering message:
 2. **update-check** — check installed vs upstream/current versions and alert only on
    meaningful drift
 
+**Mode selection rule:** If the triggering message contains the substring
+`update-check`, run Mode 2. Otherwise run Mode 1 (healthcheck).
+
 Be fast, autonomous, and quiet when things are fine.
+
+## EXEC RULES (CRITICAL)
+
+**NEVER use shell heredoc syntax** (`<< 'EOF'`, `<<EOF`, `<< HEREDOC`, etc.) in any exec
+command. The gateway blocks these as obfuscation. Instead:
+
+- Use the `write` tool to create script files, then execute them separately
+- Or break complex logic into individual direct commands
+- Or use `echo "line1\nline2" > file` for small files
+
+**NEVER write scripts longer than 10,000 characters** in a single exec command.
+
+**Wrap every bridge CLI invocation with a per-command timeout when possible.** On macOS,
+`gtimeout` (from `brew install coreutils`) is preferred — use
+`gtimeout 15 wacli doctor`. If `gtimeout` is absent, proceed without it and rely on the
+cron timeout as the outer bound, but **check which bridge you're on first** and probe
+the cheap ones before the potentially-slow ones so one hang doesn't starve the others.
+If the run detects missing `gtimeout`, include a one-time "install coreutils for
+stricter timeouts" note in the alert or log (not a P-level incident).
+
+Violating these rules causes approval timeouts that spam the user.
 
 ## Definition of Done
 
@@ -64,19 +88,6 @@ the channel with repeat alerts. Self-scoring catches quality drift across runs.
 
 ---
 
-## EXEC RULES (CRITICAL)
-
-**NEVER use shell heredoc syntax** (`<< 'EOF'`, `<<EOF`, `<< HEREDOC`, etc.) in any exec
-command. The gateway blocks these as obfuscation. Instead:
-
-- Use the `write` tool to create script files, then execute them separately
-- Or break complex logic into individual direct commands
-- Or use `echo "line1\nline2" > file` for small files
-
-**NEVER write scripts longer than 10,000 characters** in a single exec command.
-
-Violating these rules causes approval timeouts that spam the user.
-
 ## Local State: CLAUDE.local.md
 
 Use `CLAUDE.local.md` in the current repo as private machine-local context.
@@ -84,17 +95,64 @@ Use `CLAUDE.local.md` in the current repo as private machine-local context.
 If it exists and is readable, read it first. If it does not exist, is empty, or is stale
 (>7 days old), do a lightweight discovery and write/update it.
 
-Keep `CLAUDE.local.md` factual and machine-specific. It is gitignored and may contain:
+Keep `CLAUDE.local.md` factual and machine-specific. It is gitignored. Use the section
+structure below so that dedup, restart gating, and circuit-breaker aggregation are
+deterministic across runs.
 
-- which bridges are installed on this host
-- which bridges are intentionally configured on this host
-- key state locations (for example `~/.wacli`, `~/.tgcli`)
-- whether a long-lived sync/service is expected (`wacli sync --follow`, scheduled
-  `tgcli sync`, etc.)
-- last successful healthcheck and update-check timestamps
-- active incident fingerprints to avoid duplicate alerts
+### Required schema
+
+```markdown
+## Configured Bridges
+
+- wacli: configured (sync-follow expected), state at `~/.wacli`, freshness window =
+  latest-message within last 4h during 8am-10pm CT, last 12h overnight
+- tgcli: configured, state at `~/.tgcli`, freshness window = latest-message within 6h
+- imsg: configured, freshness window = n/a (SMS/iMessage is user-paced)
+
+## Last Run Signals
+
+<!-- Rewritten every run. Used by the restart-threshold rule. -->
+
+- run: 2026-04-19T14:00-05:00
+- wacli: [disconnected, reads-fail]
+- tgcli: []
+- imsg: []
+
+## Active Incidents
+
+<!-- Fingerprint = `<bridge>:<signature>:<severity>`. Cleared when resolved. -->
+
+- wacli:wacli-composite-hang:P1 — first seen 2026-04-19T08:00, last alert
+  2026-04-19T08:00
+
+## Recent Scores
+
+<!-- Last 3 runs. Used by the circuit breaker. -->
+
+- 2026-04-19T14:00: detection=5, alerts=4, dedup=5
+- 2026-04-19T11:00: detection=5, alerts=5, dedup=5
+- 2026-04-19T08:00: detection=4, alerts=4, dedup=4
+
+## Restart Commands
+
+<!-- Hard gate for remediation. If a bridge isn't listed here, NEVER invent a restart. -->
+
+- wacli (sync-follow): `launchctl kickstart -k gui/$(id -u)/ai.openclaw.wacli-sync`
+
+## Failures & Corrections
+
+<!-- Append-only. Read before diagnosis so past mistakes aren't repeated. -->
+
+- 2026-04-19: Alerted wacli hung from quiet log alone — actually bursty sync. Require
+  composite signals (reads + DB freshness + auth/connect) before calling a hang.
+```
 
 Do **not** put secrets, raw logs, or personal IDs in `CLAUDE.local.md`.
+
+**Fail-closed on unreadable state:** If `CLAUDE.local.md` exists but is unparseable, run
+in report-only mode for one cycle: check bridges, write a log, but send no alerts and
+perform no remediation. Record in the log that dedup state was lost so the next run can
+rebuild. Only alert when dedup state is confirmed consistent.
 
 **Failures & Corrections section:** Track cases where alerts were wrong, dedup failed,
 or status was misclassified. Include this section in `CLAUDE.local.md`:
@@ -121,6 +179,19 @@ action is required.
 The cron jobs for this workflow must use `delivery.mode: "none"`. Handle notifications
 yourself only when something is wrong.
 
+**Fallback when `~/.openclaw/health-check-admin` is missing or unreadable:** Do not
+silently swallow the alert. Instead:
+
+1. Write the full alert body (bridge, severity, diagnosis, suggested action) to
+   `logs/YYYY-MM-DD-alert-UNDELIVERED.md`, appending if the file exists.
+2. Prefix the workflow's reply text with `ALERT_UNDELIVERED:` so whatever tails cron
+   output surfaces the condition rather than seeing a quiet run.
+3. Include a one-line remediation hint (e.g., "create `~/.openclaw/health-check-admin`
+   with the admin routing spec") in the reply.
+
+Do not substitute a hardcoded channel/ID as fallback — this workflow ships in a public
+repo and must stay PII-free.
+
 ## Severity Model
 
 - **P1** — bridge down, auth broken, permissions broken, or outdated client blocking
@@ -133,63 +204,117 @@ yourself only when something is wrong.
 
 ### wacli
 
-Healthy when:
+Health is judged from **active probes**, never from filesystem mtime or log silence.
+Quiet logs and stale mtime mean "no new traffic," not "bridge broken" — a bursty sync
+can sit idle for an hour on purpose. Two primary signals carry the diagnosis:
 
-- `wacli` binary exists
-- `wacli doctor` succeeds
-- `AUTHENTICATED true`
-- `CONNECTED true`
-- if this host expects a long-lived sync, the `wacli sync --follow` process is running
-- no recent `Client outdated (405)` signature in the sync log
+1. **Liveness:** `wacli chats list --limit 1 --json` succeeds and returns a chat object.
+2. **Forward progress:** the `.data[0].LastMessageTS` field on the returned chat
+   (ISO-8601 UTC) falls inside the host's expected freshness window, taken from
+   `## Configured Bridges` in `CLAUDE.local.md` (e.g., "latest-message within last 4h
+   during 8am-10pm CT"). If the response shape is different on a given wacli build, fall
+   back to whichever `*TS` / `*timestamp` / `updated_at` field is present — whichever
+   one actually carries the latest message time — and note the field name in
+   `## Configured Bridges` so future runs are deterministic.
 
-Degraded when:
+Supplementary signals:
 
-- authenticated but disconnected
-- sync process is absent but reads still work
-- local state exists but recent sync activity looks stale
+- `wacli doctor` → `AUTHENTICATED` and `CONNECTED` booleans (also `LOCKED` / `LOCK_INFO`
+  confirms which pid owns the store)
+- error-event count in the **live** log over roughly the last 5 minutes. Pick the live
+  log by mtime: `~/.wacli/sync-error.log` is typically the running log; `sync.log` is
+  often stale from a previous run. Select whichever file has the most recent mtime, then
+  `tail -n 200` and count lines matching: `websocket`, `reconnect`, `401`,
+  `store locked`, `timeout`, `Client outdated`. Log lines use bare `HH:MM:SS.mmm` with
+  no date, so "last 5 minutes" is approximate — if the log's mtime is older than 10
+  minutes, treat the error-window count as `0` (no recent activity = no recent errors).
+- presence of the `wacli sync --follow` process on hosts where it's expected (via
+  `pgrep -fal "wacli sync --follow"`)
 
-Down when:
+Healthy when ALL of:
+
+- binary exists, `wacli doctor` succeeds, `AUTHENTICATED true`
+- live read succeeds on first attempt
+- returned latest-message timestamp is within the host's freshness window
+- windowed error-event count = 0
+- if sync-follow is expected on this host, the process is running
+- no `Client outdated (405)` in the last 5 minutes of logs
+
+Degraded when live reads still succeed AND any of:
+
+- `CONNECTED false` from doctor
+- latest-message timestamp exceeds the freshness window (sync likely stuck; local cache
+  still serves — real user impact on inbound latency)
+- windowed error-event count ≥ 1 in the last 5 minutes (reconnect churn, lock
+  contention, transient network hiccup)
+- sync-follow is expected on this host but the process is absent
+
+Down when any of:
 
 - not authenticated
-- `Client outdated (405)` appears recently
-- the CLI fails basic reads or doctor reports hard failure
+- `Client outdated (405)` in the last 5 minutes of logs
+- live reads fail ≥ 2 out of 3 consecutive attempts
+- `wacli doctor` reports hard failure AND live reads also fail
+
+**Explicitly removed signals (and why):**
+
+- filesystem mtime of `session.db` / `wacli.db` / `wacli.db-wal` — stale mtime just
+  means no inbound messages arrived, not that sync is broken
+- log quietness / log mtime — `wacli sync --follow` is intentionally bursty; quiet ≠
+  stuck. Use windowed error-event counts instead.
 
 ### tgcli
+
+Same active-probe principle as wacli: judge health from live reads, not from file mtime.
+Run the live read ≥ 3 times when a single read behaves oddly, and count failures
+explicitly.
 
 Healthy when:
 
 - `tgcli` binary exists
-- the local store is readable
-- a basic live read works, such as `tgcli chat ls --limit 1 --json`
+- `tgcli chat ls --json` succeeds on first attempt (fetch several chats, not just 1 —
+  tgcli sort order is not recency-first and chat[0] can have a zero-value
+  `last_message_ts`)
+- the **maximum** `last_message_ts` across the returned chats, ignoring zero-value
+  sentinels (`0001-01-01T00:00:00Z`, epoch-0, or empty), is within the host's freshness
+  window (if configured in `## Configured Bridges`)
 
-Degraded when:
+Degraded when live reads still work AND any of:
 
-- auth appears valid but local cache/store is stale
-- the CLI works inconsistently or only offline/local reads succeed
+- latest-message timestamp exceeds the freshness window (cache is serving but sync is
+  stuck)
+- reads succeed but ≥ 1 of 3 consecutive attempts returned an error
 
 Down when:
 
-- not logged in
-- store is unreadable/corrupt
-- a basic read fails consistently
+- auth check fails / not logged in
+- store file is missing or returns I/O errors
+- live read fails ≥ 2 of 3 consecutive attempts
 
 ### imsg
+
+`imsg chats` output is **plain text**, not JSON. Lines look like
+`[NNNN]  (+PHONE) last=2026-04-20T03:22:25.161Z` — extract the ISO-8601 timestamp after
+`last=`. The phone number / handle is PII and must be redacted before it lands in any
+alert body or log quote (see Output Discipline / Log-snippet redaction).
 
 Healthy when:
 
 - `imsg` binary exists
-- `imsg chats` succeeds
-- Messages data is readable and permissions are intact
+- `imsg chats --limit 1` succeeds on first attempt
+- no permission or automation errors in the response
+- the extracted `last=` timestamp is within the host's freshness window (if configured —
+  imsg freshness is typically `n/a` since it's user-paced)
 
 Degraded when:
 
-- CLI exists but returns permission or automation errors intermittently
+- `imsg chats` succeeds but returns permission/automation warnings in ≥ 1 of 3
+  consecutive attempts
 
 Down when:
 
-- Messages access is denied
-- Messages DB access or Apple automation is blocked
-- basic CLI reads fail consistently
+- Messages / Apple Events access is denied
+- `imsg chats` fails ≥ 2 of 3 consecutive attempts with non-permission errors
 
 ## First-Run / Discovery
 
@@ -209,6 +334,10 @@ Infer a host bridge set conservatively:
 
 Write the discovered bridge set to `CLAUDE.local.md` and only check configured bridges
 in future runs. If a bridge is absent and not configured, skip it silently.
+
+**Zero-bridge host:** If discovery finds zero bridges configured on this host, reply
+exactly `HEARTBEAT_OK` and write one log line stating "no bridges configured on this
+host." Do not treat this as an error.
 
 ## Mode 1: Healthcheck
 
@@ -233,12 +362,37 @@ When the triggering message indicates healthcheck mode:
 Run these, as applicable:
 
 - `wacli --version`
-- `wacli doctor`
-- `wacli chats list --limit 1 --json`
-- `pgrep -fal "wacli sync --follow"`
-- inspect recent log lines from `~/.wacli/sync.log` for:
-  - `Client outdated`
-  - repeated websocket/connect failures
+- `wacli doctor` (parse `AUTHENTICATED` and `CONNECTED` booleans)
+- `wacli chats list --limit 1 --json` (parse latest-message timestamp from the returned
+  chat; compare to the host's freshness window from `## Configured Bridges`)
+- `pgrep -fal "wacli sync --follow"` (only if sync-follow is expected on this host)
+- windowed error-event count: tail the last 5 minutes of `~/.wacli/sync.log` (and
+  `sync-error.log` if present) and count lines containing any of `websocket`,
+  `reconnect`, `401`, `store locked`, `timeout`, `Client outdated`
+
+Interpretation order:
+
+1. **Liveness** — if the live read succeeds, the bridge is serving. Silent logs and
+   stale DB/WAL mtime are irrelevant.
+2. **Auth state** — `AUTHENTICATED false` is a real outage. Down.
+3. **Forward progress** — returned latest-message timestamp outside the freshness window
+   means sync is stuck even though reads work. Degraded.
+4. **Connectivity** — `CONNECTED false` with successful reads is Degraded, not Down.
+5. **Error-event window** — ≥1 explicit error in the last 5 minutes is Degraded even if
+   reads succeed (catches reconnect churn and lock contention that will eventually cause
+   user impact).
+6. **Restart threshold** — only recommend restart when at least two Down-severity
+   signals agree for two consecutive runs, for example:
+   - live-read-fail + auth-lost
+   - live-read-fail + sync-process-missing (on a host where follow is expected)
+   - `Client outdated (405)` + sustained read failure
+
+The "two consecutive runs" check relies on the `## Last Run Signals` block in
+`CLAUDE.local.md`. Read it before diagnosis; rewrite it every run with the current
+bridge signal set. Without this persisted history, the threshold check is not meaningful
+— if the block is missing, do not restart.
+
+Do **not** restart `wacli` from a single-run signal or from log silence.
 
 #### tgcli
 
@@ -274,6 +428,9 @@ Suggested next actions:
 
 - `wacli` outdated → upgrade binary first, then re-auth only if still needed
 - `wacli` not authenticated → re-auth
+- `wacli` degraded but basic reads succeed → monitor, do not restart just for quiet logs
+- `wacli` composite hang signals confirmed across consecutive runs → restart the sync
+  service once, then verify reads and freshness
 - `tgcli` auth/store broken → login or repair store
 - `imsg` permissions issue → restore Messages / automation permissions
 
@@ -316,19 +473,40 @@ When the triggering message indicates update-check mode:
 
 ## Failure Signatures
 
-Track and recognize these common patterns:
+One diagnosis → exactly one signature. Check in precedence order and stop at the first
+match; this keeps fingerprints deterministic across runs so dedup actually works.
 
-- `wacli-outdated-405`
-- `wacli-auth-lost`
-- `wacli-sync-missing`
-- `tgcli-not-logged-in`
-- `tgcli-store-unreadable`
-- `tgcli-stale-cache`
-- `imsg-permissions`
-- `imsg-cli-failure`
+### wacli precedence
 
-Update `CLAUDE.local.md` with the current incident fingerprint and clear it when
-resolved.
+| #   | Signature                     | Condition                                                                         | Severity |
+| --- | ----------------------------- | --------------------------------------------------------------------------------- | -------- |
+| 1   | `wacli-outdated-405`          | `Client outdated (405)` appears in last 5 minutes of the live log                 | P1       |
+| 2   | `wacli-auth-lost`             | `AUTHENTICATED false` from doctor                                                 | P1       |
+| 3   | `wacli-composite-hang`        | live read fails ≥ 2 of 3 attempts AND `CONNECTED false` AND `LastMessageTS` stale | P1       |
+| 4   | `wacli-read-fail`             | live read fails ≥ 2 of 3 attempts (auth intact, not outdated)                     | P1       |
+| 5   | `wacli-stuck-sync`            | live read succeeds but `LastMessageTS` is older than the freshness window         | P2       |
+| 6   | `wacli-sync-missing`          | sync-follow process is absent on a host that expects it, reads still succeed      | P2       |
+| 7   | `wacli-disconnected-degraded` | `CONNECTED false`, reads succeed, windowed error-count = 0                        | P2       |
+| 8   | `wacli-reconnect-churn`       | windowed error-count ≥ 1, reads succeed, `CONNECTED true`                         | P2       |
+
+### tgcli precedence
+
+| #   | Signature                | Condition                                                           | Severity |
+| --- | ------------------------ | ------------------------------------------------------------------- | -------- |
+| 1   | `tgcli-store-unreadable` | store file missing or I/O error on access                           | P1       |
+| 2   | `tgcli-not-logged-in`    | auth check fails or `tgcli chat ls` returns unauthenticated error   | P1       |
+| 3   | `tgcli-stale-cache`      | reads succeed but latest-message timestamp outside freshness window | P2       |
+
+### imsg precedence
+
+| #   | Signature          | Condition                                                              | Severity |
+| --- | ------------------ | ---------------------------------------------------------------------- | -------- |
+| 1   | `imsg-permissions` | Messages / Apple Events access denied (permission or automation error) | P1       |
+| 2   | `imsg-cli-failure` | `imsg chats` fails ≥ 2 of 3 attempts with non-permission errors        | P1       |
+
+Update the `## Active Incidents` block in `CLAUDE.local.md` with the current fingerprint
+(`<bridge>:<signature>:<severity>`) and clear it when the matching condition no longer
+holds.
 
 ## Circuit Breakers
 
@@ -345,10 +523,17 @@ admin acknowledges.
 
 ## Recovery Order
 
-Healthcheck mode may do **lightweight, safe** remediation only when clearly reversible:
+**Pre-flight gate (hard requirement):** Before attempting any remediation, confirm that
+`CLAUDE.local.md` has a `## Restart Commands` section that lists the exact bridge name
+with a concrete command. If the section is missing, the bridge is not listed, or the
+command is ambiguous, skip remediation entirely and alert only. **Never synthesize a
+restart command.**
 
-- restart a missing long-lived bridge process if this host's notes say it should be
-  running and the restart command is already documented in `CLAUDE.local.md`
+Healthcheck mode may do **lightweight, safe** remediation only when clearly reversible
+AND the pre-flight gate passes:
+
+- restart a missing long-lived bridge process, using the exact command from
+  `## Restart Commands`
 - trim or rotate an oversized local log
 
 Do **not**:
@@ -364,7 +549,12 @@ stop.
 ## Logs
 
 Write one log per run: `logs/YYYY-MM-DD-healthcheck.md` or
-`logs/YYYY-MM-DD-update-check.md`. Delete logs older than 30 days.
+`logs/YYYY-MM-DD-update-check.md`. Delete logs older than 30 days using an idempotent
+command that does not fail on a missing directory:
+
+```bash
+find logs/ -name '*.md' -mtime +30 -delete 2>/dev/null || true
+```
 
 Each log file must end with a scorecard:
 
@@ -380,12 +570,31 @@ Each log file must end with a scorecard:
 
 Be honest in self-scoring. The circuit breaker watches these scores.
 
+**Mechanical cross-check:** If you reply `HEARTBEAT_OK` but any configured bridge was
+skipped or errored mid-run (timeout, missing binary, exec failure), score **Detection
+coverage at ⭐⭐ or lower** regardless of other signals. A clean heartbeat with missed
+bridges is the exact failure the circuit breaker exists to catch.
+
+After writing the scorecard, append the new row to the `## Recent Scores` block in
+`CLAUDE.local.md` and keep only the most recent 3 rows.
+
 ## Output Discipline
 
 - Healthy: reply exactly `HEARTBEAT_OK`
 - Problem found: notify admin via `~/.openclaw/health-check-admin`, then reply with a
   short summary
 - Never include PII, tokens, IDs, or machine-private routing details in user-facing text
+
+**Log-snippet redaction:** Bridge logs (wacli, tgcli) routinely contain phone numbers,
+chat IDs, bot tokens, and JIDs. Before quoting any log line in an alert or log file,
+redact these patterns:
+
+- phone numbers: `\+?\d{10,}` → `[PHONE]`
+- Telegram chat IDs: `-?\d{9,}` → `[TG_ID]`
+- bot tokens: `\d+:[A-Za-z0-9_-]{20,}` → `[TOKEN]`
+- WhatsApp JIDs: `@s\.whatsapp\.net` or `@g\.us` → `[JID]`
+
+If redaction is uncertain, **summarize the log content in prose instead of quoting it.**
 
 ## Suggested Cron Jobs
 
