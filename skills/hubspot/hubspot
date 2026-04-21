@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = ["httpx>=0.28"]
 # ///
-"""HubSpot CLI, read contacts, deals, and deal stage metadata."""
+"""HubSpot CLI, read and lightly manage HubSpot CRM data."""
 
 import json
 import os
@@ -86,6 +86,8 @@ def api(
             timeout=30.0,
         )
         response.raise_for_status()
+        if response.status_code == 204:
+            return {}
         return response.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 401:
@@ -133,6 +135,36 @@ def parse_limit(args: list[str], default: int = DEFAULT_LIMIT) -> tuple[int, lis
             remaining.append(args[i])
             i += 1
     return limit, remaining
+
+
+def parse_contact_fields(args: list[str]) -> dict[str, str]:
+    """Parse create-contact flags into a property dict."""
+    fields: dict[str, str] = {}
+    mapping = {
+        "--email": "email",
+        "--first": "firstname",
+        "--last": "lastname",
+        "--phone": "phone",
+        "--company": "company",
+    }
+    i = 0
+    while i < len(args):
+        flag = args[i]
+        if flag not in mapping:
+            error(
+                f"Unknown flag: {flag}",
+                "Usage: hubspot create-contact --email <email> [--first NAME] [--last NAME] [--phone N] [--company NAME]",
+            )
+        if i + 1 >= len(args):
+            error(f"{flag} requires a value")
+        fields[mapping[flag]] = args[i + 1]
+        i += 2
+    if not fields.get("email"):
+        error(
+            "Email is required",
+            "Usage: hubspot create-contact --email <email> [--first NAME] [--last NAME] [--phone N] [--company NAME]",
+        )
+    return fields
 
 
 def fmt_money(value: str | None) -> str:
@@ -356,10 +388,30 @@ def cmd_stages(args: list[str]) -> None:
     print(format_stages(result))
 
 
+def cmd_create_contact(args: list[str]) -> None:
+    """Create a contact."""
+    props = parse_contact_fields(args)
+    result = api(
+        "POST",
+        "/crm/v3/objects/contacts",
+        json_body={"properties": props},
+    )
+    print(format_contact(result))
+
+
+def cmd_delete_contact(args: list[str]) -> None:
+    """Delete a contact by ID."""
+    if not args:
+        error("Contact ID required", "Usage: hubspot delete-contact <contact_id>")
+    contact_id = args[0]
+    api("DELETE", f"/crm/v3/objects/contacts/{contact_id}")
+    print(f"Deleted contact {contact_id}")
+
+
 def cmd_help() -> None:
     """Show help."""
     print(
-        """hubspot CLI, read contacts, deals, and stages from HubSpot
+        """hubspot CLI, read and lightly manage HubSpot CRM data
 
 Commands:
   contacts [query] [--limit N]   Search contacts
@@ -367,6 +419,8 @@ Commands:
   deals [query] [--limit N]      Search deals
   deal <deal_id>                 Get one deal by ID
   stages                         List deal pipelines and stage IDs
+  create-contact ...             Create a contact
+  delete-contact <contact_id>    Delete a contact by ID
   help                           Show this help
 
 Environment:
@@ -378,6 +432,8 @@ Examples:
   hubspot deals scheduled --limit 5
   hubspot deal 190912686837
   hubspot stages
+  hubspot create-contact --email test@example.com --first Test --last User
+  hubspot delete-contact 123456
 
 Get your token: https://app.hubspot.com/private-apps"""
     )
@@ -397,6 +453,8 @@ def main() -> None:
         "deals": cmd_deals,
         "deal": cmd_deal,
         "stages": cmd_stages,
+        "create-contact": cmd_create_contact,
+        "delete-contact": cmd_delete_contact,
     }
 
     if command in ("help", "--help", "-h"):

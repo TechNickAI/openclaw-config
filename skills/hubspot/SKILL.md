@@ -1,6 +1,6 @@
 ---
 name: hubspot
-version: 0.1.0
+version: 0.2.0
 description:
   Query HubSpot CRM contacts, deals, and deal stages via the HubSpot REST API. Use when
   you need to look up contacts, inspect deals, search the CRM, or review deal stage
@@ -32,9 +32,10 @@ Read HubSpot CRM data from the REST API.
 Create or use a HubSpot private app token, then configure it as `HUBSPOT_API_KEY` in
 OpenClaw.
 
-Recommended minimum scopes for this skill:
+Recommended scopes for this skill:
 
 - `crm.objects.contacts.read`
+- `crm.objects.contacts.write` (needed for create/delete contact operations)
 - `crm.objects.deals.read`
 - `crm.schemas.deals.read`
 
@@ -54,6 +55,8 @@ Recommended minimum scopes for this skill:
 - `hubspot deals [query] [--limit N]`
 - `hubspot deal <deal_id>`
 - `hubspot stages`
+- `hubspot create-contact --email <email> [--first NAME] [--last NAME] [--phone N] [--company NAME]`
+- `hubspot delete-contact <contact_id>`
 
 ## Capabilities
 
@@ -63,11 +66,14 @@ Recommended minimum scopes for this skill:
 - Fetch a deal by HubSpot ID
 - Resolve deal stage IDs to readable labels
 - List all configured deal pipelines and stages
+- Create a contact for testing or workflow setup
+- Delete a contact by HubSpot ID
 
 ## Notes
 
-- This version is read-only.
 - Owner lookup is not included because many HubSpot tokens do not have the extra scopes
   required for the owners API.
 - Deal stage labels come from the pipelines API, so stage output stays readable instead
   of showing only internal IDs.
+- Create/delete commands only work when the private app has
+  `crm.objects.contacts.write`.
