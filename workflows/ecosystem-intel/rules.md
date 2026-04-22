@@ -7,9 +7,9 @@ once it exists.
 ## Delivery
 
 - **Brief channel:** `telegram`
-- **Brief target (chat id):** `469214633`
-- **Brief topic (thread id):** `70103` (📋 Automation)
-- **Alert topic:** `70103`
+- **Brief target (chat id):** `<TELEGRAM_CHAT_ID>`
+- **Brief topic (thread id):** `<TELEGRAM_THREAD_ID>` (📋 Automation)
+- **Alert topic:** `<TELEGRAM_THREAD_ID>`
 
 ## Cadence
 
