@@ -72,7 +72,7 @@ configuring.
 Running `9router` in a terminal works for setup but you want it auto-starting on login
 and surviving reboots. Install a LaunchAgent.
 
-Create `~/Library/LaunchAgents/com.<you>.9router.plist`:
+Create `~/Library/LaunchAgents/com.<USER>.9router.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -384,8 +384,9 @@ Claude Code subscription is near reset. Fallbacks kick in automatically.
 
 **Data directory:** `~/.local/share/9router/` holds:
 
-- `db.json` — all provider connections, OAuth tokens, API keys (back this up, contains
-  secrets)
+- `db.json` — all provider connections, OAuth tokens, API keys (back this up for
+  same-machine disaster recovery; contains secrets; see migration notes below for
+  cross-machine setup)
 - `usage.json` — per-provider quota tracking
 - `request-details.json` — recent request log for debugging
 - `log.txt` — application log
