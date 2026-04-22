@@ -1113,7 +1113,6 @@ COMMAND_MAP = {
     "messages": cmd_messages,
     "calls": cmd_calls,
     "raw": cmd_raw,
-    "help": lambda args: cmd_help(),
 }
 
 
