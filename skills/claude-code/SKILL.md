@@ -15,7 +15,7 @@ triggers:
   - run address-pr-comments
 metadata:
   openclaw:
-    emoji: "🤖"
+    emoji: "\U0001F916"
 ---
 
 # Claude Code
