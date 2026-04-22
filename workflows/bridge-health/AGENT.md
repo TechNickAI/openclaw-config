@@ -366,9 +366,10 @@ Run these, as applicable:
 - `wacli chats list --limit 1 --json` (parse latest-message timestamp from the returned
   chat; compare to the host's freshness window from `## Configured Bridges`)
 - `pgrep -fal "wacli sync --follow"` (only if sync-follow is expected on this host)
-- windowed error-event count: tail the last 5 minutes of `~/.wacli/sync.log` (and
-  `sync-error.log` if present) and count lines containing any of `websocket`,
-  `reconnect`, `401`, `store locked`, `timeout`, `Client outdated`
+- windowed error-event count: select the live log by mtime — `sync-error.log` is
+  typically the running log; `sync.log` is often stale from a previous run — then
+  `tail -n 200` it and count lines from the last 5 minutes containing any of
+  `websocket`, `reconnect`, `401`, `store locked`, `timeout`, `Client outdated`
 
 Interpretation order:
 
@@ -399,7 +400,9 @@ Do **not** restart `wacli` from a single-run signal or from log silence.
 Run these, as applicable:
 
 - `tgcli --version`
-- `tgcli chat ls --limit 1 --json`
+- `tgcli chat ls --limit 5 --json` (fetch several chats — sort order is not
+  recency-first, so take the max `last_message_ts` across results, ignoring zero-value
+  sentinels)
 - optionally inspect `~/.tgcli/tgcli.db` mtime for cache staleness context
 
 #### imsg
@@ -478,16 +481,17 @@ match; this keeps fingerprints deterministic across runs so dedup actually works
 
 ### wacli precedence
 
-| #   | Signature                     | Condition                                                                         | Severity |
-| --- | ----------------------------- | --------------------------------------------------------------------------------- | -------- |
-| 1   | `wacli-outdated-405`          | `Client outdated (405)` appears in last 5 minutes of the live log                 | P1       |
-| 2   | `wacli-auth-lost`             | `AUTHENTICATED false` from doctor                                                 | P1       |
-| 3   | `wacli-composite-hang`        | live read fails ≥ 2 of 3 attempts AND `CONNECTED false` AND `LastMessageTS` stale | P1       |
-| 4   | `wacli-read-fail`             | live read fails ≥ 2 of 3 attempts (auth intact, not outdated)                     | P1       |
-| 5   | `wacli-stuck-sync`            | live read succeeds but `LastMessageTS` is older than the freshness window         | P2       |
-| 6   | `wacli-sync-missing`          | sync-follow process is absent on a host that expects it, reads still succeed      | P2       |
-| 7   | `wacli-disconnected-degraded` | `CONNECTED false`, reads succeed, windowed error-count = 0                        | P2       |
-| 8   | `wacli-reconnect-churn`       | windowed error-count ≥ 1, reads succeed, `CONNECTED true`                         | P2       |
+| #   | Signature                        | Condition                                                                         | Severity |
+| --- | -------------------------------- | --------------------------------------------------------------------------------- | -------- |
+| 1   | `wacli-outdated-405`             | `Client outdated (405)` appears in last 5 minutes of the live log                 | P1       |
+| 2   | `wacli-auth-lost`                | `AUTHENTICATED false` from doctor                                                 | P1       |
+| 3   | `wacli-composite-hang`           | live read fails ≥ 2 of 3 attempts AND `CONNECTED false` AND `LastMessageTS` stale | P1       |
+| 4   | `wacli-read-fail`                | live read fails ≥ 2 of 3 attempts (auth intact, not outdated)                     | P1       |
+| 5   | `wacli-stuck-sync`               | live read succeeds but `LastMessageTS` is older than the freshness window         | P2       |
+| 6   | `wacli-sync-missing`             | sync-follow process is absent on a host that expects it, reads still succeed      | P2       |
+| 7   | `wacli-disconnected-degraded`    | `CONNECTED false`, reads succeed, windowed error-count = 0                        | P2       |
+| 8   | `wacli-reconnect-churn`          | windowed error-count ≥ 1, reads succeed, `CONNECTED true`                         | P2       |
+| 9   | `wacli-disconnected-with-errors` | `CONNECTED false`, reads succeed, windowed error-count ≥ 1                        | P2       |
 
 ### tgcli precedence
 
@@ -495,7 +499,8 @@ match; this keeps fingerprints deterministic across runs so dedup actually works
 | --- | ------------------------ | ------------------------------------------------------------------- | -------- |
 | 1   | `tgcli-store-unreadable` | store file missing or I/O error on access                           | P1       |
 | 2   | `tgcli-not-logged-in`    | auth check fails or `tgcli chat ls` returns unauthenticated error   | P1       |
-| 3   | `tgcli-stale-cache`      | reads succeed but latest-message timestamp outside freshness window | P2       |
+| 3   | `tgcli-read-fail`        | live read fails ≥ 2 of 3 attempts (auth intact, store accessible)   | P1       |
+| 4   | `tgcli-stale-cache`      | reads succeed but latest-message timestamp outside freshness window | P2       |
 
 ### imsg precedence
 
