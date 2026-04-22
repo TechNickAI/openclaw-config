@@ -60,9 +60,9 @@ When Nick asks for something that will land in a repo with reviewers or bug bots
 this sequence without being told:
 
 1. **Fresh clone.** Never edit the existing `~/src/<repo>` checkout. Never edit a live
-   mounted copy. Clone into a uniquely-named sibling:
-   `~/src/<repo>-<short-purpose>`. If the clone fails, check repo access first with
-   `gh repo view <repo>` before proceeding.
+   mounted copy. Clone into a uniquely-named sibling: `~/src/<repo>-<short-purpose>`. If
+   the clone fails, check repo access first with `gh repo view <repo>` before
+   proceeding.
 2. **Start a feature branch.** Use `feat/<short-purpose>` by default; follow the repo's
    naming convention from `AGENTS.md` / `CLAUDE.md` if it specifies one.
 3. **Build it** via Claude Code.
@@ -96,8 +96,8 @@ into it before invoking Claude Code.
 If the prompt starts with `/multi-review` or `/address-pr-comments`, Claude Code returns
 `Unknown command`. Two compounding reasons:
 
-- **Plugin marketplace namespacing.** The commands we want live in the `ai-coding-config`
-  marketplace plugin. Their literal invocation form is
+- **Plugin marketplace namespacing.** The commands we want live in the
+  `ai-coding-config` marketplace plugin. Their literal invocation form is
   `/ai-coding-config:multi-review`. Bare `/multi-review` isn't recognized at the
   top-level prompt dispatcher.
 - **Repo-local slash commands can clash.** If a repo defines its own slash commands,
@@ -140,7 +140,8 @@ background and poll for completion — do not tight-loop, do not kill the job pr
 
 - Don't hand-edit another repo with local `edit` / `write` tools when the work is
   non-trivial. Use Claude Code.
-- Don't start a Claude Code prompt with a slash command — put slash commands mid-sentence.
+- Don't start a Claude Code prompt with a slash command — put slash commands
+  mid-sentence.
 - Don't skip `/multi-review` when the work is going to merge.
 - After pushing, wait for bug bots via `gh pr checks --watch`, then run
   `/address-pr-comments` before declaring done.
@@ -151,7 +152,7 @@ background and poll for completion — do not tight-loop, do not kill the job pr
 - **`coding-agent`** — covers spawning Codex, Claude Code, or Pi for larger greenfield
   builds in temp directories. This skill is the narrower "you're already aiming at a
   real repo with reviewers, route the work through Claude Code" case. When in doubt on a
-  new greenfield build, read `coding-agent`. When in doubt on modifying an existing repo,
-  read this skill.
+  new greenfield build, read `coding-agent`. When in doubt on modifying an existing
+  repo, read this skill.
 - **`github`** — still the right tool for `gh pr view`, bug bot checks, and PR
   management. Claude Code pairs with `gh`, it doesn't replace it.
