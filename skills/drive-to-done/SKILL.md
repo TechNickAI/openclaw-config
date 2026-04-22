@@ -71,7 +71,7 @@ You stop only on one of these, and you name which one when you stop:
    regardless of the external cause.
 3. **Hard external blocker** — an external system you do not control is failing in a way
    you cannot route around, and no human action would unblock it (auth revoked by the
-   service itself, API outage, missing data the human owns)
+   service itself, API outage, network partition)
 4. **Budget cap reached** — a pre-declared time, token, or money budget for the task was
    exhausted (declare the budget in Step 1; if none was declared, this condition does
    not fire — use loop detection to catch runaway execution instead)
