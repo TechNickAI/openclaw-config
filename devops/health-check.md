@@ -177,8 +177,10 @@ This catches stale chat IDs, users who haven't /started the bot, and misconfigur
 targets before they cause delivery failures.
 
 **Hung processes.** Look for truly stuck OpenClaw-owned processes. The reliable hang
-signal (not just idleness) is uninterruptible wait held >5 minutes — `U` on macOS (per
-`ps -o state`), `D` on Linux.
+signal (not just idleness) is kernel-reported uninterruptible wait — `U` on macOS, `D`
+on Linux (per `ps -o state`). Note: `ps` reports current state only, not duration. Treat
+any observed `U`/`D` on an OpenClaw-owned process as a flag worth investigating —
+compare against the previous health check's findings if available to gauge persistence.
 
 Do **not** use as hang signals: log-file mtime, "quiet log," or 0% CPU alone. Many
 OpenClaw-adjacent processes sleep on sockets or idle between work bursts — all read 0%
