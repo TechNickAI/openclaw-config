@@ -57,7 +57,7 @@ velocity caps, or cross-channel confirmation.
 **Trigger:** `envelope.channel` is public-facing (X, LinkedIn, public Discord, public
 blog, public GitHub comment).
 
-**Floor:** minimum review tier `standard`. **Required reviewers:** `voice-and-audience`,
+**Floor:** minimum verdict `hold`. **Required reviewers:** `voice-and-audience`,
 `evidence`, `ai-tropes`. `pass` not allowed without these three.
 
 **Rationale:** Reputation surface, irreversible exposure.

@@ -68,7 +68,7 @@ Available lenses:
 
 **Empathy is the primary lens.** Always include it for human-facing artifacts (messages, posts, emails, anything a person will read). Drop it only when the artifact is purely system-to-system with no human reader. Treat empathy as the default-on lens, not one to weigh against the others.
 
-Pick the smallest set that covers the real risks. Do not run more than 6.
+Pick the smallest set that covers the real risks. Do not run more than 6 unless the operator's posture is `thorough`, in which case run all available lenses.
 
 Tell us in plain language: should we review (yes or no, and why), which lenses to run, and how strict the panel should be.
 ```
@@ -153,7 +153,7 @@ REVIEWER OUTPUTS:
 
 ## Return
 
-Return the synthesis JSON to the caller. Log:
+Return the synthesis to the caller. Log:
 
 - artifact reference (or hash)
 - envelope
@@ -172,9 +172,9 @@ day, append-only).
   caller's model, retry once.
 - **Sub-agent timeout:** drop that lens, continue with the rest, stamp
   `degraded: partial_panel`.
-- **JSON parse failure:** retry once with stricter formatting prompt; if still bad,
-  surface as `verdict=hold` with rationale "review system internal error, human review
-  required".
+- **Synthesis failure:** if the synthesis call returns garbled output, retry once; if
+  still bad, surface as `verdict=hold` with rationale "review system internal error,
+  human review required".
 - **All lenses fail:** `verdict=hold`. Never silently pass when the system is broken.
 
 ## Calling shape
@@ -187,5 +187,5 @@ CLI shim. The agent:
 3. Makes one model call to gate (returns `should_review`, `lenses`, `must_pass_level`)
 4. Spawns one `sessions_spawn` sub-agent per selected lens, in parallel
 5. Makes one model call to synthesize
-6. Returns the verdict JSON to the calling skill or workflow
+6. Returns the verdict to the calling skill or workflow
 7. Appends a log line to today's review log file
