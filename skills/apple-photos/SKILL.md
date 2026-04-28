@@ -1,6 +1,6 @@
 ---
 name: apple-photos
-version: 0.1.0
+version: 0.1.1
 description:
   Query, inspect, and export photos from the macOS Apple Photos library using osxphotos.
   Find photos by person, album, keyword, or date range. Export candidates for curation

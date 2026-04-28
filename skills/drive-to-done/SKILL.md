@@ -170,4 +170,3 @@ If you must hand back before done, the message has this shape:
   was actually research findings
 - Producing 3+ outputs with the same observable result without having switched strategy
   at 2 — the loop detection rule governs this; act at 2, stop at 3
-

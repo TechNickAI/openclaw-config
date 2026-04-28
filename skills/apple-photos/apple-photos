@@ -107,8 +107,14 @@ def cmd_people(args: argparse.Namespace) -> None:
 # -- Shared query builder -----------------------------------------------------
 
 
-def build_query_options(args: argparse.Namespace) -> QueryOptions:
-    """Build QueryOptions from parsed CLI arguments."""
+def build_query_options(args: argparse.Namespace, *, skip_edited_filter: bool = False) -> QueryOptions:
+    """Build QueryOptions from parsed CLI arguments.
+
+    skip_edited_filter: when True, don't filter to only-edited photos at the DB level.
+    Use this for export, where --edited means "prefer edited source" (handled in cmd_export),
+    not "exclude non-edited photos."
+    """
+    edited = None if skip_edited_filter else (True if getattr(args, "edited", False) else None)
     return QueryOptions(
         person=args.person or None,
         album=args.album or None,
@@ -116,7 +122,7 @@ def build_query_options(args: argparse.Namespace) -> QueryOptions:
         from_date=parse_date(args.after),
         to_date=parse_date(args.before),
         favorite=True if getattr(args, "favorite", False) else None,
-        edited=True if getattr(args, "edited", False) else None,
+        edited=edited,
         photos=True,
         movies=getattr(args, "movies", False),
         newest_first=getattr(args, "newest_first", False),
@@ -149,7 +155,8 @@ def cmd_query(args: argparse.Namespace) -> None:
 def cmd_export(args: argparse.Namespace) -> None:
     """Export matched photos to a destination directory."""
     db = get_db(args.library)
-    photos = db.query(build_query_options(args))
+    # skip_edited_filter: --edited controls source selection (prefer edited path), not DB filtering
+    photos = db.query(build_query_options(args, skip_edited_filter=True))
     if args.limit:
         photos = photos[: args.limit]
 
@@ -228,8 +235,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_export.add_argument("--after", help="Photos on/after this date (YYYY-MM-DD)")
     p_export.add_argument("--before", help="Photos before this date (YYYY-MM-DD)")
     p_export.add_argument("--edited", action="store_true", help="Prefer edited versions")
-    p_export.add_argument("--movies", action="store_true", default=True, help="Include movies (default: on)")
-    p_export.add_argument("--newest-first", action="store_true", default=True, help="Sort newest first (default: on)")
+    p_export.add_argument("--movies", action=argparse.BooleanOptionalAction, default=True, help="Include movies (default: on, use --no-movies to exclude)")
+    p_export.add_argument("--newest-first", action=argparse.BooleanOptionalAction, default=True, help="Sort newest first (default: on, use --no-newest-first to disable)")
     p_export.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
     p_export.add_argument("--dry-run", action="store_true")
 
