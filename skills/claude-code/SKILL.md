@@ -57,8 +57,8 @@ repo work as a Claude Code job.
 
 ## What "done" means
 
-When the operator asks for a Claude Code job, **"done" = the PR is ready to merge**. Not "PR
-opened." Not "first round of bots ran." Ready to merge means:
+When the operator asks for a Claude Code job, **"done" = the PR is ready to merge**. Not
+"PR opened." Not "first round of bots ran." Ready to merge means:
 
 - All CI checks green (pre-commit, tests, build, etc.)
 - All bot review comments (Codex, Cursor Bugbot, Claude Review) addressed or explicitly
@@ -71,8 +71,8 @@ checks again — until that bar is hit. Then report done. Don't stop at "PR open
 
 ## Default workflow when the work is going into a real repo
 
-When the operator asks for something that will land in a repo with reviewers or bug bots, do
-this sequence without being told:
+When the operator asks for something that will land in a repo with reviewers or bug
+bots, do this sequence without being told:
 
 1. **Fresh clone.** Never edit the existing `~/src/<repo>` checkout. Never edit a live
    mounted copy. Clone into a uniquely-named sibling: `~/src/<repo>-<short-purpose>`. If
@@ -127,8 +127,9 @@ into it before invoking Claude Code.
 
 **Rule: slash commands go mid-sentence. Always.**
 
-If the prompt starts with `/ai-coding-config:multi-review` or `/ai-coding-config:address-pr-comments`, Claude Code returns
-`Unknown command`. Two compounding reasons:
+If the prompt starts with `/ai-coding-config:multi-review` or
+`/ai-coding-config:address-pr-comments`, Claude Code returns `Unknown command`. Two
+compounding reasons:
 
 - **Plugin marketplace namespacing.** The commands we want live in the
   `ai-coding-config` marketplace plugin. Their literal invocation form is
