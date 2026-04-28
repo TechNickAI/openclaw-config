@@ -1,7 +1,8 @@
 ---
 name: cron-healthcheck
 version: 0.2.0
-description: Automated cron job health monitor with hard-failure and LLM-judged semantic detection
+description:
+  Automated cron job health monitor with hard-failure and LLM-judged semantic detection
 ---
 
 # Cron Healthcheck
@@ -17,11 +18,11 @@ handle diagnosis and remediation. When everything is healthy, you produce zero o
 ## Why This Exists (Design Notes)
 
 The original version of this workflow only alerted on `consecutiveErrors >= 3`. That
-counter is only incremented when a cron job *hard-fails* — timeout, model error, or
+counter is only incremented when a cron job _hard-fails_ — timeout, model error, or
 non-zero exit. It misses a real failure mode we've hit in production:
 
 **Silent semantic failures.** An agent turn completes cleanly and writes a friendly
-prose reply explaining it *couldn't do its job* ("Blocked by Cloudflare 403", "Unable to
+prose reply explaining it _couldn't do its job_ ("Blocked by Cloudflare 403", "Unable to
 reach API", "Skipped due to missing auth"). From cron's perspective the run was
 `status: "ok"` and `consecutiveErrors` stays at 0 forever. The job is effectively dead.
 Nobody is notified.
@@ -127,8 +128,8 @@ Then parse out the `summary` field from each line.
 
 **Now read what the agent actually said.** For each job, ask yourself:
 
-> *In these recent runs, did the agent actually do the job it was scheduled to do, or is
-> it telling me (politely, apologetically, or cheerfully) that it couldn't?*
+> _In these recent runs, did the agent actually do the job it was scheduled to do, or is
+> it telling me (politely, apologetically, or cheerfully) that it couldn't?_
 
 You are a language model. You understand natural language. A summary that says "Blocked
 by Cloudflare 403 — I couldn't fetch transcripts" is obviously a failure. A summary that
@@ -139,9 +140,9 @@ difference. **Make the call.**
 
 You are explicitly allowed to apply nuanced judgment. The point of using an LLM here
 instead of a regex is that real-world agent output is messy — polite, prose-y,
-emoji-laden, context-dependent. A keyword list can't distinguish `"the gateway is
-blocked"` (real failure) from `"I blocked off the afternoon"` (unrelated calendar
-content). You can.
+emoji-laden, context-dependent. A keyword list can't distinguish
+`"the gateway is blocked"` (real failure) from `"I blocked off the afternoon"`
+(unrelated calendar content). You can.
 
 **Examples of summaries that indicate a failure:**
 
@@ -157,8 +158,8 @@ content). You can.
 - "Skipped — lights already off" (healthy no-op)
 - "No new transcripts since last run. HEARTBEAT_OK" (healthy no-op)
 - "Jackpot is $87M, below the $500M threshold — no alert needed" (happy path)
-- "Weekly review: 19 tasks completed this week" (normal content that happens to
-  mention numbers or "completed")
+- "Weekly review: 19 tasks completed this week" (normal content that happens to mention
+  numbers or "completed")
 
 ### 4. Decide
 
@@ -270,8 +271,8 @@ Example entry:
 ## Judgment corrections
 
 - 2026-04-22: Powerball Jackpot Alert — flagged because summary said "below threshold,
-  no alert needed". That's this job's healthy no-op output. Don't flag unless the
-  agent reports an actual failure to fetch / parse.
+  no alert needed". That's this job's healthy no-op output. Don't flag unless the agent
+  reports an actual failure to fetch / parse.
 ```
 
 This is a feedback loop, not a keyword list. Read the entries as guidance for your own
@@ -378,5 +379,5 @@ in `rules.md` and `agent_notes.md`, which are never overwritten by updates.
   the whole point of using an LLM is that it can read prose. Added Judgment corrections
   feedback loop so misjudgments get learned across runs. Motivating incident: DCOS
   Fireflies Sentinel silently failed for 25 hours with `consecutiveErrors: 0`.
-- **0.1.1** (earlier): Initial shipping version with `consecutiveErrors >= 3`
-  threshold only.
+- **0.1.1** (earlier): Initial shipping version with `consecutiveErrors >= 3` threshold
+  only.
