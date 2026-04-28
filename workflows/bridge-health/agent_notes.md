@@ -2,11 +2,11 @@
 
 ## Patterns Observed
 
-- 2026-04-19: On Cora (Nick's Mac Studio), `wacli doctor` returned
-  `AUTHENTICATED true` + `CONNECTED false` while live reads succeeded with a fresh
-  `LastMessageTS` (~8 min old). The old model would have flagged this as Down; the
-  active-probe model correctly classifies it as Degraded-P2 (monitor only). Do not
-  restart on `CONNECTED false` alone when the data plane is serving fresh messages.
+- 2026-04-19: On machine-1, `wacli doctor` returned `AUTHENTICATED true` +
+  `CONNECTED false` while live reads succeeded with a fresh `LastMessageTS` (~8 min
+  old). The old model would have flagged this as Down; the active-probe model correctly
+  classifies it as Degraded-P2 (monitor only). Do not restart on `CONNECTED false` alone
+  when the data plane is serving fresh messages.
 - 2026-04-19: wacli JSON response shape on this host: `.data[0].LastMessageTS` (ISO-8601
   UTC, e.g. `2026-04-20T02:53:58Z`). Use that field for forward-progress checks.
 - 2026-04-19: wacli live log is `~/.wacli/sync-error.log` (despite the name), not
