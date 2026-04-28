@@ -134,6 +134,7 @@ independently.
 | **vapi-calls**           | Make outbound phone calls via Vapi voice AI                            | 0.1.0   |
 | **tgcli**                | Read, search, and send Telegram messages via personal account          | 0.1.0   |
 | **cortex**               | Personal knowledge compiler — ingest, query, lint, memory maintenance  | 0.2.0   |
+| **review**               | Pause before sending — empathy-first multi-lens review of artifacts    | 0.2.0   |
 | **openclaw**             | Install, update, and health-check the config                           | 0.2.2   |
 
 ## Workflows
