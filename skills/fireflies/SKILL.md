@@ -1,6 +1,6 @@
 ---
 name: fireflies
-version: 0.2.1
+version: 0.2.2
 description:
   Query Fireflies.ai meeting transcripts - summaries, action items, and searchable
   history

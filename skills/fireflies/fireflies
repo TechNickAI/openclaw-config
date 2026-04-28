@@ -89,6 +89,10 @@ def graphql(query: str, variables: dict[str, Any] | None = None) -> dict[str, An
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
+        # Cloudflare in front of fireflies.ai blocks httpx's default User-Agent
+        # with a 403. Send a real UA so requests aren't fingerprinted as bots.
+        "User-Agent": "openclaw-fireflies-cli/0.2 (+https://openclaw.ai)",
+        "Accept": "application/json",
     }
     payload: dict[str, Any] = {"query": query}
     if variables:
