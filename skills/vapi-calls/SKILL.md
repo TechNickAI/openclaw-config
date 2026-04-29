@@ -17,7 +17,7 @@ triggers:
   - voice call
 metadata:
   openclaw:
-    emoji: "📞"
+    emoji: "☎️"
     homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/vapi-calls
     category: integrations
     apiKey:

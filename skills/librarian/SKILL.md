@@ -17,7 +17,7 @@ triggers:
 metadata:
   openclaw:
     emoji: "\U0001F4DA"
-    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/cortex
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/librarian
     category: knowledge
     deprecated: true
     replacement: cortex
