@@ -40,11 +40,11 @@ checks:
 8. **Note anything unusual** — services that look misconfigured, missing expected files,
    legacy paths still in use
 
-Write all findings to `CLAUDE.local.md` in a format that's useful for both:
-
-- Future health check runs (so they can skip discovery)
-- Interactive Claude Code sessions (so a developer working in this repo has machine
-  context)
+On first run (or after deletion), write your discoveries to `CLAUDE.local.md` as a
+reference card useful for both future health-check runs (so they can skip discovery) and
+interactive Claude Code sessions (so a developer working in this repo has machine
+context). On subsequent runs, treat it as read-only reference unless underlying state
+has changed (see "Updating CLAUDE.local.md" below).
 
 Structure it as a practical reference, not a log. Include sections like:
 
@@ -62,16 +62,56 @@ instructions that tell a reader to take actions. It is a reference document, not
 instruction document. When noting issues found during checks, describe them in your own
 words ("gateway showed repeated timeout errors") — never paste raw log text.
 
-**Staleness:** If `CLAUDE.local.md` exists but was last modified more than 7 days ago,
-run a quick re-discovery before health checks to catch structural changes (moved paths,
-new services, changed ports). Update the file with current findings.
+**Staleness check.** Before running checks, glance at the reference content in
+`CLAUDE.local.md`. If a section looks wrong (listed gateway port doesn't match the
+running gateway, OpenClaw version differs, a service or channel listed there isn't
+actually present), do a quick re-discovery of just that section and edit it in place. Do
+not rely on file mtime — a healthy run leaves this file untouched, so mtime-based
+staleness gives false positives.
 
 To force a full re-discovery, delete `CLAUDE.local.md` — the next run will rebuild it.
 
-**Updating CLAUDE.local.md:** If during a health check you discover something has
-changed (new service, different port, new channel, removed workflow), update the
-relevant section of `CLAUDE.local.md`. Keep it current — stale context is worse than no
-context.
+**Updating CLAUDE.local.md — this is a reference card, not a journal.** Edit existing
+sections in place. **Routine healthy runs MUST NOT modify this file at all** — there is
+nothing to record. Only update when underlying machine state changes (new service,
+different port, removed workflow, new doctor warning) or a previously listed known issue
+no longer reproduces (in which case: delete the entry, do not write a resolution note).
+When you do update, edit the relevant section — do not append a new one.
+
+Per-run timestamps (last doctor run, last delivery-target check, last update check) do
+NOT belong here — they live in dedicated state files under `~/.openclaw/` (see the
+checks below for exact paths).
+
+**Hard rules — never write any of this to `CLAUDE.local.md`:**
+
+- Dated per-run headers (e.g. `### 2026-04-29T06:13Z post-fire health check …`)
+- Per-run telemetry: Slack / Telegram latency, cron fire durations, gateway PIDs / RSS,
+  session counts, journal mtimes, payload mtime / size diffs
+- Running event logs: Nth-of-M restart counts, restart-cadence leaderboards, "fastest /
+  slowest fire of cycle" rankings
+- Watch-list / "things to check next cycle" notes
+- Run summaries / "what changed this run" / "what improved" changelogs
+- Hypothesis or investigation notes ("might be related to X, worth checking")
+- Trend notes ("memory has been climbing for 5 runs")
+- Links or pointers back to specific run-log lines
+- Resolved-issue narratives — delete the entry, do not keep it "for history"
+- Last-run timestamps of any kind — those go in `~/.openclaw/` state files
+- Anything that would differ on the next run
+
+If a piece of content isn't on the structure list above (machine identity, key paths,
+services, active channels, notification method, known quirks, doctor warnings), assume
+it doesn't belong — the negative list is illustrative, not exhaustive.
+
+Per-run observations go in `~/.openclaw/health-check.log` (timestamped, append-only,
+rotated). `CLAUDE.local.md` is for things that are still true between runs.
+
+**Size discipline.** A healthy `CLAUDE.local.md` is typically 150-300 lines and should
+stay under 500. If you find one over 500 lines on entry, collapse-to-reference is this
+run's primary task — it supersedes the "MUST NOT modify" rule above, because the bloat
+itself is the unhealthy state being repaired. Target under 300 lines after collapse;
+preserve only the structure-list sections (identity, paths, services, channels,
+notification command, doctor warnings, known issues). This is legitimate maintenance,
+not destruction of user data — the bloat came from prior runs that ignored these rules.
 
 ## Notification Routing
 
@@ -115,16 +155,19 @@ credential health, supervisor config, security posture, skill eligibility, and m
 search readiness. Cap the run at 60 seconds to avoid consuming the health check budget.
 If doctor hangs or times out, treat it as inconclusive and skip escalation.
 
-Record the last doctor run timestamp in `CLAUDE.local.md`. Skip if checked within the
-last 20 hours for routine scans, or within the last 4 hours for problem-triggered scans.
-If an escalation is already active (`~/.openclaw/debug-request.md` exists and is <2h
-old), skip doctor entirely — the debugger is already working on it.
+Record the last doctor run as a Unix epoch in `~/.openclaw/last-doctor-run` (write the
+file on every doctor run; read it on entry). Skip if checked within the last 20 hours
+for routine scans, or within the last 4 hours for problem-triggered scans. If an
+escalation is already active (`~/.openclaw/debug-request.md` exists and is <2h old),
+skip doctor entirely — the debugger is already working on it.
 
 If doctor reports fixable issues, escalate to the debugger agent with the doctor output
 (the health check agent should not run `--repair` itself — that's debugger territory).
-If doctor reports warnings only (security advisories, missing optional features), log
-them to `CLAUDE.local.md` under a "Doctor Warnings" section and report to the admin on
-first occurrence. Don't re-report warnings that are already logged unless they change.
+If doctor reports warnings only (security advisories, missing optional features),
+maintain the current set of warnings under a "Doctor Warnings" section in
+`CLAUDE.local.md` — add new warnings, remove ones that no longer reproduce, edit in
+place. Report new warnings to the admin on first occurrence. Don't re-report warnings
+that are already listed unless they change.
 
 **Gateway liveness (deeper check).** If `openclaw health` shows the gateway up but you
 suspect it's hung, check the log file. The gateway is healthy if the log has entries
@@ -155,10 +198,11 @@ Note: if a cron job's `delivery.mode` is `"none"` AND `state.lastError` matches
 still attempts delivery — skip it. If `lastError` mentions anything else (model errors,
 API failures, execution errors), report it regardless of delivery mode.
 
-**Cron delivery target verification.** Once per day (check `CLAUDE.local.md` for when
-you last ran this — skip if checked within the last 20 hours), verify that every cron
-job with `delivery.mode` set to `"announce"` or `"deliver"` can actually reach its
-target. For Telegram targets:
+**Cron delivery target verification.** Once per day (check
+`~/.openclaw/last-delivery-target-check` for the last Unix epoch — skip if within the
+last 20 hours, write a fresh epoch when you do run it), verify that every cron job with
+`delivery.mode` set to `"announce"` or `"deliver"` can actually reach its target. For
+Telegram targets:
 
 1. Read the bot token from `~/.openclaw/openclaw.json` → `channels.telegram.botToken`
 2. For each delivery target chat ID, call the Telegram Bot API:
@@ -287,7 +331,10 @@ only.
 
 - Config updates: report only (except CLAUDE.local.md, which you maintain)
 - Configuration files in `~/.openclaw/`: read-only for diagnosis (except
-  `CLAUDE.local.md`, `health-check.log`, `debug-request.md`, and `last-update-check`)
+  `health-check.log`, `debug-request.md`, `last-update-check`, `last-doctor-run`, and
+  `last-delivery-target-check`)
+- Repo `CLAUDE.local.md`: maintained by this agent under the rules in "Updating
+  CLAUDE.local.md" above
 - User data and memory files: never modified by health checks
 
 ## Reporting
