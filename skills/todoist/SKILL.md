@@ -1,6 +1,6 @@
 ---
 name: todoist
-version: 0.1.0
+version: 0.2.0
 description: Manage Todoist tasks, projects, and labels via official CLI
 triggers:
   - todoist
@@ -11,6 +11,16 @@ triggers:
 metadata:
   openclaw:
     emoji: "✅"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/todoist
+    category: productivity
+    requires:
+      bins: [td]
+    install:
+      - id: todoist-cli
+        kind: node
+        package: "@doist/todoist-cli"
+        bins: [td]
+        label: Install Todoist CLI (npm)
     apiKey:
       env: TODOIST_API_TOKEN
       getFrom: https://todoist.com/app/settings/integrations/developer

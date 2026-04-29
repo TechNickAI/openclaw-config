@@ -1,6 +1,6 @@
 ---
 name: apple-photos
-version: 0.1.1
+version: 0.2.0
 description:
   Query, inspect, and export photos from the macOS Apple Photos library using osxphotos.
   Find photos by person, album, keyword, or date range. Export candidates for curation
@@ -18,7 +18,12 @@ triggers:
 metadata:
   openclaw:
     emoji: "\U0001F4F7"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/apple-photos
+    category: integrations
     platform: macos
+    os: [darwin]
+    requires:
+      bins: [osxphotos]
 ---
 
 # Apple Photos

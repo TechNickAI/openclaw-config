@@ -1,6 +1,6 @@
 ---
 name: followupboss
-version: 0.1.1
+version: 0.2.0
 description:
   Query and manage Follow Up Boss CRM — contacts, notes, tasks, deals, and pipeline
   stages
@@ -15,6 +15,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🏠"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/followupboss
+    category: integrations
     apiKey:
       env: FUB_API_KEY
       getFrom: https://app.followupboss.com → Admin → API

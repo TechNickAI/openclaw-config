@@ -1,6 +1,6 @@
 ---
 name: agentmail
-version: 0.1.1
+version: 0.2.0
 description:
   Email inboxes for AI agents - create addresses, send and receive email, manage threads
 triggers:
@@ -17,6 +17,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "\U0001F4EC"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/agentmail
+    category: integrations
     apiKey:
       env: AGENTMAIL_API_KEY
       getFrom: https://agentmail.to → Dashboard → API Keys

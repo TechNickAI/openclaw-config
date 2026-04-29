@@ -1,6 +1,6 @@
 ---
 name: review
-version: 0.2.0
+version: 0.3.0
 description:
   A pause before an artifact goes into the world. Reviews external comms, money,
   calendar, public posts, or send-as-operator actions through a small panel of
@@ -20,6 +20,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🪞"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/review
+    category: meta
 ---
 
 # Review

@@ -1,6 +1,6 @@
 ---
 name: drive-to-done
-version: 0.3.0
+version: 0.4.0
 description:
   Drive a task all the way to a verified done state — write DoD first, verify each item
   with evidence, stop only at named stop conditions.
@@ -18,6 +18,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "✅"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/drive-to-done
+    category: meta
 ---
 
 # Drive to Done

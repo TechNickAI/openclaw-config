@@ -1,6 +1,6 @@
 ---
 name: claude-code
-version: 0.2.1
+version: 0.3.0
 description:
   Route real repo work to Claude Code instead of editing by hand. Triggers on "claude
   code" or "cc", and on any request to edit, fix, refactor, or open a PR in a repo
@@ -16,6 +16,10 @@ triggers:
 metadata:
   openclaw:
     emoji: "\U0001F916"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/claude-code
+    category: development
+    requires:
+      bins: [claude]
 ---
 
 # Claude Code

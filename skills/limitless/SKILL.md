@@ -1,6 +1,6 @@
 ---
 name: limitless
-version: 0.2.1
+version: 0.3.0
 description:
   Query Limitless Pendant lifelogs - conversations, meetings, and ambient recordings
 triggers:
@@ -12,6 +12,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🎙️"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/limitless
+    category: integrations
     apiKey:
       env: LIMITLESS_API_KEY
       getFrom: https://app.limitless.ai → Settings → Developer

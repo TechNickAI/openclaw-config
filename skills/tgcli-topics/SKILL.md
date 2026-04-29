@@ -1,9 +1,25 @@
 ---
 name: tgcli-topics
+version: 0.2.0
 description:
   List, discover, and search Telegram forum topics using the Telegram Client API
   (MTProto) via Telethon. Use when you need to find topic IDs (thread IDs) for a
   Telegram chat, especially when the standard tgcli cannot list forum topics.
+triggers:
+  - telegram topics
+  - forum topics
+  - telegram threads
+  - list topics
+  - discover topics
+  - find topic id
+  - tgcli topics
+metadata:
+  openclaw:
+    emoji: "🧵"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/tgcli-topics
+    category: integrations
+    requires:
+      bins: [tgcli, python3]
 ---
 
 # tgcli-topics

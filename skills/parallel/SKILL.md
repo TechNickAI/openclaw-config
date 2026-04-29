@@ -1,6 +1,6 @@
 ---
 name: parallel
-version: 0.3.0
+version: 0.4.0
 description:
   Web search, content extraction, deep research, data enrichment, entity discovery, and
   web monitoring via Parallel.ai CLI
@@ -22,6 +22,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🔍"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/parallel
+    category: integrations
     apiKey:
       env: PARALLEL_API_KEY
       getFrom: https://platform.parallel.ai

@@ -1,6 +1,6 @@
 ---
 name: quo
-version: 0.6.1
+version: 0.7.0
 description:
   Quo (formerly OpenPhone) business phone system — check calls, texts, voicemails,
   missed calls, send SMS/texts, manage contacts, read call transcripts and summaries,
@@ -29,6 +29,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "📞"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/quo
+    category: integrations
     apiKey:
       env: QUO_API_KEY
       getFrom: https://app.openphone.com/settings/api-keys

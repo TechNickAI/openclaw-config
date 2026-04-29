@@ -1,6 +1,6 @@
 ---
 name: tgcli
-version: 0.1.0
+version: 0.2.0
 description:
   Read, search, and send Telegram messages via your personal account using the tgcli
   CLI. Use when the user asks to check their Telegram messages, search Telegram history,
@@ -19,6 +19,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "✈️"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/tgcli
+    category: integrations
     requires:
       bins: [tgcli]
     install:

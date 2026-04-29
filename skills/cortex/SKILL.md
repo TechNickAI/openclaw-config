@@ -1,6 +1,6 @@
 ---
 name: cortex
-version: 0.2.1
+version: 0.3.0
 description: >
   Personal knowledge compiler and memory system. Ingests raw sources (documents, notes,
   transcripts, captures) into a structured, interlinked knowledge base. Maintains living
@@ -23,6 +23,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "\U0001F9E0"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/cortex
+    category: knowledge
 ---
 
 # Cortex — Personal Knowledge Compiler

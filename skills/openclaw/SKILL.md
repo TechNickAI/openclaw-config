@@ -1,6 +1,6 @@
 ---
 name: openclaw
-version: 0.3.0
+version: 0.4.0
 description: Install, configure, and update openclaw-config
 triggers:
   - openclaw
@@ -10,6 +10,10 @@ triggers:
 metadata:
   openclaw:
     emoji: "🐾"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/openclaw
+    category: operations
+    requires:
+      bins: [openclaw]
 ---
 
 # OpenClaw Config Skill 🐾

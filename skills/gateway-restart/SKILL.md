@@ -1,6 +1,6 @@
 ---
 name: gateway-restart
-version: 0.1.1
+version: 0.2.0
 description:
   Graceful gateway restart — waits for active queries and cron jobs to complete
 triggers:
@@ -10,6 +10,10 @@ triggers:
 metadata:
   openclaw:
     emoji: "🔄"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/gateway-restart
+    category: operations
+    requires:
+      bins: [openclaw]
 ---
 
 # Gateway Restart Skill 🔄

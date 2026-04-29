@@ -1,6 +1,6 @@
 ---
 name: create-great-prompts
-version: 2.0.0
+version: 2.1.0
 description: >
   Write effective prompts for LLM agents — system prompts, workflow instructions, skill
   files, and agent configurations. Use when creating or improving prompts that agents
@@ -17,6 +17,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "✍️"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/create-great-prompts
+    category: development
 ---
 
 # Create Great Prompts

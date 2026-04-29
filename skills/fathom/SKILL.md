@@ -1,6 +1,6 @@
 ---
 name: fathom
-version: 0.1.1
+version: 0.2.0
 # prettier-ignore
 description: Query Fathom AI meeting recordings — transcripts, summaries, action items, and searchable meeting history
 triggers:
@@ -13,6 +13,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🎥"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/fathom
+    category: integrations
     apiKey:
       env: FATHOM_API_KEY
       getFrom: https://fathom.video → User Settings → API Access

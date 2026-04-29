@@ -1,6 +1,6 @@
 ---
 name: asana
-version: 0.1.1
+version: 0.2.0
 description: Manage Asana tasks, projects, and workspaces via MCP
 triggers:
   - asana
@@ -12,6 +12,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "📋"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/asana
+    category: productivity
     apiKey:
       env: ASANA_ACCESS_TOKEN
       getFrom: https://app.asana.com/0/my-apps

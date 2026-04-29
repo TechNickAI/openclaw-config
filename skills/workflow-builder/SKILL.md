@@ -1,15 +1,25 @@
 ---
 name: workflow-builder
-version: 0.3.0
+version: 0.4.0
 description:
   Design, build, and maintain autonomous OpenClaw workflows (stewards). Use when
   creating new workflow agents, improving existing ones, evaluating automation
   opportunities, or debugging workflow reliability. Triggers on "build a workflow",
   "create a steward", "automate this process", "workflow audit", "what should I
   automate", "create a cron job", "schedule a recurring task", "build a scheduled job".
+triggers:
+  - build a workflow
+  - create a steward
+  - automate this process
+  - workflow audit
+  - what should I automate
+  - create a cron job
+  - schedule a recurring task
+  - build a scheduled job
 metadata:
   openclaw:
     emoji: "🏗️"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/workflow-builder
     category: productivity
 ---
 

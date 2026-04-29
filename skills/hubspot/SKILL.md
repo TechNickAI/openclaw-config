@@ -1,6 +1,6 @@
 ---
 name: hubspot
-version: 0.2.0
+version: 0.3.0
 description:
   Query HubSpot CRM contacts, deals, and deal stages via the HubSpot REST API. Use when
   you need to look up contacts, inspect deals, search the CRM, or review deal stage
@@ -18,6 +18,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🟠"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/hubspot
+    category: integrations
     apiKey:
       env: HUBSPOT_API_KEY
       getFrom: https://app.hubspot.com/private-apps

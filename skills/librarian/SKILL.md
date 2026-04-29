@@ -1,6 +1,6 @@
 ---
 name: librarian
-version: 0.5.0
+version: 0.5.1
 description: >
   DEPRECATED — Use the `cortex` skill instead. Cortex v2 absorbs all librarian
   functionality (memory maintenance, knowledge organization, learning analysis) into a
@@ -17,6 +17,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "\U0001F4DA"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/cortex
+    category: knowledge
     deprecated: true
     replacement: cortex
 ---

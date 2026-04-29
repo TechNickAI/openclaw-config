@@ -1,6 +1,6 @@
 ---
 name: smart-delegation
-version: 0.2.0
+version: 0.3.0
 description: >
   Intelligent task delegation — route to think with deep reasoning for hard problems, or
   Grok for unfiltered takes. Teaches when to escalate, how to pack context into
@@ -21,6 +21,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🧠"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/smart-delegation
+    category: meta
 ---
 
 # Smart Delegation

@@ -1,6 +1,6 @@
 ---
 name: fireflies
-version: 0.2.2
+version: 0.3.0
 description:
   Query Fireflies.ai meeting transcripts - summaries, action items, and searchable
   history
@@ -13,6 +13,8 @@ triggers:
 metadata:
   openclaw:
     emoji: "🔥"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/fireflies
+    category: integrations
     apiKey:
       env: FIREFLIES_API_KEY
       getFrom: https://app.fireflies.ai → Integrations → Fireflies API

@@ -1,11 +1,28 @@
 ---
 name: vapi-calls
-version: 0.1.0
+version: 0.2.0
 description:
   Make outbound phone calls via Vapi voice AI. Use when the agent needs to call someone
   on the phone for any reason (reminders, notifications, requests to businesses, or any
   task that benefits from a real voice conversation). Requires VAPI_API_KEY, a
   provisioned phone number, and an assistant configured in Vapi.
+triggers:
+  - vapi
+  - make a call
+  - place a call
+  - call someone
+  - phone call
+  - outbound call
+  - voice agent
+  - voice call
+metadata:
+  openclaw:
+    emoji: "📞"
+    homepage: https://github.com/TechNickAI/openclaw-config/tree/main/skills/vapi-calls
+    category: integrations
+    apiKey:
+      env: VAPI_API_KEY
+      getFrom: https://dashboard.vapi.ai → API Keys
 ---
 
 # Vapi Voice Calls
