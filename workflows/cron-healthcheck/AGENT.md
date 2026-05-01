@@ -89,10 +89,11 @@ Every cycle follows this pattern:
 
 1. **Survey** — List all cron jobs (including disabled ones) via the cron tool
 2. **Detect (hard failure)** — Check each enabled job for `consecutiveErrors >= 2`
-3. **Detect (semantic failure)** — Read recent run summaries and judge each job
-4. **Branch** — If all healthy, reply `HEARTBEAT_OK` and stop. If any broken, escalate.
+3. **Read prior corrections** — Check `agent_notes.md` for learned patterns
+4. **Detect (semantic failure)** — Read recent run summaries and judge each job
+5. **Branch** — If all healthy, reply `HEARTBEAT_OK` and stop. If any broken, escalate.
 
-Run both detection steps before branching, even if step 2 already found hard failures —
+Run all detection steps before branching, even if step 2 already found hard failures —
 the sub-agent needs the full picture to distinguish hard-only from hard+semantic jobs.
 
 You do NOT remediate. You do NOT diagnose. You detect and delegate.
@@ -111,7 +112,16 @@ For each enabled job, check `consecutiveErrors >= 2`. (Lowered from 3 to 2 so we
 one cycle earlier — a single transient blip still gets a pass, but a repeating error
 triggers investigation.)
 
-### 3. Semantic-failure path — use your judgment
+### 3. Read prior corrections
+
+Before making semantic judgments, read `agent_notes.md` and check the **Judgment
+corrections** and **Failures & Corrections** sections. These record patterns where
+previous runs misjudged healthy no-ops as failures. Let these guide your judgment in
+step 4 so you don't repeat the same mistakes.
+
+If `agent_notes.md` does not exist yet, skip this step.
+
+### 4. Semantic-failure path — use your judgment
 
 For each enabled job, read the last 5 `finished` entries from
 `~/.openclaw/cron/runs/<jobId>.jsonl`. If the file does not exist (new job, no runs
@@ -121,7 +131,7 @@ The JSONL file has one record per line with varying `action` values. Only `finis
 records contain a `summary` field. A reliable way to extract them:
 
 ```
-grep '"action":"finished"' ~/.openclaw/cron/runs/<jobId>.jsonl | tail -n 5
+grep '"action": *"finished"' ~/.openclaw/cron/runs/<jobId>.jsonl | tail -n 5
 ```
 
 Then parse out the `summary` field from each line.
@@ -161,13 +171,13 @@ emoji-laden, context-dependent. A keyword list can't distinguish
 - "Weekly review: 19 tasks completed this week" (normal content that happens to mention
   numbers or "completed")
 
-### 4. Decide
+### 5. Decide
 
 A job is **semantically failing** when, in your honest judgment, **2 or more of the last
 5 finished runs show the agent reporting it could not do its job**. One bad run could be
 a transient blip; two establishes a pattern worth investigating.
 
-### 5. Combine and decide
+### 6. Combine and decide
 
 Build a union of hard-failing and semantically-failing jobs.
 
