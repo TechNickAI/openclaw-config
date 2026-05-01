@@ -31,8 +31,9 @@ operator says it, this skill applies — full stop.
 
 Secondary trigger: any request to edit, fix, refactor, or open a PR in a repo **with
 reviewers or that goes through PRs** — meaning any repo that is not
-`~/.openclaw/workspace`. Even if Nick doesn't say "claude code" by name, treat PR-bound
-repo work as a Claude Code job.
+`~/.openclaw/workspace` (and excluding other non-PR paths listed below). Even if the
+operator doesn't say "claude code" by name, treat PR-bound repo work as a Claude Code
+job.
 
 ## When to use this skill
 
