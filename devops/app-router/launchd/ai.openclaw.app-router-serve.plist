@@ -1,43 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Restores Tailscale Serve config for the OpenClaw app router on boot.
+    Restores Tailscale Serve config for the OpenClaw app router on boot.
 
-  Install:
-    1. Copy devops/app-router/scripts/restore-tailscale-serve.sh
-       → ~/openclaw-apps/_registry/restore-tailscale-serve.sh (chmod +x)
-    2. Copy this file → ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
-    3. Replace <USER> below with your macOS username (or use `sed -i ''
-       "s/<USER>/$USER/g" ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist`)
-    4. launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
+    Install: copy devops/app-router/scripts/restore-tailscale-serve.sh into
+    ~/openclaw-apps/_registry/restore-tailscale-serve.sh (chmod +x), then copy
+    this plist into ~/Library/LaunchAgents/ — substituting <USER> for your
+    macOS username — and `launchctl bootstrap gui/$(id -u) <plist>`.
 
-  The script waits for tailscaled to come up before applying the config, so
-  loading at boot is safe even if Tailscale starts slowly.
+    Example: sed "s|<USER>|$USER|g" devops/app-router/launchd/ai.openclaw.app-router-serve.plist \
+                > ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
 
-  To change the port (default 4242), set APP_ROUTER_PORT in EnvironmentVariables
-  below; the script reads it.
+    The script waits for tailscaled to come up before applying the config, so
+    loading at boot is safe even if Tailscale starts slowly.
+
+    Override port (default 4242) or upstream by editing EnvironmentVariables.
 -->
 <plist version="1.0">
 <dict>
-  <key>Label</key>
-  <string>ai.openclaw.app-router-serve</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/bin/bash</string>
-    <string>/Users/&lt;USER&gt;/openclaw-apps/_registry/restore-tailscale-serve.sh</string>
-  </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>APP_ROUTER_PORT</key>
-    <string>4242</string>
-    <key>APP_ROUTER_UPSTREAM</key>
-    <string>http://127.0.0.1:8080</string>
-  </dict>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/Users/&lt;USER&gt;/openclaw-apps/_registry/logs/tailscale-serve.log</string>
-  <key>StandardErrorPath</key>
-  <string>/Users/&lt;USER&gt;/openclaw-apps/_registry/logs/tailscale-serve-error.log</string>
+    <key>Label</key>
+    <string>ai.openclaw.app-router-serve</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/&lt;USER&gt;/openclaw-apps/_registry/restore-tailscale-serve.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>APP_ROUTER_PORT</key>
+        <string>4242</string>
+        <key>APP_ROUTER_UPSTREAM</key>
+        <string>http://127.0.0.1:8080</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/&lt;USER&gt;/openclaw-apps/_registry/logs/tailscale-serve.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/&lt;USER&gt;/openclaw-apps/_registry/logs/tailscale-serve-error.log</string>
 </dict>
 </plist>

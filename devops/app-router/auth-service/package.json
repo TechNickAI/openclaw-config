@@ -1,6 +1,6 @@
 {
   "name": "openclaw-app-router-auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Per-app password auth sidecar for the OpenClaw app router (Caddy forward_auth).",
   "private": true,
   "main": "server.js",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1"
   }
 }

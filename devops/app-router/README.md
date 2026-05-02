@@ -48,21 +48,18 @@ brew install caddy
 npm install -g pm2
 ```
 
-Lay down the working directory and seed it from this repo:
+Run the install helper from the repo root — it copies the templates, installs
+auth-service deps, and stages the launchd plist with `<USER>` substituted:
 
 ```
-mkdir -p ~/openclaw-apps/_registry/logs
-cp -R devops/app-router/auth-service ~/openclaw-apps/auth-service
-cp devops/app-router/templates/ecosystem.config.js.example ~/openclaw-apps/ecosystem.config.js
-cp devops/app-router/templates/Caddyfile.example ~/openclaw-apps/_registry/Caddyfile
-cp devops/app-router/scripts/restore-tailscale-serve.sh ~/openclaw-apps/_registry/
-chmod +x ~/openclaw-apps/_registry/restore-tailscale-serve.sh
-(cd ~/openclaw-apps/auth-service && npm install --omit=dev)
+bash devops/app-router/scripts/install.sh
 ```
 
-Edit `~/openclaw-apps/ecosystem.config.js` — replace `<USER>` with your username,
-generate `AUTH_SECRET` with `openssl rand -hex 32`, and fill in `APP_PASSWORD_<SLUG>`,
-`APP_TITLE_<SLUG>`, and `APP_DESC_<SLUG>` for any protected apps. Then edit
+Re-running is safe; existing files are skipped. Pass `--force` to overwrite.
+
+Edit `~/openclaw-apps/ecosystem.config.js` — set `AUTH_SECRET` (use
+`openssl rand -hex 32`), and fill in `APP_PASSWORD_<SLUG>`, `APP_TITLE_<SLUG>`, and
+`APP_DESC_<SLUG>` for any protected apps. Then edit
 `~/openclaw-apps/_registry/Caddyfile` to match.
 
 Start everything under PM2:
@@ -81,12 +78,10 @@ Point Tailscale Serve at Caddy:
 tailscale serve --bg --https=4242 http://127.0.0.1:8080
 ```
 
-Tailscale Serve config does not survive reboots on its own. Install the launchd plist to
-re-apply it automatically on boot:
+Tailscale Serve config does not survive reboots on its own. The install helper already
+staged the launchd plist with your `$USER` substituted; load it now:
 
 ```
-sed "s|<USER>|$USER|g" devops/app-router/launchd/ai.openclaw.app-router-serve.plist \
-  > ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
 ```
 
@@ -143,9 +138,16 @@ Apps have three modes:
   `APP_PASSWORD_<SLUG>` is unset, the auth service treats the app as open. Useful during
   development.
 
-The auth service signs cookies with `AUTH_SECRET`. If unset, it generates a random
-secret on startup — meaning all sessions are invalidated on auth-service restart. **Set
-a stable secret in production.** Each machine should have its own secret.
+The auth service signs cookies with `AUTH_SECRET`. If unset and `NODE_ENV=production`,
+the service refuses to start; pass `AUTH_ALLOW_RANDOM_SECRET=1` to opt into ephemeral
+sessions (a random secret is generated each boot, so every restart logs everyone out).
+Outside production, an unset `AUTH_SECRET` falls back to a random value with a warning.
+Each machine should have its own secret.
+
+The login POST endpoint is rate-limited to 30 attempts per IP per minute and rejects
+requests whose `Origin`/`Referer` doesn't match the request host (mitigates CSRF beyond
+SameSite=lax). 401s and CSRF rejections are logged to stdout with slug + IP, captured by
+PM2.
 
 Slugs are validated against `^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$` — lowercase
 alphanumerics and hyphens, max 32 chars. Anything outside that gets a 400 from

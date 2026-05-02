@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+# launchd hands us a near-empty PATH; bake in the standard locations + Homebrew.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
+
 PORT="${APP_ROUTER_PORT:-4242}"
 UPSTREAM="${APP_ROUTER_UPSTREAM:-http://127.0.0.1:8080}"
 TAILSCALE_BIN="${TAILSCALE_BIN:-/Applications/Tailscale.app/Contents/MacOS/Tailscale}"
@@ -34,6 +37,19 @@ done
 if ! "$TAILSCALE_BIN" status >/dev/null 2>&1; then
     echo "[app-router-serve] tailscaled never came up; giving up" >&2
     exit 1
+fi
+
+# Best-effort wait for the upstream (Caddy) to start serving — avoids pointing
+# Tailscale Serve at a port nothing answers on yet during boot races. Don't fail
+# if curl is missing; just skip the probe.
+if command -v curl >/dev/null 2>&1; then
+    echo "[app-router-serve] waiting up to 30s for upstream ${UPSTREAM}/health"
+    for ((i = 0; i < 30; i++)); do
+        if curl --silent --fail --max-time 2 "${UPSTREAM}/health" >/dev/null; then
+            break
+        fi
+        sleep 1
+    done
 fi
 
 echo "[app-router-serve] applying serve: --https=${PORT} → ${UPSTREAM}"

@@ -262,6 +262,14 @@ or systemd units (`devops/linux/`):
 | **workspace-backup** | Every 4 hours    | Restic backup of ~/.openclaw + workspace (7d/4w/6m retention) |
 | **backup-verify**    | Weekly (Sun 4am) | Restic integrity check (10% of data)                          |
 
+### App Router
+
+`devops/app-router/` is a per-machine pattern for hosting named web apps behind a single
+Tailscale HTTPS URL with optional per-app password protection. Caddy fronts PM2-managed
+processes; an Express auth sidecar issues path-scoped session cookies via Caddy's
+`forward_auth`. See `devops/app-router/README.md` for setup; `install.sh` automates the
+copy/sed/launchd-bootstrap dance.
+
 ### Fleet Management
 
 For multi-machine deployments, the `/fleet` command manages remote OpenClaw instances
