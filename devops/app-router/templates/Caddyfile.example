@@ -36,7 +36,10 @@
             copy_headers Cookie
             @unauthorized status 401
             handle_response @unauthorized {
-                redir * /auth/login?app=my-private-app&next={http.request.uri} 302
+                # {http.request.uri.path} avoids encoding `&` from query strings
+                # breaking the `next` parameter. Query params are not preserved
+                # in the redirect; after login the user lands at the page root.
+                redir * /auth/login?app=my-private-app&next={http.request.uri.path} 302
             }
         }
         uri strip_prefix /my-private-app
