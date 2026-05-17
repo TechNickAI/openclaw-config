@@ -31,6 +31,17 @@
         <string>4242</string>
         <key>APP_ROUTER_UPSTREAM</key>
         <string>http://127.0.0.1:8080</string>
+        <!-- Optional: also expose /hooks/ on the default :443 tailscale-serve
+             mount for legacy webhook URLs. Uncomment to enable.
+        <key>APP_ROUTER_HOOKS_PATH</key>
+        <string>/hooks/</string>
+        -->
+        <!-- Optional: also expose / on the default :443 tailscale-serve
+             mount pointing at a second upstream (e.g., OpenClaw control UI on
+             127.0.0.1:18790). Uncomment to enable.
+        <key>APP_ROUTER_ROOT_UPSTREAM</key>
+        <string>http://127.0.0.1:18790</string>
+        -->
     </dict>
     <key>RunAtLoad</key>
     <true/>

@@ -54,3 +54,18 @@ fi
 
 echo "[app-router-serve] applying serve: --https=${PORT} → ${UPSTREAM}"
 "$TAILSCALE_BIN" serve --bg "--https=${PORT}" "$UPSTREAM"
+
+# Optional: legacy /hooks/ path on :443 → app-router (so existing AgentMail/iOS
+# Shortcut subscriptions that POST to https://<host>/hooks/<name> keep working
+# without subscription changes).
+if [ -n "${APP_ROUTER_HOOKS_PATH:-}" ]; then
+    echo "[app-router-serve] applying serve: --set-path=${APP_ROUTER_HOOKS_PATH} → ${UPSTREAM}${APP_ROUTER_HOOKS_PATH}"
+    "$TAILSCALE_BIN" serve --bg --set-path="${APP_ROUTER_HOOKS_PATH}" "${UPSTREAM}${APP_ROUTER_HOOKS_PATH}"
+fi
+
+# Optional: mount a separate upstream on the default :443 / root path
+# (typically the OpenClaw control UI on :18790).
+if [ -n "${APP_ROUTER_ROOT_UPSTREAM:-}" ]; then
+    echo "[app-router-serve] applying serve: --set-path=/ → ${APP_ROUTER_ROOT_UPSTREAM}"
+    "$TAILSCALE_BIN" serve --bg --set-path=/ "${APP_ROUTER_ROOT_UPSTREAM}"
+fi

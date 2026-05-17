@@ -153,6 +153,35 @@ Slugs are validated against `^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$` — lowerca
 alphanumerics and hyphens, max 32 chars. Anything outside that gets a 400 from
 `/auth/verify` and `/auth/login`.
 
+## Fronting OpenClaw Webhooks (optional)
+
+External callers like AgentMail Svix webhooks and iOS Shortcuts don't always support
+custom `Authorization` headers. The OpenClaw gateway hooks server (`127.0.0.1:18789`)
+requires a bearer token on every request. Caddy can inject it transparently so callers
+don't need to send auth themselves.
+
+**Setup:**
+
+1. Set `OPENCLAW_HOOK_TOKEN` in the Caddy process environment. The easiest way is via
+   the PM2 ecosystem env block in `ecosystem.config.js`:
+   ```js
+   env: {
+     OPENCLAW_HOOK_TOKEN: "your-token-here";
+   }
+   ```
+2. Uncomment the `handle /hooks/* { ... }` block in the Caddyfile.
+3. Reload Caddy:
+   `caddy reload --config ~/openclaw-apps/router/Caddyfile --adapter caddyfile`
+
+Callers can then `POST https://<host>:4242/hooks/<hook-name>` with no `Authorization`
+header — Caddy injects `Bearer <token>` before forwarding to the gateway.
+
+**Legacy URL preservation:** If existing webhook subscriptions already point at
+`https://<host>/hooks/<name>` (the default `:443` tailscale-serve mount), set
+`APP_ROUTER_HOOKS_PATH=/hooks/` in the launchd plist's `EnvironmentVariables` block. The
+restore script will apply an additional `tailscale serve --set-path` mount so both the
+`:4242` and `:443` URLs reach the app router.
+
 ## Public Access
 
 Tailscale Serve is tailnet-only. To make an app accessible from outside the tailnet
