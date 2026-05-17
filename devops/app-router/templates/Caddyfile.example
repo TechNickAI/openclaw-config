@@ -11,6 +11,7 @@
 # After editing: `caddy reload --config <this-file> --adapter caddyfile`
 
 :8080 {
+    bind 127.0.0.1 ::1
 
     # Auth service endpoints (login form, verify, logout).
     handle /auth/* {
@@ -21,6 +22,19 @@
     handle /health {
         respond "ok" 200
     }
+
+    # ── OpenClaw webhook routing (optional) ───────────────────────────────
+    # Front the OpenClaw gateway hooks server with bearer injection so
+    # external callers (AgentMail Svix, iOS Shortcuts, etc.) can POST
+    # without sending Authorization headers. Set OPENCLAW_HOOK_TOKEN in
+    # the Caddy process environment (e.g., via PM2 ecosystem env), then
+    # uncomment this block.
+    #
+    # handle /hooks/* {
+    #     reverse_proxy 127.0.0.1:18789 {
+    #         header_up Authorization "Bearer {env.OPENCLAW_HOOK_TOKEN}"
+    #     }
+    # }
 
     # ── Open app: no password, just a path → port mapping. ────────────────
     handle /my-open-app/* {
