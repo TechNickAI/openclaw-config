@@ -16,6 +16,46 @@ path router and handles the auth challenge via `forward_auth`. A small Express s
 (`auth-service/`) issues and validates the session cookies. Tailscale Serve provides
 HTTPS with no certificate management.
 
+## Why Tailscale Serve Keeps Breaking (And The Permanent Fix)
+
+Tailscale's CLI has no native config file for per-node serve. Every `tailscale serve …`
+is imperative — it mutates running state. If two tools (or two install steps) run their
+own sequence of `serve` commands, the later one stomps the earlier one's routes. The
+worst offender is `tailscale serve reset`, which any integration can run on startup.
+
+**The fix:** treat one JSON file as the single source of truth and replay it whenever
+anything stomps the live config.
+
+- **Source of truth:** `~/openclaw-apps/router/tailscale-serve.json` — declarative
+  ports, paths, upstreams, and funnel toggles. Edit this and only this.
+- **Apply script:** `~/openclaw-apps/router/apply-tailscale-serve.sh` — does
+  `tailscale funnel reset` + `tailscale serve reset` to clear state, then compiles the
+  JSON into a sequence of `tailscale serve` / `tailscale funnel` commands and runs them.
+- **Boot agent:** `~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist` calls the
+  apply script at login, so the config survives reboots.
+- **OpenClaw guard:** the gateway has its own Tailscale integration that calls
+  `serve reset` on restart. It must be disabled per the snippet below or it will keep
+  fighting you.
+
+When `tailscale serve status` shows the wrong routes or a blank funnel, you don't have
+to remember what was supposed to be there. Just run the apply script:
+
+```
+~/openclaw-apps/router/apply-tailscale-serve.sh
+```
+
+That's the recovery procedure for any "serve got fucked again" moment.
+
+### Why Not Cloudflare Tunnel?
+
+Cloudflare Tunnel does have a real persistent config file (`config.yml`) and would solve
+the stomping problem the same way. It costs: a Cloudflare account, a domain on
+Cloudflare DNS, the `cloudflared` daemon, and an extra hop through Cloudflare for every
+request. Tailscale Serve is already running on every fleet machine, gives us HTTPS for
+free via MagicDNS, and Funnel lets us share specific paths publicly without exposing the
+whole machine. The declarative JSON + apply script gives us the only thing Tailscale was
+missing — a config file — without adding a new dependency.
+
 ## Layout
 
 ```
@@ -23,7 +63,7 @@ devops/app-router/
   auth-service/    Express auth sidecar (server.js + tests)
   templates/       Caddyfile and ecosystem.config.js examples
   scripts/         apply-tailscale-serve.sh + tailscale-serve.json (declarative)
-  launchd/         Plist that re-applies Tailscale Serve on boot
+  launchd/         Plist that runs apply-tailscale-serve.sh on login
 ```
 
 The deploy target on each machine is `~/openclaw-apps/`:
@@ -34,7 +74,8 @@ The deploy target on each machine is `~/openclaw-apps/`:
   auth-service/                    copy of devops/app-router/auth-service/
   router/
     Caddyfile                      copy of templates/Caddyfile.example
-    restore-tailscale-serve.sh     copy of scripts/restore-tailscale-serve.sh
+    tailscale-serve.json           source of truth for Tailscale Serve + Funnel
+    apply-tailscale-serve.sh       compiles the JSON and applies it
     logs/                          stdout/stderr for the launchd plist
   <app-name>/                      one directory per app
 ```
@@ -216,6 +257,56 @@ on ports 443, 8443, and 10000.
 > expose admin UIs (OpenClaw control UI, etc.) that have no built-in auth, put them on a
 > separate **tailnet-only** port (e.g. `:8443`) by adding a `Web` entry _without_ a
 > matching `AllowFunnel` entry.
+
+## Troubleshooting
+
+**`tailscale serve status` shows the wrong routes, or apps return blank pages, or the
+funnel disappeared.** Something ran `tailscale serve reset` or stacked imperative
+commands on top of the declared config. Re-apply:
+
+```
+~/openclaw-apps/router/apply-tailscale-serve.sh
+tailscale serve status
+```
+
+The apply script is idempotent. Safe to run any time.
+
+**Apps return blank pages even though the serve routes look right.** Caddy may be down
+or pointing at the wrong file. Check:
+
+```
+pm2 list                          # caddy should be "online"
+pm2 logs caddy --lines 50         # look for parse errors
+curl -s http://127.0.0.1:8080/health   # → "ok"
+```
+
+**The public funnel works, but the app's own page is blank under the path.** Most likely
+the app emits HTML with absolute paths to `/static/...` that 404 once it lives under
+`/my-app/`. Either configure a base path in the app, or rewrite assets at the Caddy
+layer.
+
+**Tailscale config gets wiped on gateway restart.** The OpenClaw gateway's Tailscale
+integration is enabled. Disable it in `~/.openclaw/openclaw.json`:
+
+```json
+"tailscale": { "mode": "off", "resetOnExit": false }
+```
+
+Both keys are protected paths in the gateway config tool, so edit the JSON directly and
+restart the gateway.
+
+**Webhooks return 401 from the public URL.** Either `OPENCLAW_HOOK_TOKEN` isn't set in
+Caddy's env (so it's injecting an empty bearer) or the token doesn't match what the
+gateway expects. Confirm with `pm2 env caddy | grep OPENCLAW_HOOK_TOKEN` and compare to
+`grep hookToken ~/.openclaw/openclaw.json`.
+
+**Webhooks return 405 on GET.** That's correct — the hooks endpoint only accepts POST. A
+405 from `/hooks/test` means the route is live.
+
+**Lost track of what should be where.** The current canonical layout for Nick's Mac
+Studio is documented inline at the top of `tailscale-serve.json`. The general rule: only
+password-gated upstreams on funnel'd ports, everything else on a separate tailnet-only
+port.
 
 ## Fleet Notes
 
