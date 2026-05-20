@@ -1,20 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-    Restores Tailscale Serve config for the OpenClaw app router on boot.
+    Applies the declarative Tailscale Serve config for the OpenClaw app router
+    on user login.
 
-    Install: copy devops/app-router/scripts/restore-tailscale-serve.sh into
-    ~/openclaw-apps/router/restore-tailscale-serve.sh (chmod +x), then copy
-    this plist into ~/Library/LaunchAgents/ — substituting <USER> for your
-    macOS username — and `launchctl bootstrap gui/$(id -u) <plist>`.
+    The actual layout (ports, routes, funnel) is declared in:
+        ~/openclaw-apps/router/tailscale-serve.json
 
-    Example: sed "s|&lt;USER&gt;|$USER|g" devops/app-router/launchd/ai.openclaw.app-router-serve.plist \
-                > ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
+    The apply script:
+        ~/openclaw-apps/router/apply-tailscale-serve.sh
 
-    The script waits for tailscaled to come up before applying the config, so
-    loading at boot is safe even if Tailscale starts slowly.
+    Tailscale itself persists serve config across reboots and daemon restarts.
+    This LaunchAgent exists for two reasons:
+      1. Recover deterministically if the persistent state was clobbered
+         (e.g. by an external tool calling `tailscale serve reset`).
+      2. Give us one declarative file to edit when topology changes.
 
-    Override port (default 4242) or upstream by editing EnvironmentVariables.
+    Install: rendered into ~/Library/LaunchAgents/ by
+    devops/app-router/scripts/install.sh, then:
+        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
 -->
 <plist version="1.0">
 <dict>
@@ -23,26 +27,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/&lt;USER&gt;/openclaw-apps/router/restore-tailscale-serve.sh</string>
+        <string>/Users/&lt;USER&gt;/openclaw-apps/router/apply-tailscale-serve.sh</string>
     </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>APP_ROUTER_PORT</key>
-        <string>4242</string>
-        <key>APP_ROUTER_UPSTREAM</key>
-        <string>http://127.0.0.1:8080</string>
-        <!-- Optional: also expose /hooks/ on the default :443 tailscale-serve
-             mount for legacy webhook URLs. Uncomment to enable.
-        <key>APP_ROUTER_HOOKS_PATH</key>
-        <string>/hooks/</string>
-        -->
-        <!-- Optional: also expose / on the default :443 tailscale-serve
-             mount pointing at a second upstream (e.g., OpenClaw control UI on
-             127.0.0.1:18790). Uncomment to enable.
-        <key>APP_ROUTER_ROOT_UPSTREAM</key>
-        <string>http://127.0.0.1:18790</string>
-        -->
-    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>

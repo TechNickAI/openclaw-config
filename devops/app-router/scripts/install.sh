@@ -55,8 +55,16 @@ copy_if_absent "$SRC/auth-service" "$DEST/auth-service"
 copy_if_absent "$SRC/templates/ecosystem.config.js.example" "$DEST/ecosystem.config.js"
 render_if_absent "$SRC/templates/Caddyfile.example" "$DEST/router/Caddyfile"
 copy_if_absent "$SRC/templates/index.html" "$DEST/router/public/index.html"
-copy_if_absent "$SRC/scripts/restore-tailscale-serve.sh" "$DEST/router/restore-tailscale-serve.sh"
-chmod +x "$DEST/router/restore-tailscale-serve.sh"
+copy_if_absent "$SRC/scripts/apply-tailscale-serve.sh" "$DEST/router/apply-tailscale-serve.sh"
+chmod +x "$DEST/router/apply-tailscale-serve.sh"
+copy_if_absent "$SRC/scripts/tailscale-serve.json" "$DEST/router/tailscale-serve.json"
+
+# Migration: remove the obsolete imperative restore script if it lingers from
+# a previous install. The declarative apply script + JSON config replaces it.
+if [ -f "$DEST/router/restore-tailscale-serve.sh" ]; then
+    echo "  removing obsolete: $DEST/router/restore-tailscale-serve.sh"
+    rm -f "$DEST/router/restore-tailscale-serve.sh"
+fi
 
 echo "[install] installing auth-service deps"
 (cd "$DEST/auth-service" && npm install --omit=dev --silent --no-audit --no-fund)
@@ -86,5 +94,11 @@ Next steps:
   3. pm2 start $DEST/ecosystem.config.js && pm2 save
   4. pm2 start /opt/homebrew/bin/caddy --name caddy --interpreter none -- \\
        run --config $DEST/router/Caddyfile --adapter caddyfile
-  5. tailscale serve --bg --https=4242 http://127.0.0.1:8080
+  5. Edit $DEST/router/tailscale-serve.json to declare your serve layout,
+     then apply it:
+         $DEST/router/apply-tailscale-serve.sh
+     IMPORTANT: if you also run OpenClaw, set the following in
+     ~/.openclaw/openclaw.json under \"gateway\" to prevent OpenClaw from
+     wiping the serve config on every restart:
+         \"tailscale\": { \"mode\": \"off\", \"resetOnExit\": false }
 EOF

@@ -1,0 +1,40 @@
+// Declarative Tailscale Serve + Funnel config for the OpenClaw app router.
+// Source of truth. Edit this file, then run:
+//   ~/openclaw-apps/router/apply-tailscale-serve.sh
+// Never run ad-hoc `tailscale serve ...` or `tailscale funnel ...` commands.
+// They pile up additively and stomp each other across restarts.
+//
+// Funnel ports allowed by Tailscale: 443, 8443, 10000.
+// Anything else is automatically tailnet-only.
+//
+// SECURITY RULE (non-negotiable): a port that is funnel'd is fully public.
+// Only password-gated or token-gated upstreams may live on a funnel'd port.
+// The OpenClaw control UI (default 127.0.0.1:18790) is passwordless and must
+// NEVER appear under AllowFunnel.
+//
+// ${HOST} is substituted with the node's MagicDNS name at apply time.
+{
+  "TCP": {
+    "443": { "HTTPS": true },
+    "8443": { "HTTPS": true }
+  },
+  "Web": {
+    // Public front door: Caddy serves all apps + /hooks/. Apps are
+    // password-gated by the auth sidecar.
+    "${HOST}:443": {
+      "Handlers": {
+        "/": { "Proxy": "http://127.0.0.1:8080" },
+        "/hooks/": { "Proxy": "http://127.0.0.1:8080/hooks/" }
+      }
+    },
+    // Tailnet-only: OpenClaw control UI (passwordless admin). Do NOT funnel.
+    "${HOST}:8443": {
+      "Handlers": {
+        "/": { "Proxy": "http://127.0.0.1:18790" }
+      }
+    }
+  },
+  "AllowFunnel": {
+    "${HOST}:443": true
+  }
+}

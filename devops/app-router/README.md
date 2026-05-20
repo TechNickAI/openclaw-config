@@ -22,7 +22,7 @@ HTTPS with no certificate management.
 devops/app-router/
   auth-service/    Express auth sidecar (server.js + tests)
   templates/       Caddyfile and ecosystem.config.js examples
-  scripts/         restore-tailscale-serve.sh (wired into launchd)
+  scripts/         apply-tailscale-serve.sh + tailscale-serve.json (declarative)
   launchd/         Plist that re-applies Tailscale Serve on boot
 ```
 
@@ -72,23 +72,38 @@ pm2 save
 pm2 startup     # then run the printed sudo command
 ```
 
-Point Tailscale Serve at Caddy:
+Point Tailscale Serve at Caddy. The router uses a **declarative Tailscale config**
+(`~/openclaw-apps/router/tailscale-serve.json`) instead of imperative `tailscale serve`
+commands. Edit that file to declare your routes (an example is included), then apply it:
 
 ```
-tailscale serve --bg --https=4242 http://127.0.0.1:8080
+~/openclaw-apps/router/apply-tailscale-serve.sh
 ```
 
-Tailscale Serve config does not survive reboots on its own. The install helper already
-staged the launchd plist with your `$USER` substituted; load it now:
+The apply script does `tailscale serve reset` + `tailscale funnel reset` and then
+replays the JSON declaratively. This way, two adds never stomp each other and you can
+diff/version the file. Load the launchd agent so it runs on login:
 
 ```
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.openclaw.app-router-serve.plist
 ```
 
+> **Important if you also run OpenClaw on the same host.** The OpenClaw gateway has a
+> built-in Tailscale integration that will call `tailscale serve reset` on every restart
+> when enabled, clobbering this config. Disable it in `~/.openclaw/openclaw.json` under
+> `gateway`:
+>
+> ```json
+> "tailscale": { "mode": "off", "resetOnExit": false }
+> ```
+>
+> Both `mode` and `resetOnExit` are protected paths in the gateway config tool, so you
+> have to edit the file directly.
+
 Verify everything is working — replace `<host>` with your Tailscale hostname:
 
 ```
-curl https://<host>:4242/health     # → "ok"
+curl https://<host>/health     # → "ok"
 ```
 
 ## Adding an App
@@ -113,7 +128,11 @@ pm2 restart ecosystem.config.js          # or just `pm2 restart auth-service` fo
 caddy reload --config ~/openclaw-apps/router/Caddyfile --adapter caddyfile
 ```
 
-The app is immediately live at `https://<host>:4242/<slug>/`.
+The app is immediately live at `https://<host>/<slug>/`.
+
+**You do not need to touch Tailscale when adding an app.** The router exposes a single
+upstream (Caddy on `:8080`) at `:443`; Caddy handles all per-app path routing. Only edit
+`~/openclaw-apps/router/tailscale-serve.json` when changing ports or funnel state.
 
 ## Removing an App
 
@@ -173,26 +192,30 @@ don't need to send auth themselves.
 3. Reload Caddy:
    `caddy reload --config ~/openclaw-apps/router/Caddyfile --adapter caddyfile`
 
-Callers can then `POST https://<host>:4242/hooks/<hook-name>` with no `Authorization`
-header — Caddy injects `Bearer <token>` before forwarding to the gateway.
-
-**Legacy URL preservation:** If existing webhook subscriptions already point at
-`https://<host>/hooks/<name>` (the default `:443` tailscale-serve mount), set
-`APP_ROUTER_HOOKS_PATH=/hooks/` in the launchd plist's `EnvironmentVariables` block. The
-restore script will apply an additional `tailscale serve --set-path` mount so both the
-`:4242` and `:443` URLs reach the app router.
+Callers can then `POST https://<host>/hooks/<hook-name>` with no `Authorization` header
+— Caddy injects `Bearer <token>` before forwarding to the gateway. The `/hooks/` route
+is already declared in the default `tailscale-serve.json`.
 
 ## Public Access
 
-Tailscale Serve is tailnet-only. To make an app accessible from outside the tailnet
-(sharing with people who aren't on Tailscale), use Tailscale Funnel on a separate port:
+Tailscale Serve is tailnet-only by default. To make apps accessible from outside the
+tailnet (sharing with people who aren't on Tailscale), enable Funnel on `:443` in
+`~/openclaw-apps/router/tailscale-serve.json` (the default template already does this):
 
-```
-tailscale funnel --bg --https=4243 http://127.0.0.1:8080
+```json
+"AllowFunnel": {
+  "${HOST}:443": true
+}
 ```
 
-All apps on the router become accessible at the funnel URL — gate anything sensitive
-behind a password before flipping that on.
+Then re-apply with `~/openclaw-apps/router/apply-tailscale-serve.sh`. Funnel only works
+on ports 443, 8443, and 10000.
+
+> **Security rule (non-negotiable):** a port that is funnel'd is fully public. Only
+> password-gated or token-gated upstreams may live on a funnel'd port. If you need to
+> expose admin UIs (OpenClaw control UI, etc.) that have no built-in auth, put them on a
+> separate **tailnet-only** port (e.g. `:8443`) by adding a `Web` entry _without_ a
+> matching `AllowFunnel` entry.
 
 ## Fleet Notes
 
@@ -206,12 +229,25 @@ sessions.
 
 ## Port Conventions
 
+**Localhost (where PM2 binds processes):**
+
 - `3000` — auth service
 - `8080` — Caddy
 - `3001+` — apps
 
 Comment each app's port in `ecosystem.config.js` to avoid collisions when adding new
 apps.
+
+**Tailscale (public/private exposure):**
+
+Declared in `tailscale-serve.json`. Funnel-eligible ports are 443, 8443, 10000. The
+default template uses:
+
+- `:443` — public (Funnel on), routes to Caddy. Apps + `/hooks/`. Password-gated.
+- `:8443` — tailnet-only, routes to whatever you want to keep private (control UI etc.).
+
+Do not use ports outside `{443, 8443, 10000}` for public exposure — they won't be
+eligible for Funnel.
 
 ## Tests
 
