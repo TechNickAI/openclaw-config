@@ -9,6 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- `9router-health` workflow — Monitors host-gated 9router liveness, provider-error
+  signatures, stream failures, and log bloat with public-repo-safe local configuration.
 - **Workflows** — Autonomous agents that run on a schedule with state and learning
   - `email-steward` — Manages inbox automatically (archives, deletes, alerts on urgent)
   - Workflows have: AGENT.md (algorithm), rules.md (user prefs), agent_notes.md
