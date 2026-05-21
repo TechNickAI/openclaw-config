@@ -86,12 +86,31 @@ channel with repeat alerts.
 | Detection coverage      | Missed major failures          | Checks some signals | Checks all core signals             | Checks all core signals with thresholds | Checks signals + distinguishes degraded vs user-visible failure |
 | Dedup quality           | No dedup                       | Some dedup          | Exact-match dedup works             | Dedup handles changed fingerprints      | Dedup + clears resolved incidents                               |
 
+## Circuit Breakers
+
+Use the self-score in `CLAUDE.local.md` as an operational safety brake, not decoration.
+
+- After each configured-host run, record applicability / detection / dedup scores from
+  1–5 under `## Recent Scores`
+- If **3 consecutive configured-host runs** score below ⭐⭐⭐ in any dimension, enter
+  report-only mode for the next run: probe and log normally, but send no alerts and do
+  not mutate incident fingerprints except to record the circuit-breaker state
+- If report-only mode produces a ⭐⭐⭐ or better score in every dimension, resume
+  normal alerting on the following run
+- If report-only mode still scores below ⭐⭐⭐, keep report-only mode and write the
+  exact failing dimension(s) to the log
+- Never use circuit breakers to suppress P1 process-down or health-endpoint-down facts
+  from the log; the breaker only suppresses outbound alert delivery while the workflow
+  is proving itself unreliable
+
 ## Local State: CLAUDE.local.md
 
 Use `CLAUDE.local.md` in the current repo as private machine-local context.
 
-If it exists and is readable, read it first. If it does not exist, is empty, or is stale
-(>7 days old), do a lightweight discovery and write/update it.
+If it exists and is readable, read it first. If it does not exist, is empty, or lacks
+the `## 9router` block, treat this host as not applicable unless a human has provided
+the required local values. Do not invent or overwrite 9router configuration from
+lightweight discovery.
 
 Keep `CLAUDE.local.md` factual and machine-specific. It is gitignored.
 
@@ -148,6 +167,25 @@ applicable: write a short log line and return exactly `HEARTBEAT_OK`.
 
 Do **not** put secrets, raw logs, personal names, private IDs, or raw stderr excerpts in
 `CLAUDE.local.md`.
+
+## First-Run / Discovery
+
+9router configuration is manually supplied host-local state. Unlike generic service
+discovery, the workflow cannot safely infer `base_url`, `log_dir`, `stderr_log`,
+`restart_command`, or `log_bloat_threshold_gb`.
+
+Allowed first-run behavior:
+
+- If `CLAUDE.local.md` is missing, empty, or lacks `## 9router`, write a short
+  not-applicable log and return exactly `HEARTBEAT_OK`
+- If `## 9router` exists but required keys are missing, run report-only for one cycle,
+  write which keys are missing to the workflow log, send no alerts, and do not mutate
+  the local config
+- If `installed: false` or `installed` is absent, treat the host as not applicable
+- If the block is complete, use only those configured values for probes
+
+Do not refresh config based on age alone. Stale timestamps may be noted in logs, but
+manual host configuration remains authoritative until a human changes it.
 
 **Fail-closed on unreadable state:** If `CLAUDE.local.md` exists but is unparseable, run
 in report-only mode for one cycle: probe, write a log, but send no alerts and perform no
@@ -258,6 +296,16 @@ Each log should include:
 - self-score line for applicability / detection / dedup
 
 Do not copy raw stderr blocks into the log. Summaries and counts only.
+
+### Log Retention
+
+Keep workflow-owned health logs bounded. Once per run, prune only this workflow's
+markdown logs older than 30 days:
+
+- Preferred command: `find logs -name '*.md' -mtime +30 -delete`
+- If deletion fails, record `log-retention-prune-failed` as a P3 advisory in the run log
+  and continue; do not let retention cleanup block health detection
+- Do not prune host service logs or any path outside `workflows/9router-health/logs/`
 
 ## Remediation Posture
 
