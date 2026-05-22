@@ -122,9 +122,16 @@ Keep `CLAUDE.local.md` factual and machine-specific. It is gitignored.
 - `port: <local-port>`
 - `base_url: http://<host-or-ip>:<port>`
 - `log_dir: ~/path/to/9router/logs`
-- `restart_command: <local-service-restart-command>`
 - `stderr_log: ~/path/to/stderr.log`
 - `log_bloat_threshold_gb: <number>`
+
+### Optional schema
+
+These keys are recognized but not required. Missing optional keys do not trigger
+report-only mode:
+
+- `restart_command: <local-service-restart-command>` — reserved for future host-local
+  restart policy; automatic restarts are disabled until a policy is explicitly set
 
 Example shape only:
 
@@ -135,7 +142,6 @@ Example shape only:
 - port: <local-port>
 - base_url: http://<host-or-ip>:<port>
 - log_dir: ~/path/to/9router/logs
-- restart_command: <local-service-restart-command>
 - stderr_log: ~/path/to/stderr.log
 - log_bloat_threshold_gb: <number>
 
@@ -171,8 +177,8 @@ Do **not** put secrets, raw logs, personal names, private IDs, or raw stderr exc
 ## First-Run / Discovery
 
 9router configuration is manually supplied host-local state. Unlike generic service
-discovery, the workflow cannot safely infer `base_url`, `log_dir`, `stderr_log`,
-`restart_command`, or `log_bloat_threshold_gb`.
+discovery, the workflow cannot safely infer `base_url`, `log_dir`, `stderr_log`, or
+`log_bloat_threshold_gb`.
 
 Allowed first-run behavior:
 
