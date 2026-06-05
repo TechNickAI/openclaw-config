@@ -189,7 +189,8 @@ A common app is a Hermes agent's own dashboard. Two gotchas specific to Hermes:
    ```
 
    This emits `~/.hermes/hermes-agent/hermes_cli/web_dist/`. After that, `--skip-build`
-   works (and is preferred under PM2 so the process starts instantly without rebuilding).
+   works (and is preferred under PM2 so the process starts instantly without
+   rebuilding).
 
 2. **Pin the profile and `HERMES_HOME`.** A dashboard reads sessions from one SQLite DB.
    For a profile agent, pass `--profile <name>`; for the root agent (cron jobs, no
@@ -254,9 +255,9 @@ Slugs are validated against `^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$` — lowerca
 alphanumerics and hyphens, max 32 chars. Anything outside that gets a 400 from
 `/auth/verify` and `/auth/login`.
 
-**The session cookie is `Secure`, so password-protected apps only work over HTTPS.**
-The cookie is set with the `Secure` attribute, which means browsers (and `curl`) will
-refuse to send it back over plain `http://`. If you front the router with a plain-HTTP
+**The session cookie is `Secure`, so password-protected apps only work over HTTPS.** The
+cookie is set with the `Secure` attribute, which means browsers (and `curl`) will refuse
+to send it back over plain `http://`. If you front the router with a plain-HTTP
 Tailscale Serve listener (e.g. `tailscale serve --http=<port>`), login will appear to
 succeed (the POST returns a 303) but every subsequent request gets bounced back to the
 login page because the cookie never returns. Always expose the router over an **HTTPS**
@@ -338,14 +339,15 @@ layer.
 
 **Login succeeds (303) but every page bounces back to the login screen.** The session
 cookie is `Secure` and you're serving over plain HTTP, so the browser never sends the
-cookie back. Expose the router over HTTPS instead — `tailscale serve --https=<port>
-http://127.0.0.1:8080` (tailnet-only) or the default `:443` funnel. See the note in the
-Auth Model section.
+cookie back. Expose the router over HTTPS instead —
+`tailscale serve --https=<port> http://127.0.0.1:8080` (tailnet-only) or the default
+`:443` funnel. See the note in the Auth Model section.
 
 **A Hermes dashboard app crash-loops in PM2.** Check `pm2 logs hermes-<agent>`. If you
 see `✗ --skip-build was passed but no web dist found`, the dashboard UI was never built
-on this machine. Build it once with `cd ~/.hermes/hermes-agent/web && npm install &&
-npm run build`, then `pm2 restart hermes-<agent>`. See "Adding a Hermes dashboard."
+on this machine. Build it once with
+`cd ~/.hermes/hermes-agent/web && npm install && npm run build`, then
+`pm2 restart hermes-<agent>`. See "Adding a Hermes dashboard."
 
 **Tailscale config gets wiped on gateway restart.** The OpenClaw gateway's Tailscale
 integration is enabled. Disable it in `~/.openclaw/openclaw.json`:
