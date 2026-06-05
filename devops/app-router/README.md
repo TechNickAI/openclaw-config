@@ -175,6 +175,47 @@ The app is immediately live at `https://<host>/<slug>/`.
 upstream (Caddy on `:8080`) at `:443`; Caddy handles all per-app path routing. Only edit
 `~/openclaw-apps/router/tailscale-serve.json` when changing ports or funnel state.
 
+### Adding a Hermes dashboard
+
+A common app is a Hermes agent's own dashboard. Two gotchas specific to Hermes:
+
+1. **Build the web UI first, or drop `--skip-build`.** The dashboard is served from a
+   pre-built `web_dist/` directory. On a fresh Hermes install that directory may not
+   exist yet, and `hermes dashboard --skip-build` will crash-loop with
+   `✗ --skip-build was passed but no web dist found`. Build it once:
+
+   ```
+   cd ~/.hermes/hermes-agent/web && npm install && npm run build
+   ```
+
+   This emits `~/.hermes/hermes-agent/hermes_cli/web_dist/`. After that, `--skip-build`
+   works (and is preferred under PM2 so the process starts instantly without rebuilding).
+
+2. **Pin the profile and `HERMES_HOME`.** A dashboard reads sessions from one SQLite DB.
+   For a profile agent, pass `--profile <name>`; for the root agent (cron jobs, no
+   profile), omit `--profile`. Always set `HERMES_HOME` explicitly in the PM2 `env` so
+   PM2's rewritten `$HOME` doesn't point the dashboard at an empty DB:
+
+   ```js
+   {
+     name: "hermes-<agent>",
+     script: "/Users/<user>/.hermes/hermes-agent/venv/bin/hermes",
+     args: "--profile <name> dashboard --port 9120 --no-open --skip-build",
+     interpreter: "none",
+     cwd: "/Users/<user>/.hermes/hermes-agent",
+     env: {
+       PATH: "/Users/<user>/.hermes/hermes-agent/venv/bin:/opt/homebrew/bin:/usr/bin:/bin",
+       HERMES_HOME: "/Users/<user>/.hermes",
+     },
+     max_restarts: 10,
+     min_uptime: "30s",
+   }
+   ```
+
+   Add the matching `forward_auth` + `strip_prefix` Caddy block with
+   `header_up X-Forwarded-Prefix /hermes-<agent>` so the dashboard's SPA asset URLs
+   resolve under the path prefix.
+
 ## Removing an App
 
 ```
@@ -212,6 +253,16 @@ PM2.
 Slugs are validated against `^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$` — lowercase
 alphanumerics and hyphens, max 32 chars. Anything outside that gets a 400 from
 `/auth/verify` and `/auth/login`.
+
+**The session cookie is `Secure`, so password-protected apps only work over HTTPS.**
+The cookie is set with the `Secure` attribute, which means browsers (and `curl`) will
+refuse to send it back over plain `http://`. If you front the router with a plain-HTTP
+Tailscale Serve listener (e.g. `tailscale serve --http=<port>`), login will appear to
+succeed (the POST returns a 303) but every subsequent request gets bounced back to the
+login page because the cookie never returns. Always expose the router over an **HTTPS**
+door — `tailscale serve --https=<port> http://127.0.0.1:8080` for tailnet-only, or the
+default `:443` HTTPS funnel. Open (no-password) apps work fine over HTTP because they
+have no cookie to lose.
 
 ## Fronting OpenClaw Webhooks (optional)
 
@@ -284,6 +335,17 @@ curl -s http://127.0.0.1:8080/health   # → "ok"
 the app emits HTML with absolute paths to `/static/...` that 404 once it lives under
 `/my-app/`. Either configure a base path in the app, or rewrite assets at the Caddy
 layer.
+
+**Login succeeds (303) but every page bounces back to the login screen.** The session
+cookie is `Secure` and you're serving over plain HTTP, so the browser never sends the
+cookie back. Expose the router over HTTPS instead — `tailscale serve --https=<port>
+http://127.0.0.1:8080` (tailnet-only) or the default `:443` funnel. See the note in the
+Auth Model section.
+
+**A Hermes dashboard app crash-loops in PM2.** Check `pm2 logs hermes-<agent>`. If you
+see `✗ --skip-build was passed but no web dist found`, the dashboard UI was never built
+on this machine. Build it once with `cd ~/.hermes/hermes-agent/web && npm install &&
+npm run build`, then `pm2 restart hermes-<agent>`. See "Adding a Hermes dashboard."
 
 **Tailscale config gets wiped on gateway restart.** The OpenClaw gateway's Tailscale
 integration is enabled. Disable it in `~/.openclaw/openclaw.json`:
