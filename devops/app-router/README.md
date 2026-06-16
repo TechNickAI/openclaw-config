@@ -261,9 +261,9 @@ to send it back over plain `http://`. If you front the router with a plain-HTTP
 Tailscale Serve listener (e.g. `tailscale serve --http=<port>`), login will appear to
 succeed (the POST returns a 303) but every subsequent request gets bounced back to the
 login page because the cookie never returns. Always expose the router over an **HTTPS**
-door — `tailscale serve --https=<port> http://127.0.0.1:8080` for tailnet-only, or the
-default `:443` HTTPS funnel. Open (no-password) apps work fine over HTTP because they
-have no cookie to lose.
+door — `tailscale serve --bg --https=<port> http://127.0.0.1:8080` for tailnet-only, or
+the default `:443` HTTPS funnel. Open (no-password) apps work fine over HTTP because
+they have no cookie to lose.
 
 ## Fronting OpenClaw Webhooks (optional)
 
@@ -340,8 +340,8 @@ layer.
 **Login succeeds (303) but every page bounces back to the login screen.** The session
 cookie is `Secure` and you're serving over plain HTTP, so the browser never sends the
 cookie back. Expose the router over HTTPS instead —
-`tailscale serve --https=<port> http://127.0.0.1:8080` (tailnet-only) or the default
-`:443` funnel. See the note in the Auth Model section.
+`tailscale serve --bg --https=<port> http://127.0.0.1:8080` (tailnet-only) or the
+default `:443` funnel. See the note in the Auth Model section.
 
 **A Hermes dashboard app crash-loops in PM2.** Check `pm2 logs hermes-<agent>`. If you
 see `✗ --skip-build was passed but no web dist found`, the dashboard UI was never built
