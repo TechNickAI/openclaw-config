@@ -226,7 +226,7 @@ don't need to send auth themselves.
    the PM2 ecosystem env block in `ecosystem.config.js`:
    ```js
    env: {
-     OPENCLAW_HOOK_TOKEN: "your-token-here";
+     OPENCLAW_HOOK_TOKEN: "your-token-here",
    }
    ```
 2. Uncomment the `handle /hooks/* { ... }` block in the Caddyfile.
