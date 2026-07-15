@@ -55,10 +55,11 @@ SENSITIVE_EXTENSIONS = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".k
 SENSITIVE_PREFIXES = ("secret", "credentials", ".env", "id_rsa", "id_ed25519", "id_ecdsa")
 
 KNOWLEDGE_CATEGORIES = [
-    "entities", "concepts", "summaries", "synthesis", "decisions", "how-to",
+    "people", "ventures", "topics", "synthesis", "decisions",
+    "learning", "research",
 ]
 
-EXTRA_DIRECTORIES = ["learning", "learning/archive", "daily"]
+EXTRA_DIRECTORIES = ["learning/archive", "daily"]
 
 CONFIG_DIR = Path.home() / ".config" / "cortex"
 CONFIG_FILE = CONFIG_DIR / "config"
@@ -464,7 +465,7 @@ def _setup_symlink(store_path: Path) -> bool:
             "# Memory Index\n\n"
             "## Quick Links\n"
             "- [Knowledge Base Index](Knowledge Base/index.md)\n"
-            "- [All Entities](Knowledge Base/entities/index.md)\n"
+            "- [All People](Knowledge Base/people/index.md)\n"
             "- [Recent Decisions](Knowledge Base/decisions/index.md)\n"
         )
         print("Created MEMORY.md routing table")

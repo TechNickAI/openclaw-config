@@ -16,12 +16,12 @@ set. Read it before every ingest or lint operation.
   .log                                 <- Operation log (not .md to avoid indexing)
   review-queue.md                      <- Items needing human review
   .gitignore
-  entities/                            <- People, companies, tools, projects
-  concepts/                            <- Ideas, patterns, principles, domains
-  summaries/                           <- 1:1 source digests
+  people/                            <- People, companies, tools, projects
+  ventures/                            <- Ideas, patterns, principles, domains
+  topics/                           <- 1:1 source digests
   synthesis/                           <- Cross-cutting analysis
   decisions/                           <- Choices with reasoning
-  how-to/                              <- Procedures, step-by-step guides
+  research/                              <- Procedures, step-by-step guides
   learning/                            <- Self-improvement loop
     corrections.md
     patterns.md
@@ -57,12 +57,12 @@ context.
 
 | Type      | Directory  | Purpose                                          |
 | --------- | ---------- | ------------------------------------------------ |
-| entity    | entities/  | People, companies, projects, tools, services     |
-| concept   | concepts/  | Ideas, patterns, principles, domains             |
-| summary   | summaries/ | 1:1 digest of a raw source file                  |
+| person    | people/    | People, companies, projects, tools, services     |
+| venture   | ventures/  | Ideas, patterns, principles, domains             |
+| topic     | topics/    | 1:1 digest of a raw source file                  |
 | synthesis | synthesis/ | Cross-cutting analysis spanning multiple sources |
 | decision  | decisions/ | Architectural decisions, trade-off records       |
-| how-to    | how-to/    | Procedural knowledge, step-by-step guides        |
+| research  | research/  | Procedural knowledge, step-by-step guides        |
 
 ### Entity Subtypes
 
@@ -75,8 +75,8 @@ Entities use a `subtype` field to distinguish what they represent:
 | project | Projects, products, initiatives                         |
 | tool    | Software tools, services, platforms                     |
 
-Person entities are **living documents** — they reflect current state, with inline
-history for changed facts. See Body Structure below.
+Person pages are **living documents** — they reflect current state, with inline history
+for changed facts. See Body Structure below.
 
 ## Frontmatter Specification
 
@@ -94,15 +94,15 @@ sources:
   - ~/Dropbox/Conversations/Fireflies/meeting.txt
   - ~/Dropbox/Context for AI/Vocation/100x Business.md
 related:
-  - entities/related-entity.md
-  - concepts/related-concept.md
+  - people/related-entity.md
+  - ventures/related-concept.md
 created: 2026-04-12
 last_compiled: 2026-04-12
 ---
 ```
 
 - **title** — Human-readable, Title Case
-- **type** — One of: entity, concept, summary, synthesis, decision, how-to
+- **type** — One of: person, venture, topic, synthesis, decision, learning, research
 - **tags** — YAML list for categorization and search
 - **confidence** — One of: high, medium, low, contradicted (see Confidence Scoring)
 - **sources** — Absolute paths to raw source files that informed this page
@@ -139,7 +139,7 @@ supersedes:
 
 - **high** — Primary source (official docs, firsthand authored content) OR 3+
   corroborating sources
-- **medium** — Secondhand source (blog post, summary, single reference) OR 1-2 sources
+- **medium** — Secondhand source (blog post, topic, single reference) OR 1-2 sources
 - **low** — Informal/unverified (conversation snippet, speculation, undated content)
 - **contradicted** — Conflicts with another source. Preserve BOTH claims with citations.
   Note the contradiction explicitly in the page body.
@@ -286,7 +286,7 @@ Append structured entries to `review-queue.md`:
 - **Source:** ~/Dropbox/Data For AI/Conversations/Limitless/transcript.txt
 - **Issue:** Speaker "Unknown" claims 10 years experience in ML. Could be owner or
   meeting participant Dr. Chen.
-- **Affected:** entities/nick-sullivan.md — did NOT add ML experience claim
+- **Affected:** people/nick-sullivan.md — did NOT add ML experience claim
 - **Action:** Confirm who was speaking at timestamp ~14:30
 
 ### [YYYY-MM-DD] Contradiction
@@ -295,7 +295,7 @@ Append structured entries to `review-queue.md`:
 - **Source B:** ~/Dropbox/file2.txt (2023-08-20)
 - **Issue:** Source A says owner is CTO at Acme. Source B says VP Engineering at Acme.
   Same timeframe — not a job change.
-- **Affected:** entities/nick-sullivan.md — kept "CTO" (Source A is primary, B is
+- **Affected:** people/nick-sullivan.md — kept "CTO" (Source A is primary, B is
   transcript), marked confidence: medium
 - **Action:** Confirm correct title
 ```
@@ -305,7 +305,7 @@ Append structured entries to `review-queue.md`:
 - Entries accumulate during batch ingest — do not block on them
 - After a batch completes, review the queue
 - Resolved items should be deleted from the file
-- Resolutions may trigger page updates (promoted facts, corrected entities, etc.)
+- Resolutions may trigger page updates (promoted facts, corrected pages, etc.)
 - Lint checks the queue and reminds if items are older than 7 days
 
 ## Page Conventions
@@ -317,7 +317,7 @@ Append structured entries to `review-queue.md`:
 - Titles: Title Case in frontmatter
 - One topic per page
 - Decision filenames: date-prefixed (`2026-03-15-saas-pivot.md`)
-- Person entities: `firstname-lastname.md`; if last name unknown, use
+- Person pages: `firstname-lastname.md`; if last name unknown, use
   `firstname-unknown.md`; if multiple unknown, add descriptor
   (`john-unknown-contractor.md`)
 
@@ -331,13 +331,13 @@ Append structured entries to `review-queue.md`:
 
 Use **standard markdown relative links** for all cross-references:
 
-- From body text: `[Entity Name](../entities/entity-name.md)` (file-relative paths)
-- In frontmatter `related`: `entities/entity-name.md` (root-relative paths)
+- From body text: `[Person Name](../people/person-name.md)` (file-relative paths)
+- In frontmatter `related`: `people/entity-name.md` (root-relative paths)
 - In frontmatter `sources`: `~/Dropbox/path/to/file.txt` (absolute paths)
 
 **Rules:**
 
-- Every entity, concept, or decision mentioned should link to its page if one exists
+- Every person, venture, or decision mentioned should link to its page if one exists
 - Link on first mention per section, not every occurrence
 - Don't create links to pages that don't exist (no aspirational links)
 - Update `related` in frontmatter when adding cross-references
@@ -399,7 +399,7 @@ One-paragraph digest of what this source contains.
 
 ## Entities Mentioned
 
-- [Person Name](../entities/person-name.md)
+- [Person Name](../people/person-name.md)
 
 ## Decisions Made
 
@@ -463,8 +463,8 @@ Read the source. Identify:
 
 For each identified element:
 
-1. **Summary page** — Always create one in `summaries/` named after the source file.
-   This is the 1:1 digest.
+1. **Summary page** — Always create one in `topics/` named after the source file. This
+   is the 1:1 digest.
 
 2. **Entity pages** — For each entity:
    - If page exists: update with new information, add source to `sources` list, update
@@ -478,7 +478,7 @@ For each identified element:
 4. **Decision pages** — If the source records a decision with reasoning: create in
    `decisions/` with date prefix
 
-5. **How-to pages** — If the source describes a procedure: create in `how-to/`
+5. **How-to pages** — If the source describes a procedure: create in `research/`
 
 ### After Writing
 
@@ -588,23 +588,23 @@ agents. This is always loaded into conversation context.
 
 ## Key People
 
-- [Ziah Chen](Knowledge Base/entities/ziah-chen.md) — business partner, 100x
-- [Alex Rivera](Knowledge Base/entities/alex-rivera.md) — engineering lead
+- [Ziah Chen](Knowledge Base/people/ziah-chen.md) — business partner, 100x
+- [Alex Rivera](Knowledge Base/people/alex-rivera.md) — engineering lead
 
 ## Active Projects
 
-- [100x](Knowledge Base/entities/100x.md) — AI trading SaaS (pivoting from services)
-- [OpenClaw](Knowledge Base/entities/openclaw.md) — personal AI assistant
+- [100x](Knowledge Base/people/100x.md) — AI trading SaaS (pivoting from services)
+- [OpenClaw](Knowledge Base/people/openclaw.md) — personal AI assistant
 
 ## Key Topics
 
-- [Trading Systems](Knowledge Base/concepts/trading-systems.md)
-- [AI Architecture](Knowledge Base/concepts/ai-architecture.md)
+- [Trading Systems](Knowledge Base/ventures/trading-systems.md)
+- [AI Architecture](Knowledge Base/ventures/ai-architecture.md)
 
 ## Quick Links
 
 - [Recent Decisions](decisions/)
-- [All Entities](entities/index.md)
+- [All Entities](people/index.md)
 - [Knowledge Base Index](index.md)
 ```
 
@@ -636,7 +636,7 @@ clarified, approaches that failed. Append-only log.
 5. **Prune stale corrections** — archive entries older than 30 days that never became
    patterns (move to `learning/archive/YYYY-QN.md`)
 6. **Graduate promoted patterns** — when a pattern is validated, create a standalone
-   how-to page in `how-to/` with the full procedural content
+   how-to page in `research/` with the full procedural content
 
 ### Quality Criteria for Patterns
 
@@ -669,7 +669,7 @@ queue is the mechanism for surfacing them without blocking progress.
 - Recent activity section: last 10 operations (ingest, lint)
 - Keep this file SMALL — it's read on every query
 
-### Category indexes (entities/index.md, concepts/index.md, etc.)
+### Category indexes (people/index.md, ventures/index.md, etc.)
 
 - One line per page: `- [Title](filename.md) — brief description`
 - Sorted alphabetically by title
