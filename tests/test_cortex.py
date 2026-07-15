@@ -13,12 +13,12 @@ import pytest
 
 SKILL_PATH = str(Path(__file__).parent / ".." / "skills" / "cortex" / "cortex")
 KNOWLEDGE_CATEGORIES = [
-    "entities",
-    "concepts",
-    "summaries",
+    "people",
+    "ventures",
+    "topics",
     "synthesis",
     "decisions",
-    "how-to",
+    "research",
 ]
 
 
@@ -168,8 +168,8 @@ class TestStatus:
     def test_status_reflects_pages(self, cortex_store, cortex_env):
         """Status counts knowledge pages from category directories."""
         store, _ = cortex_store
-        (store / "entities" / "test-entity.md").write_text(
-            "---\ntitle: Test Entity\ntype: entity\n---\nContent.\n"
+        (store / "people" / "test-person.md").write_text(
+            "---\ntitle: Test Entity\ntype: person\n---\nContent.\n"
         )
         result = run_cortex("status", env=cortex_env)
         assert result.returncode == 0
@@ -291,10 +291,10 @@ class TestRebuildIndex:
     def test_rebuild_with_pages(self, cortex_store, cortex_env):
         """Rebuild with pages populates category indexes correctly."""
         store, _ = cortex_store
-        (store / "entities" / "alpaca.md").write_text(
+        (store / "people" / "alpaca.md").write_text(
             "---\n"
             "title: Alpaca\n"
-            "type: entity\n"
+            "type: person\n"
             "sources:\n  - raw/documents/trading.md\n"
             "related: []\n"
             "tags: [trading, api, broker]\n"
@@ -304,12 +304,12 @@ class TestRebuildIndex:
             "---\n\n"
             "Alpaca is a trading API.\n"
         )
-        (store / "concepts" / "event-driven-architecture.md").write_text(
+        (store / "ventures" / "event-driven-architecture.md").write_text(
             "---\n"
             "title: Event-Driven Architecture\n"
             "type: concept\n"
             "sources:\n  - raw/documents/arch.pdf\n"
-            "related:\n  - entities/alpaca.md\n"
+            "related:\n  - people/alpaca.md\n"
             "tags: [architecture, patterns]\n"
             "created: 2026-04-11\n"
             "last_compiled: 2026-04-11\n"
@@ -322,21 +322,21 @@ class TestRebuildIndex:
         assert result.returncode == 0
         assert "pages" in result.stdout
 
-        entity_index = (store / "entities" / "index.md").read_text()
+        entity_index = (store / "people" / "index.md").read_text()
         assert "Alpaca" in entity_index
         assert "trading" in entity_index
 
-        concept_index = (store / "concepts" / "index.md").read_text()
+        concept_index = (store / "ventures" / "index.md").read_text()
         assert "Event-Driven Architecture" in concept_index
 
         root_index = (store / "index.md").read_text()
-        assert "Entities" in root_index
-        assert "Concepts" in root_index
+        assert "People" in root_index
+        assert "Ventures" in root_index
 
     def test_rebuild_warns_on_bad_frontmatter(self, cortex_store, cortex_env):
         """Rebuild warns about pages without valid frontmatter."""
         store, _ = cortex_store
-        (store / "entities" / "broken.md").write_text(
+        (store / "people" / "broken.md").write_text(
             "No frontmatter here, just content.\n"
         )
 

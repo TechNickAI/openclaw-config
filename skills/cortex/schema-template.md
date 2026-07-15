@@ -57,12 +57,12 @@ context.
 
 | Type      | Directory  | Purpose                                          |
 | --------- | ---------- | ------------------------------------------------ |
-| person    | people/  | People, companies, projects, tools, services     |
+| person    | people/    | People, companies, projects, tools, services     |
 | venture   | ventures/  | Ideas, patterns, principles, domains             |
-| topic     | topics/ | 1:1 digest of a raw source file                  |
+| topic     | topics/    | 1:1 digest of a raw source file                  |
 | synthesis | synthesis/ | Cross-cutting analysis spanning multiple sources |
 | decision  | decisions/ | Architectural decisions, trade-off records       |
-| research  | research/    | Procedural knowledge, step-by-step guides        |
+| research  | research/  | Procedural knowledge, step-by-step guides        |
 
 ### Entity Subtypes
 
@@ -75,8 +75,8 @@ Entities use a `subtype` field to distinguish what they represent:
 | project | Projects, products, initiatives                         |
 | tool    | Software tools, services, platforms                     |
 
-Person pages are **living documents** — they reflect current state, with inline
-history for changed facts. See Body Structure below.
+Person pages are **living documents** — they reflect current state, with inline history
+for changed facts. See Body Structure below.
 
 ## Frontmatter Specification
 
@@ -463,8 +463,8 @@ Read the source. Identify:
 
 For each identified element:
 
-1. **Summary page** — Always create one in `topics/` named after the source file.
-   This is the 1:1 digest.
+1. **Summary page** — Always create one in `topics/` named after the source file. This
+   is the 1:1 digest.
 
 2. **Entity pages** — For each entity:
    - If page exists: update with new information, add source to `sources` list, update
