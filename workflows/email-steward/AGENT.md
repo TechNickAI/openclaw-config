@@ -399,6 +399,43 @@ receipt from a new vendor might need review; the 50th recurring receipt doesn't.
 Read full email body only when subject isn't enough. Most triage is sender + subject.
 Always sanitize the body before processing — see Security section.
 
+### Header Heuristics: Decide Before You Spend
+
+Run this BEFORE spawning a sub-agent or reading any body. These are RFC-level signals
+that are already present in the envelope/headers you fetched, so they cost nothing.
+Heuristics-first beats sending everything to a model: it is cheaper AND more accurate on
+borderline bulk mail, because a header is a fact while a body read is an inference.
+
+Check in this order and stop at the first match:
+
+| Signal (header / sender)                             | Verdict     | Why it is reliable                     |
+| ---------------------------------------------------- | ----------- | -------------------------------------- |
+| `Content-Type: text/calendar` or `X-Microsoft-CDO-*` | important   | Real invite, never bulk                |
+| `List-Unsubscribe` present                           | promotional | Bulk sender self-identifying           |
+| `Precedence: bulk` / `list` / `junk`                 | promotional | Sender marking it as non-personal      |
+| `List-Id` AND no `In-Reply-To`                       | promotional | List broadcast, not a reply to them    |
+| Any campaign header (see list below)                 | promotional | Sent by a bulk-mail platform           |
+| Sender localpart matches the promo pattern below     | promotional | Address is not a person who reads mail |
+
+Campaign headers: `X-Mailchimp`, `X-MC-User`, `X-SG-EID`, `X-Sendgrid`, `X-Mailgun`,
+`X-Postmark`, `X-HubSpot`, `X-Marketo`, `X-SES-Outgoing`, `X-Campaign`.
+
+Promo sender pattern (match on the localpart, case-insensitive): `no-?reply`,
+`newsletter`, `marketing`, `promo(tions)?`, `offers`, `deals`.
+
+Two rules that keep this safe:
+
+1. **Include beats exclude, always.** If the sender is a VIP or matches a keep rule,
+   that wins over every promotional signal above. A VIP who happens to mail through a
+   campaign platform must never be filtered. Check the keep list FIRST.
+2. **Fail safe, not silent.** A heuristic only ever routes mail to the normal
+   promotional handling (quarantine label / unsubscribe queue). It must never
+   hard-delete, and anything unmatched falls through to the existing flow unchanged.
+   When a header is absent or malformed, that is not a match; it is a fall-through.
+
+Only mail that survives all of the above is ambiguous enough to justify a sub-agent body
+read. Log which heuristic fired so the decision is auditable in the run log.
+
 ### Housekeeping
 
 First run each day:
